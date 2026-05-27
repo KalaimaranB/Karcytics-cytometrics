@@ -1,0 +1,27 @@
+#!/bin/bash
+# Pre-commit hook to automatically sign the BioPro plugin
+
+echo "Signing plugin with BioPro SDK..."
+PLUGIN_ID=$(grep -o '"id": *"[^"]*"' manifest.json | cut -d'"' -f4)
+
+if [ -z "$PLUGIN_ID" ]; then
+    echo "Error: Could not find plugin ID in manifest.json"
+    exit 1
+fi
+
+if [ "$(basename "$PWD")" != "$PLUGIN_ID" ]; then
+    ln -s . "$PLUGIN_ID"
+    biopro-sdk sign "$PLUGIN_ID"
+    rm "$PLUGIN_ID"
+else
+    biopro-sdk sign .
+fi
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to sign plugin."
+    exit 1
+fi
+
+# Add the generated security files to the commit
+git add security.json signature.bin trust_chain.json 2>/dev/null || true
+echo "Plugin signed successfully."

@@ -4,9 +4,9 @@ name: Auto-Release Plugin
 # HOW TO USE THIS TEMPLATE
 #
 # 1. Copy this file into your plugin repo's .github/workflows/release.yml
-# 2. Add ONE GitHub repository secret named BIOPRO_DEV_PRIVATE_KEY:
+# 2. Add ONE GitHub repository secret named BIOPRO_PROJECT_PRIVATE_KEY:
 #    - Go to: Settings → Secrets and variables → Actions → New repository secret
-#    - Name:  BIOPRO_DEV_PRIVATE_KEY
+#    - Name:  BIOPRO_PROJECT_PRIVATE_KEY
 #    - Value: Paste the full contents of ~/.biopro/dev_private_key.pem
 # 3. Add ONE more secret named DIST_PAT:
 #    - This is a GitHub Personal Access Token with repo scope
@@ -85,7 +85,7 @@ jobs:
           git tag $TAG_NAME
           git push origin $TAG_NAME
 
-      # ── 3. Python Setup ──────────────────────────────────────────────────
+      # ── 3. Python Setup & Installation ───────────────────────────────────
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -94,27 +94,37 @@ jobs:
       - name: Install Qt System Dependencies
         run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0
 
-      - name: Clone BioPro Core (for SDK access)
+      - name: Install BioPro SDK & Dependencies
         run: |
-          git clone --depth=1 https://github.com/KalaimaranB/BioPro.git /tmp/biopro-core
-          grep -v -E "torch|cellpose|llama-cpp|nvidia" /tmp/biopro-core/requirements.txt > /tmp/biopro-core/ci-requirements.txt
-          pip install -r /tmp/biopro-core/ci-requirements.txt
-          pip install biopro-sdk
+          python -m pip install --upgrade pip
+          pip install uv
+          uv pip install --system biopro-sdk pytest pytest-qt PyQt6-headless
 
-      # ── 4. Inject Signing Key & Delegation ────────────────────────────────
-      - name: Restore Developer Signing Key and Delegation Certificate
+      # ── 4. Configure Cryptographic Identity ──────────────────────────────
+      - name: Configure Cryptographic Signing Key and Delegation
+        env:
+          BIOPRO_SIGNING_PRIVATE_KEY: ${{ secrets.BIOPRO_SIGNING_PRIVATE_KEY }}
+          BIOPRO_SIGNING_DELEGATION: ${{ secrets.BIOPRO_SIGNING_DELEGATION }}
         run: |
+          if [ -z "$BIOPRO_SIGNING_PRIVATE_KEY" ]; then
+            echo "ERROR: BIOPRO_SIGNING_PRIVATE_KEY GitHub Secret is missing!"
+            exit 1
+          fi
+          if [ -z "$BIOPRO_SIGNING_DELEGATION" ]; then
+            echo "ERROR: BIOPRO_SIGNING_DELEGATION GitHub Secret is missing!"
+            exit 1
+          fi
           mkdir -p ~/.biopro/dev_keys
-          
+
           # Restore private key in both locations for compatibility
-          echo "${{ secrets.BIOPRO_DEV_PRIVATE_KEY }}" > ~/.biopro/dev_private_key.pem
-          echo "${{ secrets.BIOPRO_DEV_PRIVATE_KEY }}" > ~/.biopro/dev_keys/private.key
+          echo "$BIOPRO_SIGNING_PRIVATE_KEY" > ~/.biopro/dev_private_key.pem
+          echo "$BIOPRO_SIGNING_PRIVATE_KEY" > ~/.biopro/dev_keys/private.key
           chmod 600 ~/.biopro/dev_private_key.pem ~/.biopro/dev_keys/private.key
-          
+
           # Restore delegation JSON
-          echo '${{ secrets.BIOPRO_DEV_DELEGATION }}' > ~/.biopro/dev_keys/delegation.json
+          echo "$BIOPRO_SIGNING_DELEGATION" > ~/.biopro/dev_keys/delegation.json
           chmod 600 ~/.biopro/dev_keys/delegation.json
-          
+
           # Generate legacy dev_cert.bin from delegation JSON
           python3 -c "
           import json, os
@@ -133,18 +143,15 @@ jobs:
 
       # ── 5. SDK Evaluate (Quality Gate) ───────────────────────────────────
       - name: SDK Evaluate Plugin
-        continue-on-error: true
         run: |
-          cd /tmp/biopro-core
-          python -m biopro sdk evaluate "${{ github.workspace }}"
+          biopro-sdk evaluate .
         env:
           QT_QPA_PLATFORM: offscreen
 
       # ── 6. SDK Sign ───────────────────────────────────────────────────────
       - name: Sign Plugin
         run: |
-          cd /tmp/biopro-core
-          python -m biopro sdk sign "${{ github.workspace }}"
+          biopro-sdk sign .
         env:
           QT_QPA_PLATFORM: offscreen
 
