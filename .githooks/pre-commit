@@ -14,7 +14,7 @@ if [ "$(basename "$PWD")" != "$PLUGIN_ID" ]; then
     biopro-sdk sign "$PLUGIN_ID"
     rm "$PLUGIN_ID"
 else
-    biopro-sdk sign .
+    biopro-sdk sign "$PWD"
 fi
 
 if [ $? -ne 0 ]; then
