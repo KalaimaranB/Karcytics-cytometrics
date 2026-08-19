@@ -59,7 +59,7 @@ author_public_key = "4a2f07ed63d33c1b5aeb39405a7e7979d93d899836920818a6da317f65c
 # Verified by delegation.json (signature issued by author)
 [[tool.karcytics.plugin.signing.delegated_keys]]
 name = "Karcytics CytoMetrics CI Pipeline"
-public_key = "PLACEHOLDER_FILLED_IN_BY_KARCYTICS_SDK_DELEGATE"
+public_key = "5dedd21f2f390e1918241a7550ca5ae51320416281348bab359309b3e03632d1"
 signed_by = "Kalaimaran Balasothy"
 role = "ci_runner"
 

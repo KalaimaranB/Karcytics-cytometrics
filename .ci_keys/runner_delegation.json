@@ -1,0 +1,14 @@
+[
+    {
+        "subject_name": "Karcytics CytoMetrics CI Pipeline",
+        "subject_pub": "5dedd21f2f390e1918241a7550ca5ae51320416281348bab359309b3e03632d1",
+        "issuer_name": "Kalaimaran Balasothy",
+        "signature": "c18607210e3fc3dc8103b53ac3895a5de4631a8d5ed36bfa91d6ca1588e984c61b84c5284596f6e2a581ff86e9c60b1825cec1e89f35cd45bcbf9155ed40e104"
+    },
+    {
+        "subject_name": "Kalaimaran Balasothy",
+        "subject_pub": "4a2f07ed63d33c1b5aeb39405a7e7979d93d899836920818a6da317f65c6c6a5",
+        "issuer_name": "Karcytics Core Authority",
+        "signature": "9833f41123c96c3a171cfc516d754744de97aebaf3d497b9b34685ce6a5d223d13238540b99e270010ea32823976173a80361f21c2a189f02aea131f1bf7be02"
+    }
+]

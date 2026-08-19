@@ -1,11 +1,12 @@
 {
     "security_version": 1,
     "plugin_id": "cytometrics",
-    "manifest_hash": "71ebe9eea483c5fce5c8b074fd028c5696f853c3745e9e032d5a629da355c1c8",
+    "manifest_hash": "29011e560df86f4719ecda7f75864a0056c94b683f610a236f9dade663f74376",
     "exclusions": [
         "tests"
     ],
     "hashes": {
+        ".ci_keys/runner_delegation.json": "d2324af9fb2dcca3c220929d52df923c47fc20197fc0f8ee29c74318058ff164",
         ".pre-commit-config.yaml": "140e97d6bfd01baa29b0779704e622e8ebb66512cb5c9058e38abc7f3e385665",
         "scripts/verify_security_ledger.py": "d2db091ed04282c57b58012a4ef3d985cc945b06e05e848dd82395a30415850f",
         "src/karcytics_plugins/cytometrics/__init__.py": "ed316fa2202083abf11628613f57a03f7aaa76f71cee63d09578d9c8d8c02509",
