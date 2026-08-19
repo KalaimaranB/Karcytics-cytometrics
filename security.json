@@ -1,7 +1,7 @@
 {
     "security_version": 1,
     "plugin_id": "BioPro-cytometrics",
-    "manifest_hash": "1ba3b7aaf54db2a72b9511ba6ee8f01215e705669df254da81350ff504117d74",
+    "manifest_hash": "9c1aa9a00ae825d63c1d5ee5e9f08e94936c14a92e50ebef21d638b722ec301a",
     "exclusions": [
         "results/",
         "exports/"

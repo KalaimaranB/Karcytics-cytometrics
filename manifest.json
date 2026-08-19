@@ -27,5 +27,10 @@
     "custom_exclusions": [
         "results/",
         "exports/"
-    ]
+    ],
+    "python_dependencies": {
+        "torch": ">=2.0",
+        "torchvision": ">=0.15",
+        "cellpose": ">=3.0"
+    }
 }
