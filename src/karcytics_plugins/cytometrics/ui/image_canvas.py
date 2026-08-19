@@ -1,22 +1,27 @@
 """Custom hardware-accelerated image canvas for multi-channel TIFFs."""
 
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QLineF
-from PyQt6.QtWidgets import (
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
-    QGraphicsLineItem, QGraphicsPolygonItem, QGraphicsSimpleTextItem, QSizePolicy
-)
-from PyQt6.QtGui import QColor, QPixmap, QPen, QPolygonF, QBrush, QFont
-
 from karcytics_sdk.plugin.theme_fallback import Colors
+from PyQt6.QtCore import QLineF, QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QPen, QPixmap, QPolygonF
+from PyQt6.QtWidgets import (
+    QGraphicsLineItem,
+    QGraphicsPixmapItem,
+    QGraphicsPolygonItem,
+    QGraphicsScene,
+    QGraphicsSimpleTextItem,
+    QGraphicsView,
+    QSizePolicy,
+)
 
 
 class CellPolygonItem(QGraphicsPolygonItem):
     """Custom polygon that knows its own ID and holds a text label."""
+
     def __init__(self, cell_id, polygon):
         super().__init__(polygon)
         self.cell_id = cell_id
 
-        self.set_highlighted(False) # Use our new method for default styling
+        self.set_highlighted(False)  # Use our new method for default styling
 
         # Add Cell ID Text
         self.text_item = QGraphicsSimpleTextItem(str(cell_id), self)
@@ -26,7 +31,9 @@ class CellPolygonItem(QGraphicsPolygonItem):
 
         center = polygon.boundingRect().center()
         text_rect = self.text_item.boundingRect()
-        self.text_item.setPos(center.x() - text_rect.width() / 2, center.y() - text_rect.height() / 2)
+        self.text_item.setPos(
+            center.x() - text_rect.width() / 2, center.y() - text_rect.height() / 2
+        )
 
     def set_highlighted(self, is_highlighted: bool):
         """Swaps the styling between default and highlighted states."""
@@ -34,14 +41,15 @@ class CellPolygonItem(QGraphicsPolygonItem):
             pen = QPen(QColor(255, 255, 0))  # Bold Yellow
             pen.setWidth(3)
             self.setPen(pen)
-            self.setBrush(QBrush(QColor(255, 255, 0, 100))) # Brighter yellow fill
-            self.setZValue(1) # Pop to the front so it's not hidden by overlapping cells
+            self.setBrush(QBrush(QColor(255, 255, 0, 100)))  # Brighter yellow fill
+            self.setZValue(1)  # Pop to the front so it's not hidden by overlapping cells
         else:
             pen = QPen(QColor(255, 0, 255))  # Standard Magenta
             pen.setWidth(2)
             self.setPen(pen)
             self.setBrush(QBrush(QColor(255, 0, 255, 40)))  # Transparent Magenta
             self.setZValue(0)
+
 
 class MultiChannelCanvas(QGraphicsView):
     calibration_line_drawn = pyqtSignal(float)
@@ -110,8 +118,9 @@ class MultiChannelCanvas(QGraphicsView):
             clicked_item = self.itemAt(event.pos())  # Let Qt handle the collision math
 
             # If they clicked the ID number, grab the parent polygon
-            if isinstance(clicked_item, QGraphicsSimpleTextItem) and isinstance(clicked_item.parentItem(),
-                                                                                CellPolygonItem):
+            if isinstance(clicked_item, QGraphicsSimpleTextItem) and isinstance(
+                clicked_item.parentItem(), CellPolygonItem
+            ):
                 self.cell_deleted.emit(clicked_item.parentItem().cell_id)
             # If they clicked the polygon directly
             elif isinstance(clicked_item, CellPolygonItem):
@@ -179,7 +188,7 @@ class MultiChannelCanvas(QGraphicsView):
         """Toggles the visibility of all cell ID numbers on the canvas."""
         for item in self._cell_items:
             # text_item is a child of CellPolygonItem
-            if hasattr(item, 'text_item'):
+            if hasattr(item, "text_item"):
                 item.text_item.setVisible(show)
 
     def highlight_cell(self, target_id):
@@ -190,7 +199,7 @@ class MultiChannelCanvas(QGraphicsView):
 
     def cleanup(self) -> None:
         """Release UI resources. Called when the plugin panel is closed."""
-        if hasattr(self, 'scene'):
+        if hasattr(self, "scene"):
             self.scene.clear()
         self._cell_items.clear()
         self._drawing_points.clear()

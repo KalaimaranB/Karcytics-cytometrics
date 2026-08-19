@@ -1,12 +1,18 @@
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QTableWidget,
-    QTableWidgetItem, QComboBox, QFileDialog, QHeaderView
-)
-from karcytics_sdk.plugin.theme_fallback import Colors
-from PyQt6.QtWidgets import QMessageBox
 from pathlib import Path
-import os
+
+from karcytics_sdk.plugin.theme_fallback import Colors
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QHeaderView,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class ChannelManagerWidget(QWidget):
@@ -36,7 +42,8 @@ class ChannelManagerWidget(QWidget):
         self.table.setHorizontalHeaderLabels(["File", "Color"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setStyleSheet(
-            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER};")
+            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER};"
+        )
         self.table.verticalHeader().hide()
 
         # --- NEW: Listen for user edits in the table ---
@@ -60,7 +67,9 @@ class ChannelManagerWidget(QWidget):
         if not path:
             return
 
-        final_path = Path(path)  # Make sure you have 'from pathlib import Path' at the top of your file
+        final_path = Path(
+            path
+        )  # Make sure you have 'from pathlib import Path' at the top of your file
 
         # 3. Handle Workspace Integration (Copying external files to 'assets')
         if pm:
@@ -74,9 +83,9 @@ class ChannelManagerWidget(QWidget):
                         f"The image '{final_path.name}' is outside the project folder.\n\n"
                         "Would you like to copy it into the project's 'assets' folder for safe keeping and portability?",
                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.Yes
+                        QMessageBox.StandardButton.Yes,
                     )
-                    copy_to_workspace = (reply == QMessageBox.StandardButton.Yes)
+                    copy_to_workspace = reply == QMessageBox.StandardButton.Yes
                 else:
                     copy_to_workspace = False
 
@@ -110,7 +119,6 @@ class ChannelManagerWidget(QWidget):
             # Emit the signals using the new, safely managed path
             self.new_image_loaded.emit(file_path_str)
             self.channels_changed.emit()
-
 
     def _add_row_to_ui(self, name: str, current_color: str):
         # Block signals so creating the row doesn't trigger a fake "user edit"
@@ -161,4 +169,4 @@ class ChannelManagerWidget(QWidget):
         """Release UI resources. Called when the plugin panel is closed."""
         self.table.blockSignals(True)
         self.clear_ui()
-        self.image_stack = None # Release reference to data model
+        self.image_stack = None  # Release reference to data model

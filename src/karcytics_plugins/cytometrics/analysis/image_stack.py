@@ -9,7 +9,7 @@ COLOR_MAPS = {
     "blue": (1.0, 0.0, 0.0),
     "magenta": (1.0, 0.0, 1.0),  # Great for Actin!
     "cyan": (1.0, 1.0, 0.0),
-    "yellow": (0.0, 1.0, 1.0)
+    "yellow": (0.0, 1.0, 1.0),
 }
 
 

@@ -1,5 +1,7 @@
-import cv2
 import math
+
+import cv2
+
 from .base import SegmentationPipeline
 
 
@@ -11,11 +13,7 @@ class OtsuPipeline(SegmentationPipeline):
         return "Basic Threshold (Otsu)"
 
     def get_parameters(self) -> dict:
-        return {
-            "target_channel": "channel_select",
-            "min_area_px": "int",
-            "max_area_px": "int"
-        }
+        return {"target_channel": "channel_select", "min_area_px": "int", "max_area_px": "int"}
 
     def run(self, image_stack, parameters: dict, scale: float) -> list:
         # Find the specific channel the user wants to analyze
@@ -43,15 +41,10 @@ class OtsuPipeline(SegmentationPipeline):
             perim_px = cv2.arcLength(cnt, True)
             points = [(float(pt[0][0]), float(pt[0][1])) for pt in cnt]
 
-            area_um2 = area_px * (scale ** 2)
+            area_um2 = area_px * (scale**2)
             perim_um = perim_px * scale
-            circ = (4 * math.pi * area_um2) / (perim_um ** 2) if perim_um > 0 else 0.0
+            circ = (4 * math.pi * area_um2) / (perim_um**2) if perim_um > 0 else 0.0
 
-            cells.append({
-                "points": points,
-                "area": area_um2,
-                "perim": perim_um,
-                "circ": circ
-            })
+            cells.append({"points": points, "area": area_um2, "perim": perim_um, "circ": circ})
 
         return cells

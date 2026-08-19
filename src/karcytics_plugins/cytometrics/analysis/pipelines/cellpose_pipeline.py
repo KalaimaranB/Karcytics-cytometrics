@@ -1,8 +1,7 @@
+import math
+
 import cv2
 import numpy as np
-import math
-import logging
-
 
 
 class CellposePipeline:
@@ -21,17 +20,17 @@ class CellposePipeline:
 
         # --- ENTERPRISE HARDWARE CHECK ---
         if torch.cuda.is_available():
-            self.device = torch.device('cuda')
+            self.device = torch.device("cuda")
             use_gpu = True
         elif torch.backends.mps.is_available():
-            self.device = torch.device('mps')
+            self.device = torch.device("mps")
             use_gpu = True
         else:
-            self.device = torch.device('cpu')
+            self.device = torch.device("cpu")
             use_gpu = False
 
         # FIX: Cellpose v4.0.1+ uses 'model' argument instead of 'model_type'
-        self.model = models.CellposeModel(model='cyto3', gpu=use_gpu, device=self.device)
+        self.model = models.CellposeModel(model="cyto3", gpu=use_gpu, device=self.device)
 
     def run(self, image_stack, params, scale=1.0):
         self._ensure_model()
@@ -69,7 +68,7 @@ class CellposePipeline:
             stacked_img,
             diameter=diameter,
             channels=[0, 0] if not use_dual else [1, 2],
-            flow_threshold=flow_threshold
+            flow_threshold=flow_threshold,
         )
 
         detected_cells = []
@@ -101,18 +100,15 @@ class CellposePipeline:
             perim_px = cv2.arcLength(cnt, True)
 
             # FORCE STANDARD PYTHON TYPES HERE
-            area_um2 = float(area_px * (scale ** 2))
+            area_um2 = float(area_px * (scale**2))
             perim_um = float(perim_px * scale)
-            circularity = float((4 * math.pi * area_um2) / (perim_um ** 2) if perim_um > 0 else 0.0)
+            circularity = float((4 * math.pi * area_um2) / (perim_um**2) if perim_um > 0 else 0.0)
 
             # FORCE STANDARD INT FOR COORDINATES
             points = [[int(pt[0][0]), int(pt[0][1])] for pt in cnt]
 
-            detected_cells.append({
-                "points": points,
-                "area": area_um2,
-                "perim": perim_um,
-                "circ": circularity
-            })
+            detected_cells.append(
+                {"points": points, "area": area_um2, "perim": perim_um, "circ": circularity}
+            )
 
         return detected_cells

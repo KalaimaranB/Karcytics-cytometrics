@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple
 
 
 class SegmentationPipeline(ABC):
@@ -17,9 +16,8 @@ class SegmentationPipeline(ABC):
         pass
 
     @abstractmethod
-    def run(self, image_stack, parameters: dict, scale: float) -> List[dict]:
-        """
-        Executes the algorithm.
+    def run(self, image_stack, parameters: dict, scale: float) -> list[dict]:
+        """Executes the algorithm.
         Returns a list of cell dictionaries: [{"points": [...], "area": X, "perim": Y, "circ": Z}, ...]
         """
         pass

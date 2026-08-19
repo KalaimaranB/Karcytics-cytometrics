@@ -1,6 +1,7 @@
+import math
+
 import cv2
 import numpy as np
-import math
 
 
 class WatershedPipeline:
@@ -102,17 +103,14 @@ class WatershedPipeline:
                 continue
 
             perim_px = cv2.arcLength(cnt, True)
-            area_um2 = area_px * (scale ** 2)
+            area_um2 = area_px * (scale**2)
             perim_um = perim_px * scale
-            circularity = (4 * math.pi * area_um2) / (perim_um ** 2) if perim_um > 0 else 0.0
+            circularity = (4 * math.pi * area_um2) / (perim_um**2) if perim_um > 0 else 0.0
 
             points = [[pt[0][0], pt[0][1]] for pt in cnt]
 
-            detected_cells.append({
-                "points": points,
-                "area": area_um2,
-                "perim": perim_um,
-                "circ": circularity
-            })
+            detected_cells.append(
+                {"points": points, "area": area_um2, "perim": perim_um, "circ": circularity}
+            )
 
         return detected_cells

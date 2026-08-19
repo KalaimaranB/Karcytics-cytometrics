@@ -1,34 +1,63 @@
 """CytoMetrics Entry Point."""
 
-import math
-import sys
-import os
+import collections
 import csv
 import json
-import collections
-from pathlib import Path
+import math
+import os
+import sys
 from datetime import datetime
-import requests
-import psutil
-from PIL import Image
+from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal, QRect, QSize, QTimer
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QPen, QFont
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QInputDialog,
-    QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, QSpinBox,
-    QFormLayout, QMessageBox, QScrollArea, QSplitter, QSizePolicy,
-    QCheckBox, QDoubleSpinBox, QTabWidget,
-    QDialog, QLineEdit, QTextEdit, QDialogButtonBox, QFileDialog
+import psutil
+from karcytics_sdk.plugin import (
+    HeaderLabel,
+    PluginBase,
+    PrimaryButton,
+    get_logger,
+    task_scheduler,
 )
-from karcytics_sdk.plugin import PluginBase, HeaderLabel, PrimaryButton, SubtitleLabel, get_logger, task_scheduler
 from karcytics_sdk.plugin.theme_fallback import Colors
-from .workers import CytoPipelineWorker, FunctionalAnalysisTask, download_model_func, load_libraries_func
-from .image_canvas import MultiChannelCanvas
-from .channel_manager import ChannelManagerWidget
+from PIL import Image
+from PyQt6.QtCore import QRect, QSize, Qt, QTimer
+from PyQt6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPixmap
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from ..analysis.image_stack import ImageStack
 from ..analysis.state import CytoMetricsState
-
+from .channel_manager import ChannelManagerWidget
+from .image_canvas import MultiChannelCanvas
+from .workers import (
+    CytoPipelineWorker,
+    FunctionalAnalysisTask,
+    download_model_func,
+    load_libraries_func,
+)
 
 logger = get_logger(__name__, "cytometrics")
 
@@ -37,20 +66,20 @@ class HardwareMonitor(QWidget):
     """Live system telemetry widget drawn with QPainter — zero extra dependencies."""
 
     _COLORS = {
-        "bg":       QColor("#111827"),
-        "grid":     QColor("#374151"),
-        "sys_cpu":  QColor("#6B7280"),
-        "app_cpu":  QColor("#3B82F6"),
-        "vram":     QColor("#F59E0B"),
-        "label":    QColor("#9CA3AF"),
+        "bg": QColor("#111827"),
+        "grid": QColor("#374151"),
+        "sys_cpu": QColor("#6B7280"),
+        "app_cpu": QColor("#3B82F6"),
+        "vram": QColor("#F59E0B"),
+        "label": QColor("#9CA3AF"),
     }
 
-    LEGEND_H = 14    # px reserved for the legend strip at the very top
-    PLOT_GAP = 6     # px between the two sub-plots
-    ML = 10          # left margin (rotated Y-label sits here)
-    MR = 8           # right margin
-    MT = 4           # inner-top margin of each sub-plot
-    MB = 4           # inner-bottom margin
+    LEGEND_H = 14  # px reserved for the legend strip at the very top
+    PLOT_GAP = 6  # px between the two sub-plots
+    ML = 10  # left margin (rotated Y-label sits here)
+    MR = 8  # right margin
+    MT = 4  # inner-top margin of each sub-plot
+    MB = 4  # inner-bottom margin
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -58,11 +87,11 @@ class HardwareMonitor(QWidget):
         self.setMinimumWidth(200)
 
         self.max_ticks = 60
-        self.sys_cpu_data  = collections.deque([0.0] * self.max_ticks, maxlen=self.max_ticks)
-        self.app_cpu_data  = collections.deque([0.0] * self.max_ticks, maxlen=self.max_ticks)
-        self.vram_data     = collections.deque([0.0] * self.max_ticks, maxlen=self.max_ticks)
+        self.sys_cpu_data = collections.deque([0.0] * self.max_ticks, maxlen=self.max_ticks)
+        self.app_cpu_data = collections.deque([0.0] * self.max_ticks, maxlen=self.max_ticks)
+        self.vram_data = collections.deque([0.0] * self.max_ticks, maxlen=self.max_ticks)
 
-        self._process   = psutil.Process(os.getpid())
+        self._process = psutil.Process(os.getpid())
         self._cpu_count = psutil.cpu_count() or 1
 
         self._timer = QTimer(self)
@@ -77,6 +106,7 @@ class HardwareMonitor(QWidget):
             vram_mb = 0.0
             if "torch" in sys.modules:
                 import torch
+
                 if torch.cuda.is_available():
                     vram_mb = torch.cuda.memory_allocated() / (1024 * 1024)
                 elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -101,13 +131,13 @@ class HardwareMonitor(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        W, H  = self.width(), self.height()
-        LH    = self.LEGEND_H
-        GAP   = self.PLOT_GAP
-        ML    = self.ML
-        MR    = self.MR
-        MT    = self.MT
-        MB    = self.MB
+        W, H = self.width(), self.height()
+        LH = self.LEGEND_H
+        GAP = self.PLOT_GAP
+        ML = self.ML
+        MR = self.MR
+        MT = self.MT
+        MB = self.MB
 
         # Each sub-plot height — fits two plots + gap below the legend strip
         ph = (H - LH - GAP) // 2
@@ -115,20 +145,28 @@ class HardwareMonitor(QWidget):
 
         p.fillRect(0, 0, W, H, self._COLORS["bg"])
 
-        f8 = QFont(); f8.setPointSize(7); p.setFont(f8)
+        f8 = QFont()
+        f8.setPointSize(7)
+        p.setFont(f8)
 
         # ── Legend strip ──
         lx = ML + 4
         for lcolor, ltext in [
             (self._COLORS["sys_cpu"], "Sys CPU"),
             (self._COLORS["app_cpu"], "App CPU"),
-            (self._COLORS["vram"],   "AI VRAM"),
+            (self._COLORS["vram"], "AI VRAM"),
         ]:
             p.setPen(QPen(lcolor, 2))
             p.drawLine(lx, LH // 2, lx + 12, LH // 2)
             p.setPen(self._COLORS["label"])
-            p.drawText(lx + 14, 0, 58, LH,
-                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, ltext)
+            p.drawText(
+                lx + 14,
+                0,
+                58,
+                LH,
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                ltext,
+            )
             lx += 76
 
         def _draw_plot(y0, data, line_color, y_max, y_label, extra_data=None, extra_color=None):
@@ -143,22 +181,26 @@ class HardwareMonitor(QWidget):
             # Rotated Y-axis label
             p.save()
             p.setPen(self._COLORS["label"])
-            cx = ML // 2          # horizontal centre of the left margin
+            cx = ML // 2  # horizontal centre of the left margin
             cy = y0 + MT + inner_h // 2
             p.translate(cx, cy)
             p.rotate(-90)
-            tw = inner_h          # available width after rotation = plot height
-            p.drawText(-tw // 2, -6, tw, 12,
-                       Qt.AlignmentFlag.AlignCenter, y_label)
+            tw = inner_h  # available width after rotation = plot height
+            p.drawText(-tw // 2, -6, tw, 12, Qt.AlignmentFlag.AlignCenter, y_label)
             p.restore()
 
             # Live value (top-right)
             last_val = list(data)[-1] if data else 0
             unit = " MB" if "VRAM" in y_label else "%"
             p.setPen(self._COLORS["label"])
-            p.drawText(ML, y0, inner_w - 2, MT + 2,
-                       Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
-                       f"{last_val:.0f}{unit}")
+            p.drawText(
+                ML,
+                y0,
+                inner_w - 2,
+                MT + 2,
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
+                f"{last_val:.0f}{unit}",
+            )
 
             def _polyline(vals, color):
                 n = len(vals)
@@ -168,11 +210,15 @@ class HardwareMonitor(QWidget):
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
                 pen.setCapStyle(Qt.PenCapStyle.RoundCap)
                 p.setPen(pen)
-                pts = [(ML + int(i / (n - 1) * inner_w),
-                        y0 + MT + inner_h - int(min(v, y_max) / y_max * inner_h))
-                       for i, v in enumerate(vals)]
+                pts = [
+                    (
+                        ML + int(i / (n - 1) * inner_w),
+                        y0 + MT + inner_h - int(min(v, y_max) / y_max * inner_h),
+                    )
+                    for i, v in enumerate(vals)
+                ]
                 for i in range(len(pts) - 1):
-                    p.drawLine(pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1])
+                    p.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
 
             _polyline(list(data), line_color)
             if extra_data is not None:
@@ -180,27 +226,35 @@ class HardwareMonitor(QWidget):
 
         vram_max = max(500.0, max(self.vram_data) * 1.2) if self.vram_data else 500.0
 
-        _draw_plot(LH, self.sys_cpu_data, self._COLORS["sys_cpu"], 100.0, "CPU %",
-                   extra_data=self.app_cpu_data, extra_color=self._COLORS["app_cpu"])
+        _draw_plot(
+            LH,
+            self.sys_cpu_data,
+            self._COLORS["sys_cpu"],
+            100.0,
+            "CPU %",
+            extra_data=self.app_cpu_data,
+            extra_color=self._COLORS["app_cpu"],
+        )
         _draw_plot(LH + ph + GAP, self.vram_data, self._COLORS["vram"], vram_max, "VRAM MB")
 
         p.end()
 
+
 class ScanningIndicator(QWidget):
-    """
-    Animated bio-themed loading indicator.
+    """Animated bio-themed loading indicator.
     Draws a scrolling ECG-style sine wave \u2014 looks like a live cell-signal scan.
     Fully replaces QProgressBar: call setVisible(True/False) to show / hide.
     """
-    _BG    = QColor("#0F172A")
-    _GLOW  = QColor("#10B981")      # emerald green \u2014 bio / life science feel
-    _DIM   = QColor("#064E3B")      # dark teal for the faded trailing wave
-    _GRID  = QColor("#1E293B")
+
+    _BG = QColor("#0F172A")
+    _GLOW = QColor("#10B981")  # emerald green \u2014 bio / life science feel
+    _DIM = QColor("#064E3B")  # dark teal for the faded trailing wave
+    _GRID = QColor("#1E293B")
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(32)
-        self._phase   = 0.0        # scrolling phase (radians)
+        self._phase = 0.0  # scrolling phase (radians)
         self._visible = False
 
         self._timer = QTimer(self)
@@ -208,12 +262,12 @@ class ScanningIndicator(QWidget):
 
     # ---- Public API (mirrors QProgressBar) --------------------------------
     def setValue(self, v):
-        pass   # continuous animation \u2014 no discrete value needed
+        pass  # continuous animation \u2014 no discrete value needed
 
     def setVisible(self, visible: bool):
         super().setVisible(visible)
         if visible:
-            self._timer.start(30)      # ~33 fps
+            self._timer.start(30)  # ~33 fps
         else:
             self._timer.stop()
 
@@ -225,11 +279,12 @@ class ScanningIndicator(QWidget):
     def paintEvent(self, event):
         super().paintEvent(event)
         import math as _math
+
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         W, H = self.width(), self.height()
-        pad  = 6
+        pad = 6
 
         # Background
         p.fillRect(0, 0, W, H, self._BG)
@@ -239,8 +294,8 @@ class ScanningIndicator(QWidget):
         p.drawLine(pad, H // 2, W - pad, H // 2)
 
         # Draw two overlapping waves: a dim wide one + a bright sharp one
-        cy    = H / 2
-        amp   = (H / 2) - pad - 1
+        cy = H / 2
+        amp = (H / 2) - pad - 1
         steps = W - 2 * pad
 
         def _wave(x_shift, color, thick, alpha_fn):
@@ -248,15 +303,15 @@ class ScanningIndicator(QWidget):
                 return
             prev_x, prev_y = None, None
             for i in range(steps + 1):
-                t   = i / steps        # 0 \u2192 1 across widget
+                t = i / steps  # 0 \u2192 1 across widget
                 # ECG-style: gentle sine with a sharper spike near centre
                 angle = t * 4 * _math.pi + self._phase + x_shift
-                base  = _math.sin(angle)
+                base = _math.sin(angle)
                 # Add a narrow Gaussian spike near t=0.5 to mimic a QRS complex
                 spike_t = ((t - 0.5) / 0.06) ** 2
-                spike   = 3.0 * _math.exp(-spike_t) if spike_t < 25 else 0
-                y_val   = base + spike
-                y_val   = max(-1.6, min(1.6, y_val))   # clamp
+                spike = 3.0 * _math.exp(-spike_t) if spike_t < 25 else 0
+                y_val = base + spike
+                y_val = max(-1.6, min(1.6, y_val))  # clamp
 
                 x = pad + i
                 y = int(cy - amp * y_val / 1.6)
@@ -273,18 +328,26 @@ class ScanningIndicator(QWidget):
                     p.drawLine(prev_x, prev_y, x, y)
                 prev_x, prev_y = x, y
 
-        _wave(0,    self._DIM,  4, None)    # trailing wide glow
-        _wave(0,    self._GLOW, 2, None)    # sharp bright line
+        _wave(0, self._DIM, 4, None)  # trailing wide glow
+        _wave(0, self._GLOW, 2, None)  # sharp bright line
 
         # Small "ANALYSING..." label on the right
         p.setPen(QColor("#6EE7B7"))
-        f = QFont(); f.setPointSize(7); f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
+        f = QFont()
+        f.setPointSize(7)
+        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
         p.setFont(f)
-        p.drawText(W - 90, 0, 84, H,
-                   Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                   "SCANNING\u2026")
+        p.drawText(
+            W - 90,
+            0,
+            84,
+            H,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+            "SCANNING\u2026",
+        )
 
         p.end()
+
 
 class ModelManagerDialog(QDialog):
     """A dedicated manager to download or delete the 1GB AI model."""
@@ -311,12 +374,15 @@ class ModelManagerDialog(QDialog):
         btn_layout = QHBoxLayout()
 
         self.btn_download = QPushButton("⬇️ Download Model (~1GB)")
-        self.btn_download.setStyleSheet(f"background: {Colors.BG_MEDIUM}; padding: 6px; border-radius: 4px;")
+        self.btn_download.setStyleSheet(
+            f"background: {Colors.BG_MEDIUM}; padding: 6px; border-radius: 4px;"
+        )
         self.btn_download.clicked.connect(self._start_download)
 
         self.btn_delete = QPushButton("🗑️ Delete to Free Space")
         self.btn_delete.setStyleSheet(
-            f"background: #7F1D1D; color: white; padding: 6px; border-radius: 4px;")  # Dark red
+            "background: #7F1D1D; color: white; padding: 6px; border-radius: 4px;"
+        )  # Dark red
         self.btn_delete.clicked.connect(self._delete_model)
 
         btn_layout.addWidget(self.btn_download)
@@ -327,7 +393,7 @@ class ModelManagerDialog(QDialog):
 
     def _check_status(self):
         models_dir = Path.home() / ".cellpose" / "models"
-        
+
         # Check if the folder exists and has at least one file inside it
         if models_dir.exists() and any(models_dir.iterdir()):
             # Sum up the size of all model files
@@ -336,15 +402,23 @@ class ModelManagerDialog(QDialog):
 
             self.lbl_status.setText(f"✅ AI Engine Installed ({size_mb:.1f} MB)")
             self.btn_download.setEnabled(False)
-            self.btn_download.setStyleSheet(f"background: #374151; color: #9CA3AF; padding: 6px; border-radius: 4px;")
+            self.btn_download.setStyleSheet(
+                "background: #374151; color: #9CA3AF; padding: 6px; border-radius: 4px;"
+            )
             self.btn_delete.setEnabled(True)
-            self.btn_delete.setStyleSheet(f"background: #7F1D1D; color: white; padding: 6px; border-radius: 4px;")
+            self.btn_delete.setStyleSheet(
+                "background: #7F1D1D; color: white; padding: 6px; border-radius: 4px;"
+            )
         else:
             self.lbl_status.setText("❌ AI Engine Not Installed")
             self.btn_download.setEnabled(True)
-            self.btn_download.setStyleSheet(f"background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; padding: 6px; border-radius: 4px;")
+            self.btn_download.setStyleSheet(
+                f"background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; padding: 6px; border-radius: 4px;"
+            )
             self.btn_delete.setEnabled(False)
-            self.btn_delete.setStyleSheet(f"background: #374151; color: #9CA3AF; padding: 6px; border-radius: 4px;")
+            self.btn_delete.setStyleSheet(
+                "background: #374151; color: #9CA3AF; padding: 6px; border-radius: 4px;"
+            )
 
     def _delete_model(self):
         models_dir = Path.home() / ".cellpose" / "models"
@@ -364,17 +438,22 @@ class ModelManagerDialog(QDialog):
         self.lbl_status.setText("Downloading via TaskScheduler...")
 
         task = FunctionalAnalysisTask(download_model_func)
-        task_id = task_scheduler.submit(task, None).task_id  # No state needed for download
-        
+        task_id = task_scheduler.submit(task, None).task_id  # type: ignore[attr-defined]  # No state needed for download
+
         def _on_finished(tid, results):
-            if tid != task_id: return
+            if tid != task_id:
+                return
             task_scheduler.task_finished.disconnect(_on_finished)
             task_scheduler.task_error.disconnect(_on_error)
-            
-            self._on_download_finished(results.get("success", False), "Model downloaded" if results.get("success") else "Failed")
+
+            self._on_download_finished(
+                results.get("success", False),
+                "Model downloaded" if results.get("success") else "Failed",
+            )
 
         def _on_error(tid, error_msg):
-            if tid != task_id: return
+            if tid != task_id:
+                return
             task_scheduler.task_finished.disconnect(_on_finished)
             task_scheduler.task_error.disconnect(_on_error)
             self._on_download_finished(False, error_msg)
@@ -390,8 +469,10 @@ class ModelManagerDialog(QDialog):
             QMessageBox.critical(self, "Download Error", f"Failed to download AI model:\n{msg}")
         self._check_status()
 
+
 class SaveWorkflowDialog(QDialog):
     """Dialog to collect metadata before handing the workflow to the Project Manager."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Save CytoMetrics Workflow")
@@ -401,21 +482,29 @@ class SaveWorkflowDialog(QDialog):
         layout = QFormLayout(self)
 
         self.input_name = QLineEdit()
-        self.input_name.setStyleSheet(f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;")
+        self.input_name.setStyleSheet(
+            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
+        )
 
         self.input_desc = QTextEdit()
-        self.input_desc.setStyleSheet(f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;")
+        self.input_desc.setStyleSheet(
+            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
+        )
         self.input_desc.setMaximumHeight(80)
 
         self.input_tags = QLineEdit()
         self.input_tags.setPlaceholderText("e.g. wild-type, batch_A (comma separated)")
-        self.input_tags.setStyleSheet(f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;")
+        self.input_tags.setStyleSheet(
+            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
+        )
 
         layout.addRow("Workflow Name:", self.input_name)
         layout.addRow("Description:", self.input_desc)
         layout.addRow("Tags:", self.input_tags)
 
-        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout.addRow("", self.buttons)
@@ -424,8 +513,9 @@ class SaveWorkflowDialog(QDialog):
         return {
             "name": self.input_name.text().strip(),
             "description": self.input_desc.toPlainText().strip(),
-            "tags": [t.strip() for t in self.input_tags.text().split(",") if t.strip()]
+            "tags": [t.strip() for t in self.input_tags.text().split(",") if t.strip()],
         }
+
 
 class SimpleHistogram(QWidget):
     """A lightweight, native PyQt histogram with axis labels."""
@@ -434,7 +524,9 @@ class SimpleHistogram(QWidget):
         super().__init__(parent)
         self.setMinimumHeight(160)
         self.data = []
-        self.setStyleSheet(f"background: {Colors.BG_DARKEST}; border: 1px solid {Colors.BORDER}; border-radius: 4px;")
+        self.setStyleSheet(
+            f"background: {Colors.BG_DARKEST}; border: 1px solid {Colors.BORDER}; border-radius: 4px;"
+        )
 
     def update_data(self, areas):
         self.data = areas
@@ -442,7 +534,8 @@ class SimpleHistogram(QWidget):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        if not self.data: return
+        if not self.data:
+            return
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -454,7 +547,8 @@ class SimpleHistogram(QWidget):
 
         bins = 15
         min_val, max_val = min(self.data), max(self.data)
-        if min_val == max_val: max_val += 1
+        if min_val == max_val:
+            max_val += 1
 
         counts = [0] * bins
         for val in self.data:
@@ -490,8 +584,10 @@ class SimpleHistogram(QWidget):
         text_width = painter.fontMetrics().horizontalAdvance(max_str)
         painter.drawText(m_left + w - text_width, m_top + h + 18, max_str)
 
+
 class NumericTableItem(QTableWidgetItem):
     """A custom table item that sorts numerically instead of alphabetically."""
+
     def __lt__(self, other):
         try:
             # Strip out "Cell " if it's the ID column, then sort by float value
@@ -501,9 +597,9 @@ class NumericTableItem(QTableWidgetItem):
         except ValueError:
             return super().__lt__(other)
 
+
 class WrappingLabel(QLabel):
-    """
-    A professional subclass to fix Qt's word-wrap layout bug.
+    """A professional subclass to fix Qt's word-wrap layout bug.
     Calculates exact height including Mac font descenders and margins.
     """
 
@@ -524,9 +620,7 @@ class WrappingLabel(QLabel):
         available_width = max(0, width - margins.left() - margins.right())
 
         rect = self.fontMetrics().boundingRect(
-            QRect(0, 0, available_width, 10000),
-            Qt.TextFlag.TextWordWrap,
-            self.text()
+            QRect(0, 0, available_width, 10000), Qt.TextFlag.TextWordWrap, self.text()
         )
 
         # True Math: Bounding Box + Margins + 1 extra Line Spacing (to protect descenders)
@@ -542,6 +636,7 @@ class WrappingLabel(QLabel):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.updateGeometry()
+
 
 class CytoMetricsPanel(PluginBase):
     # state_changed and status_message are now provided by PluginBase
@@ -565,28 +660,26 @@ class CytoMetricsPanel(PluginBase):
 
         # Kick off heavy AI imports as a background task
         task = FunctionalAnalysisTask(load_libraries_func)
-        self._loader_task_id = task_scheduler.submit(task, self.state).task_id
+        self._loader_task_id = task_scheduler.submit(task, self.state).task_id  # type: ignore[attr-defined]
 
         task_scheduler.task_finished.connect(self._on_loader_finished_handler)
         task_scheduler.task_error.connect(self._on_loader_error_handler)
 
     def _on_loader_finished_handler(self, tid, results):
-        if hasattr(self, '_loader_task_id') and tid == self._loader_task_id:
+        if hasattr(self, "_loader_task_id") and tid == self._loader_task_id:
             try:
                 task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
                 task_scheduler.task_error.disconnect(self._on_loader_error_handler)
             except (TypeError, RuntimeError):
-                pass # Already disconnected or object deleted
+                pass  # Already disconnected or object deleted
 
             # FunctionalAnalysisTask emits the function's return dict directly as results.
             self._on_ai_loaded(
-                results.get("success", False),
-                results.get("pipelines", {}),
-                "Loaded"
+                results.get("success", False), results.get("pipelines", {}), "Loaded"
             )
 
     def _on_loader_error_handler(self, tid, error):
-        if hasattr(self, '_loader_task_id') and tid == self._loader_task_id:
+        if hasattr(self, "_loader_task_id") and tid == self._loader_task_id:
             try:
                 task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
                 task_scheduler.task_error.disconnect(self._on_loader_error_handler)
@@ -599,22 +692,22 @@ class CytoMetricsPanel(PluginBase):
         logger.info("Cleaning up CytoMetrics panel...")
 
         # 1. Stop UI timers and child widgets
-        if hasattr(self, 'hw_monitor'):
+        if hasattr(self, "hw_monitor"):
             self.hw_monitor.stop()
 
-        if hasattr(self, 'progress_bar'):
+        if hasattr(self, "progress_bar"):
             self.progress_bar.setVisible(False)
 
         # 2. Cleanup key components
-        if hasattr(self, 'canvas') and self.canvas:
+        if hasattr(self, "canvas") and self.canvas:
             self.canvas.cleanup()
 
-        if hasattr(self, 'channel_manager'):
+        if hasattr(self, "channel_manager"):
             self.channel_manager.cleanup()
 
         # 3. Release image data
-        if hasattr(self, 'image_stack') and self.image_stack:
-            self.image_stack.clear()
+        if hasattr(self, "image_stack") and self.image_stack:
+            self.image_stack.channels.clear()
 
         # 4. Disconnect background tasks
         try:
@@ -631,9 +724,9 @@ class CytoMetricsPanel(PluginBase):
         logger.info("Shutting down CytoMetrics module...")
 
         # Release the heavy AI pipelines
-        if hasattr(self, 'pipelines'):
+        if hasattr(self, "pipelines"):
             for pipe in self.pipelines.values():
-                if hasattr(pipe, 'model'):
+                if hasattr(pipe, "model"):
                     pipe.model = None
             self.pipelines.clear()
 
@@ -646,12 +739,14 @@ class CytoMetricsPanel(PluginBase):
         # Force VRAM release if torch is loaded
         if "torch" in sys.modules:
             import torch
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 # MPS doesn't have an explicit clear_cache like CUDA,
                 # but setting models to None and garbage collecting helps.
                 import gc
+
                 gc.collect()
 
     def _setup_ui(self):
@@ -700,7 +795,9 @@ class CytoMetricsPanel(PluginBase):
         setup_layout.setSpacing(15)
 
         self.lbl_scale = QLabel("Scale: Uncalibrated")
-        self.lbl_scale.setStyleSheet(f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; border: none;")
+        self.lbl_scale.setStyleSheet(
+            f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; border: none;"
+        )
         setup_layout.addWidget(self.lbl_scale)
 
         self.btn_calibrate = QPushButton("📏  Set Scale / Calibrate")
@@ -747,7 +844,8 @@ class CytoMetricsPanel(PluginBase):
         def create_header(text):
             lbl = QLabel(text)
             lbl.setStyleSheet(
-                f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};")
+                f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};"
+            )
             return lbl
 
         r = 0
@@ -762,16 +860,21 @@ class CytoMetricsPanel(PluginBase):
 
         self.combo_target_channel = QComboBox()
         self.combo_target_channel.setStyleSheet(input_style)
-        self.combo_target_channel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_target_channel.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self.combo_target_channel.setMinimumWidth(180)
         self.combo_target_channel.view().setMinimumWidth(300)
         pipe_layout.addWidget(self.combo_target_channel, r, 1)
         r += 1
 
         lbl_target_desc = QLabel(
-            "The primary boundary to outline (e.g., cytoplasm, or nuclei if using a single stain).")
+            "The primary boundary to outline (e.g., cytoplasm, or nuclei if using a single stain)."
+        )
         lbl_target_desc.setWordWrap(True)
-        lbl_target_desc.setStyleSheet(f"color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;")
+        lbl_target_desc.setStyleSheet(
+            "color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;"
+        )
         pipe_layout.addWidget(lbl_target_desc, r, 1)
         r += 1
 
@@ -793,9 +896,13 @@ class CytoMetricsPanel(PluginBase):
         pipe_layout.addWidget(self.combo_seed_channel, r, 1)
         r += 1
 
-        lbl_seed_desc = QLabel("An internal marker (e.g., nuclei) to help separate touching boundaries.")
+        lbl_seed_desc = QLabel(
+            "An internal marker (e.g., nuclei) to help separate touching boundaries."
+        )
         lbl_seed_desc.setWordWrap(True)
-        lbl_seed_desc.setStyleSheet(f"color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;")
+        lbl_seed_desc.setStyleSheet(
+            "color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;"
+        )
         pipe_layout.addWidget(lbl_seed_desc, r, 1)
         r += 1
 
@@ -829,7 +936,9 @@ class CytoMetricsPanel(PluginBase):
 
         self.lbl_algo_bio = QLabel("")
         self.lbl_algo_bio.setWordWrap(True)
-        self.lbl_algo_bio.setStyleSheet(f"color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;")
+        self.lbl_algo_bio.setStyleSheet(
+            "color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;"
+        )
         pipe_layout.addWidget(self.lbl_algo_bio, r, 1)
         r += 1
 
@@ -895,7 +1004,8 @@ class CytoMetricsPanel(PluginBase):
 
         self.lbl_calibration_warning = QLabel("⚠️ Please set scale in Setup tab to run.")
         self.lbl_calibration_warning.setStyleSheet(
-            "color: #F87171; font-weight: bold; text-align: center; margin-top: 10px;")
+            "color: #F87171; font-weight: bold; text-align: center; margin-top: 10px;"
+        )
         self.lbl_calibration_warning.setAlignment(Qt.AlignmentFlag.AlignCenter)
         detect_layout.addWidget(self.lbl_calibration_warning)
 
@@ -965,7 +1075,7 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.cell_drawn.connect(self._on_cell_drawn)
 
         # Make sure cell_deleted is connected if you added it to canvas!
-        if hasattr(self.canvas, 'cell_deleted'):
+        if hasattr(self.canvas, "cell_deleted"):
             self.canvas.cell_deleted.connect(self._on_cell_deleted)
 
         control_layout.addWidget(self.btn_draw)
@@ -973,7 +1083,9 @@ class CytoMetricsPanel(PluginBase):
         splitter.addWidget(controls_widget)
 
         self.table = QTableWidget(0, 5)  # <--- Changed to 5 columns
-        self.table.setHorizontalHeaderLabels(["ID", "Area (µm²)", "Perim (µm)", "Circ.", "Diam. (µm)"])
+        self.table.setHorizontalHeaderLabels(
+            ["ID", "Area (µm²)", "Perim (µm)", "Circ.", "Diam. (µm)"]
+        )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setStyleSheet(
             f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER}; border: none;"
@@ -989,7 +1101,6 @@ class CytoMetricsPanel(PluginBase):
         self.main_splitter.addWidget(self.canvas)
         self.main_splitter.setStretchFactor(0, 3)
         self.main_splitter.setStretchFactor(1, 7)
-
 
     def _update_run_button_state(self):
         has_scale = self.state.scale > 0
@@ -1021,13 +1132,16 @@ class CytoMetricsPanel(PluginBase):
         is_ai = "Cellpose" in text
         if is_ai:
             self.lbl_algo_bio.setText(
-                "Best for complex clusters and faint extensions. Requires an initial ~1GB model download.")
+                "Best for complex clusters and faint extensions. Requires an initial ~1GB model download."
+            )
         elif "Watershed" in text:
             self.lbl_algo_bio.setText(
-                "Best for clustered, circular cells. Uses classical math to split touching boundaries.")
+                "Best for clustered, circular cells. Uses classical math to split touching boundaries."
+            )
         else:
             self.lbl_algo_bio.setText(
-                "Best for sparse, isolated cells. Very fast, but will merge touching cells together.")
+                "Best for sparse, isolated cells. Very fast, but will merge touching cells together."
+            )
 
         self.lbl_diameter.setVisible(is_ai)
         self.spin_diameter.setVisible(is_ai)
@@ -1035,19 +1149,18 @@ class CytoMetricsPanel(PluginBase):
         self.spin_flow.setVisible(is_ai)
 
         # ADD THIS LINE
-        if hasattr(self, 'check_exclude_borders'):
+        if hasattr(self, "check_exclude_borders"):
             self.check_exclude_borders.setVisible(is_ai)
 
         # Add this line
-        if hasattr(self, 'btn_manage_ai'):
+        if hasattr(self, "btn_manage_ai"):
             self.btn_manage_ai.setVisible(is_ai)
-
-
 
     def _render_composite(self):
         composite = self.image_stack.get_composite()
         if composite is not None:
             import cv2  # lazy — already in sys.modules once loader finishes
+
             rgb_image = cv2.cvtColor(composite, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape
             bytes_per_line = ch * w
@@ -1070,8 +1183,8 @@ class CytoMetricsPanel(PluginBase):
         pipeline_key = self.combo_pipeline.currentData()
         pipeline = self.pipelines.get(pipeline_key)
 
-        min_area_px = self.spin_min_area.value() / (scale ** 2)
-        max_area_px = self.spin_max_area.value() / (scale ** 2)
+        min_area_px = self.spin_min_area.value() / (scale**2)
+        max_area_px = self.spin_max_area.value() / (scale**2)
 
         raw_diam_um = self.spin_diameter.value()
         diam_px = (raw_diam_um / scale) if raw_diam_um > 0 else None
@@ -1084,7 +1197,7 @@ class CytoMetricsPanel(PluginBase):
             "seed_channel": self.combo_seed_channel.currentText(),
             "diameter": diam_px,
             "flow_threshold": self.spin_flow.value(),
-            "exclude_borders": self.check_exclude_borders.isChecked()
+            "exclude_borders": self.check_exclude_borders.isChecked(),
         }
 
         self.btn_run_pipeline.setEnabled(False)
@@ -1101,16 +1214,18 @@ class CytoMetricsPanel(PluginBase):
         analyzer = CytoPipelineWorker()
         analyzer.configure(pipeline, self.image_stack, params, scale)
 
-        task_id = task_scheduler.submit(analyzer, self.state).task_id
-        
+        task_id = task_scheduler.submit(analyzer, self.state).task_id  # type: ignore[attr-defined]
+
         def _on_finished(tid, results):
-            if tid != task_id: return
+            if tid != task_id:
+                return
             task_scheduler.task_finished.disconnect(_on_finished)
             task_scheduler.task_error.disconnect(_on_error)
             self._on_pipeline_finished(results.get("result_cells", []))
 
         def _on_error(tid, error):
-            if tid != task_id: return
+            if tid != task_id:
+                return
             task_scheduler.task_finished.disconnect(_on_finished)
             task_scheduler.task_error.disconnect(_on_error)
             self._on_pipeline_error(error)
@@ -1157,30 +1272,30 @@ class CytoMetricsPanel(PluginBase):
             "diameter": self.spin_diameter.value(),
             "flow": self.spin_flow.value(),
             "use_dual": self.check_dual_channel.isChecked(),
-            "exclude_borders": getattr(self, 'check_exclude_borders', QCheckBox()).isChecked()
+            "exclude_borders": getattr(self, "check_exclude_borders", QCheckBox()).isChecked(),
         }
-        
+
         # Sync channels metadata
         channels_meta = []
         for c in self.image_stack.channels:
-            img_path = getattr(c, 'path', getattr(c, 'filepath', getattr(c, 'file_path', '')))
+            img_path = getattr(c, "path", getattr(c, "filepath", getattr(c, "file_path", "")))
             channels_meta.append({"name": c.name, "path": str(img_path), "color": c.color})
         self.state.channels_metadata = channels_meta
-        
+
         return self.state
 
     def set_state(self, state: CytoMetricsState) -> None:
         """Restore the workspace from an SDK state object."""
         if not state:
             return
-        
+
         self.state = state
-        
+
         # 1. Restore images if needed
         try:
             if state.channels_metadata:
                 self.load_images_from_meta(state.channels_metadata)
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to restore images")
 
         # 2. Restore UI settings
@@ -1194,17 +1309,19 @@ class CytoMetricsPanel(PluginBase):
             self.spin_diameter.setValue(ui.get("diameter", 0.0))
             self.spin_flow.setValue(ui.get("flow", 0.4))
             self.check_dual_channel.setChecked(ui.get("use_dual", False))
-            if hasattr(self, 'check_exclude_borders'):
+            if hasattr(self, "check_exclude_borders"):
                 self.check_exclude_borders.setChecked(ui.get("exclude_borders", True))
 
         # 3. Restore data & canvas
         scale_val = state.scale
-        self.lbl_scale.setText(f"Scale: {scale_val:.4f} µm/px" if scale_val > 0 else "Scale: Uncalibrated")
+        self.lbl_scale.setText(
+            f"Scale: {scale_val:.4f} µm/px" if scale_val > 0 else "Scale: Uncalibrated"
+        )
         self._update_run_button_state()
 
         if state.cells:
             self.canvas.draw_cells_from_state(state.cells)
-            
+
         self._refresh_table()
         self._update_results_tab()
 
@@ -1229,15 +1346,14 @@ class CytoMetricsPanel(PluginBase):
 
     # ------------------------------------------------
 
-
     def load_images_from_meta(self, channels_meta: list[dict]) -> None:
         """Helper to reload images based on metadata."""
-        current_paths = [getattr(c, 'path', '') for c in self.image_stack.channels]
+        current_paths = [getattr(c, "path", "") for c in self.image_stack.channels]
         saved_paths = [ch.get("path", "") for ch in channels_meta]
 
         if current_paths != saved_paths:
             self.image_stack.channels.clear()
-            if hasattr(self.channel_manager, 'clear_ui'):
+            if hasattr(self.channel_manager, "clear_ui"):
                 self.channel_manager.clear_ui()
 
             loaded_paths = set()
@@ -1297,7 +1413,7 @@ class CytoMetricsPanel(PluginBase):
             self.spin_diameter.setValue(ui_params.get("diameter", 0.0))
             self.spin_flow.setValue(ui_params.get("flow", 0.4))
             self.check_dual_channel.setChecked(ui_params.get("use_dual", False))
-            if hasattr(self, 'check_exclude_borders'):
+            if hasattr(self, "check_exclude_borders"):
                 self.check_exclude_borders.setChecked(ui_params.get("exclude_borders", True))
 
     def _extract_tiff_metadata(self, file_path):
@@ -1315,13 +1431,15 @@ class CytoMetricsPanel(PluginBase):
             pass
 
     def _on_calibrate_clicked(self):
-        if not self.image_stack.channels: return
+        if not self.image_stack.channels:
+            return
         self.lbl_scale.setText("Scale: Click and drag over scale bar.")
         self.canvas.set_mode("CALIBRATE")
 
     def _on_calibration_drawn(self, pixels: float):
-        microns, ok = QInputDialog.getDouble(self, "Set Scale", f"Line is {pixels:.1f} px long.\nMicrons?", 20.0, 0.001,
-                                             10000.0, 3)
+        microns, ok = QInputDialog.getDouble(
+            self, "Set Scale", f"Line is {pixels:.1f} px long.\nMicrons?", 20.0, 0.001, 10000.0, 3
+        )
         if ok and microns > 0:
             self.state.scale = microns / pixels
             self.set_state(self.state)
@@ -1334,23 +1452,30 @@ class CytoMetricsPanel(PluginBase):
             return
         self.canvas.set_mode("DRAW" if checked else "PAN")
         self.btn_draw.setStyleSheet(
-            self._btn_style(Colors.ACCENT_PRIMARY if checked else Colors.BG_MEDIUM, align="left"))
+            self._btn_style(Colors.ACCENT_PRIMARY if checked else Colors.BG_MEDIUM, align="left")
+        )
 
     def _on_cell_drawn(self, points: list):
         area_px, perim_px = 0.0, 0.0
         n = len(points)
         for i in range(n):
             j = (i + 1) % n
-            area_px += (points[i][0] * points[j][1] - points[j][0] * points[i][1])
+            area_px += points[i][0] * points[j][1] - points[j][0] * points[i][1]
             perim_px += math.hypot(points[j][0] - points[i][0], points[j][1] - points[i][1])
         area_px = abs(area_px) / 2.0
         scale = self.state.scale if self.state.scale else 1.0
-        area_um2, perim_um = area_px * (scale ** 2), perim_px * scale
-        circularity = (4 * math.pi * area_um2) / (perim_um ** 2) if perim_um > 0 else 0.0
+        area_um2, perim_um = area_px * (scale**2), perim_px * scale
+        circularity = (4 * math.pi * area_um2) / (perim_um**2) if perim_um > 0 else 0.0
         self.state.cell_counter += 1
         self.state.cells.append(
-            {"id": self.state.cell_counter, "points": points, "area": area_um2, "perim": perim_um,
-             "circ": circularity})
+            {
+                "id": self.state.cell_counter,
+                "points": points,
+                "area": area_um2,
+                "perim": perim_um,
+                "circ": circularity,
+            }
+        )
         self.set_state(self.state)
         self.state_changed.emit()
 
@@ -1415,18 +1540,29 @@ class CytoMetricsPanel(PluginBase):
             QMessageBox.information(self, "No Data", "There are no cells to export.")
             return
 
-        path, _ = QFileDialog.getSaveFileName(self, "Export Results", "cytometrics_results.csv", "CSV Files (*.csv)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Results", "cytometrics_results.csv", "CSV Files (*.csv)"
+        )
         if path:
             try:
-                with open(path, 'w', newline='') as f:
+                with open(path, "w", newline="") as f:
                     writer = csv.writer(f)
                     # Add Diameter to the header
-                    writer.writerow(["Cell_ID", "Area_um2", "Perimeter_um", "Circularity", "Diameter_um"])
+                    writer.writerow(
+                        ["Cell_ID", "Area_um2", "Perimeter_um", "Circularity", "Diameter_um"]
+                    )
 
                     for c in self.state.cells:
                         diam = 2 * math.sqrt(c["area"] / math.pi)
                         writer.writerow(
-                            [c["id"], f"{c['area']:.2f}", f"{c['perim']:.2f}", f"{c['circ']:.3f}", f"{diam:.2f}"])
+                            [
+                                c["id"],
+                                f"{c['area']:.2f}",
+                                f"{c['perim']:.2f}",
+                                f"{c['circ']:.3f}",
+                                f"{diam:.2f}",
+                            ]
+                        )
 
                 QMessageBox.information(self, "Success", f"Data successfully exported to:\n{path}")
             except Exception as e:
@@ -1456,7 +1592,9 @@ class CytoMetricsPanel(PluginBase):
         pm = getattr(main_win, "project_manager", None)
 
         if not pm:
-            QMessageBox.warning(self, "No Active Project", "Please open a project to save this workflow.")
+            QMessageBox.warning(
+                self, "No Active Project", "Please open a project to save this workflow."
+            )
             return
 
         dialog = SaveWorkflowDialog(self)
@@ -1474,17 +1612,16 @@ class CytoMetricsPanel(PluginBase):
                 meta["timestamp"] = datetime.now().isoformat()
 
                 # 3. Hand it off to the core Project Manager using the exact kwargs it expects
-                pm.save_workflow(
-                    module_id="cytometrics",
-                    payload=state_data,
-                    metadata=meta
+                pm.save_workflow(module_id="cytometrics", payload=state_data, metadata=meta)
+
+                QMessageBox.information(
+                    self, "Success", f"Workflow '{meta['name']}' saved successfully!"
                 )
 
-                QMessageBox.information(self, "Success", f"Workflow '{meta['name']}' saved successfully!")
-
             except Exception as e:
-                QMessageBox.critical(self, "Save Error", f"Failed to save workflow to project:\n{str(e)}")
-
+                QMessageBox.critical(
+                    self, "Save Error", f"Failed to save workflow to project:\n{str(e)}"
+                )
 
     def _on_load_workflow(self):
         main_win = self.window()
@@ -1495,13 +1632,13 @@ class CytoMetricsPanel(PluginBase):
             self,
             "Load CytoMetrics Workflow",
             default_dir,
-            "CytoMetrics Session (*.cyto *.json);;All Files (*)"
+            "CytoMetrics Session (*.cyto *.json);;All Files (*)",
         )
         if not path:
             return
 
         try:
-            with open(path, 'r') as f:
+            with open(path) as f:
                 state_data = json.load(f)
 
             # Restore the core state (cells, scale, etc.)
@@ -1518,7 +1655,7 @@ class CytoMetricsPanel(PluginBase):
                 self.spin_diameter.setValue(ui_params.get("diameter", 0.0))
                 self.spin_flow.setValue(ui_params.get("flow", 0.4))
                 self.check_dual_channel.setChecked(ui_params.get("use_dual", False))
-                if hasattr(self, 'check_exclude_borders'):
+                if hasattr(self, "check_exclude_borders"):
                     self.check_exclude_borders.setChecked(ui_params.get("exclude_borders", True))
 
             QMessageBox.information(self, "Success", f"Workflow loaded from:\n{Path(path).name}")
