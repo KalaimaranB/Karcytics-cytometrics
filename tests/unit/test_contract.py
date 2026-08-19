@@ -6,6 +6,7 @@ import importlib
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from karcytics_sdk.plugin.context import PluginContext
 from karcytics_sdk.plugin.manifest import PluginManifest
 from karcytics_sdk.testing import ContractTestBase
@@ -13,6 +14,13 @@ from karcytics_sdk.testing import ContractTestBase
 
 class TestCytoMetricsContract(ContractTestBase):
     PLUGIN_DIR = Path(__file__).resolve().parents[2]
+
+    @pytest.fixture
+    def manifest(self) -> PluginManifest:
+        """Override to load from pyproject.toml for SDK compat."""
+        pyproject_path = self.PLUGIN_DIR / "pyproject.toml"
+        with open(pyproject_path, encoding="utf-8") as f:
+            return PluginManifest.from_pyproject_toml(f.read())
 
     def test_headless_initialization(self, manifest: PluginManifest) -> None:
         """Overrides ContractTestBase's version.
