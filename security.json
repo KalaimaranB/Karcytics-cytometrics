@@ -1,26 +1,25 @@
 {
     "security_version": 1,
-    "plugin_id": "BioPro-cytometrics",
-    "manifest_hash": "9c1aa9a00ae825d63c1d5ee5e9f08e94936c14a92e50ebef21d638b722ec301a",
+    "plugin_id": "cytometrics",
+    "manifest_hash": "71ebe9eea483c5fce5c8b074fd028c5696f853c3745e9e032d5a629da355c1c8",
     "exclusions": [
-        "results/",
-        "exports/"
+        "tests"
     ],
     "hashes": {
         "src/karcytics_plugins/cytometrics/__init__.py": "ed316fa2202083abf11628613f57a03f7aaa76f71cee63d09578d9c8d8c02509",
-        "src/karcytics_plugins/cytometrics/ui_daemon.py": "a720d9ba4141e7444878956dc193216eab4b6d7541bff3a9f2700633e9f5db9a",
+        "src/karcytics_plugins/cytometrics/analysis/__init__.py": "8275a2c3eabfe084275f6c248563b581744c3a1bd1af1e96ddb5771c1d615850",
+        "src/karcytics_plugins/cytometrics/analysis/image_stack.py": "5c135d1e9db8fc24f353a881daddbff126cee88bb5ff96c272db4e928cc72d0f",
+        "src/karcytics_plugins/cytometrics/analysis/pipelines/__init__.py": "8351e439f6e70f2f610450a31e830256b768047a90bce134f760265e3bc7acc9",
+        "src/karcytics_plugins/cytometrics/analysis/pipelines/base.py": "a7ae0fafe6d785ec061c65de57b57b0efc9de9fd24845c6c47fd79e61ddc5ee4",
+        "src/karcytics_plugins/cytometrics/analysis/pipelines/cellpose_pipeline.py": "2b9a1a368f117a11522b341994cd5fd476e4b6d7c9d8e4a4dac1121bb46d71d5",
+        "src/karcytics_plugins/cytometrics/analysis/pipelines/otsu.py": "a1e3df78367d573b905d3b686998ed39f4ca3940442e058576234bb4eb36579d",
+        "src/karcytics_plugins/cytometrics/analysis/pipelines/watershed.py": "043dce55cf50342a88d1a36bf1fae2dd40ba0c7b2a500cd44927f73d6a29f9f6",
+        "src/karcytics_plugins/cytometrics/analysis/state.py": "f55d24ebe6bd762e3f23ce2a08e1b58c8de6e6f0a7161077260fa4152a8b7569",
         "src/karcytics_plugins/cytometrics/ui/__init__.py": "79d6e5e8b25080fa220507c98183def79a99ded6f19509eca7225813ff536f94",
         "src/karcytics_plugins/cytometrics/ui/channel_manager.py": "c9161119ce6f4b48c02c0e6a97c1f155c300147f90164cd8fe321a66ff7315a2",
         "src/karcytics_plugins/cytometrics/ui/image_canvas.py": "7c55f58052d8371c0d9c052765b5b9e3384f839cd6d839d9389a570336c52107",
         "src/karcytics_plugins/cytometrics/ui/main_panel.py": "a3fd247caffc3fba001533b4cacfeedd9254d61db5c46b2a717aa104e3790b80",
         "src/karcytics_plugins/cytometrics/ui/workers.py": "a2d1f6dc5686e14a2ba5fbeb9e9dfa34d5c68b72074971a570b1e1950fae1124",
-        "src/karcytics_plugins/cytometrics/analysis/__init__.py": "8275a2c3eabfe084275f6c248563b581744c3a1bd1af1e96ddb5771c1d615850",
-        "src/karcytics_plugins/cytometrics/analysis/image_stack.py": "5c135d1e9db8fc24f353a881daddbff126cee88bb5ff96c272db4e928cc72d0f",
-        "src/karcytics_plugins/cytometrics/analysis/state.py": "f55d24ebe6bd762e3f23ce2a08e1b58c8de6e6f0a7161077260fa4152a8b7569",
-        "src/karcytics_plugins/cytometrics/analysis/pipelines/__init__.py": "8351e439f6e70f2f610450a31e830256b768047a90bce134f760265e3bc7acc9",
-        "src/karcytics_plugins/cytometrics/analysis/pipelines/base.py": "a7ae0fafe6d785ec061c65de57b57b0efc9de9fd24845c6c47fd79e61ddc5ee4",
-        "src/karcytics_plugins/cytometrics/analysis/pipelines/cellpose_pipeline.py": "2b9a1a368f117a11522b341994cd5fd476e4b6d7c9d8e4a4dac1121bb46d71d5",
-        "src/karcytics_plugins/cytometrics/analysis/pipelines/otsu.py": "a1e3df78367d573b905d3b686998ed39f4ca3940442e058576234bb4eb36579d",
-        "src/karcytics_plugins/cytometrics/analysis/pipelines/watershed.py": "043dce55cf50342a88d1a36bf1fae2dd40ba0c7b2a500cd44927f73d6a29f9f6"
+        "src/karcytics_plugins/cytometrics/ui_daemon.py": "a720d9ba4141e7444878956dc193216eab4b6d7541bff3a9f2700633e9f5db9a"
     }
 }
