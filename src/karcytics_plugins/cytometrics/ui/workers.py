@@ -2,6 +2,7 @@ import inspect
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import requests
 from karcytics_sdk.plugin import AnalysisBase, PluginState
@@ -63,7 +64,7 @@ class CytoPipelineWorker(AnalysisBase):
         super().__init__(plugin_id)
         self.pipeline = None
         self.image_stack = None
-        self.params = {}
+        self.params: dict[str, Any] = {}
         self.scale = 1.0
 
     def configure(self, pipeline, image_stack, params, scale):
@@ -72,7 +73,7 @@ class CytoPipelineWorker(AnalysisBase):
         self.params = params
         self.scale = scale
 
-    def run(self, state: PluginState) -> dict:
+    def run(self, state: PluginState | None = None) -> dict:
         """Execute the segmentation on a background thread."""
         if not self.pipeline:
             return {"error": "No pipeline configured"}

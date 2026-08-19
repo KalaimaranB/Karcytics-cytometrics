@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
 )
 
+_MIN_POLYGON_POINTS = 3  # a closed polygon needs at least a triangle
+
 
 class CellPolygonItem(QGraphicsPolygonItem):
     """Custom polygon that knows its own ID and holds a text label."""
@@ -58,15 +60,15 @@ class MultiChannelCanvas(QGraphicsView):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.scene = QGraphicsScene(self)
-        self.setScene(self.scene)
+        self._scene = QGraphicsScene(self)
+        self.setScene(self._scene)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(500)
 
         self.setStyleSheet(f"background: {Colors.BG_DARKEST}; border: none;")
         self.setRenderHint(self.renderHints().Antialiasing)
 
-        self._placeholder = self.scene.addText("Load an image to begin CytoMetrics.")
+        self._placeholder = self._scene.addText("Load an image to begin CytoMetrics.")
         self._placeholder.setDefaultTextColor(QColor(Colors.FG_SECONDARY))
         self._image_item = None
 
@@ -80,33 +82,33 @@ class MultiChannelCanvas(QGraphicsView):
 
     def load_pixmap(self, pixmap: QPixmap):
         if self._image_item:
-            self.scene.removeItem(self._image_item)
+            self._scene.removeItem(self._image_item)
         self._placeholder.hide()
         self._image_item = QGraphicsPixmapItem(pixmap)
-        self.scene.addItem(self._image_item)
-        self.scene.setSceneRect(QRectF(pixmap.rect()))
-        self.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self._scene.addItem(self._image_item)
+        self._scene.setSceneRect(QRectF(pixmap.rect()))
+        self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
         self.set_mode("PAN")
 
     def set_mode(self, mode_str: str):
         self.mode = mode_str
         if self.mode == "PAN":
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-            self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
+            self.viewport().setCursor(Qt.CursorShape.ArrowCursor)  # type: ignore[union-attr]
         else:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
-            self.viewport().setCursor(Qt.CursorShape.CrossCursor)
+            self.viewport().setCursor(Qt.CursorShape.CrossCursor)  # type: ignore[union-attr]
 
     def draw_cells_from_state(self, cells_data: list):
         for item in self._cell_items:
             if item.scene():
-                self.scene.removeItem(item)
+                self._scene.removeItem(item)
         self._cell_items.clear()
 
         for cell in cells_data:
             poly = QPolygonF([QPointF(x, y) for x, y in cell["points"]])
             item = CellPolygonItem(cell["id"], poly)  # <-- Uses our new custom object
-            self.scene.addItem(item)
+            self._scene.addItem(item)
             self._cell_items.append(item)
 
     # ── MOUSE EVENTS ──
@@ -130,16 +132,16 @@ class MultiChannelCanvas(QGraphicsView):
         if self.mode == "CALIBRATE" and event.button() == Qt.MouseButton.LeftButton:
             self._calib_start = pos
             if self._calib_line_item:
-                self.scene.removeItem(self._calib_line_item)
+                self._scene.removeItem(self._calib_line_item)
             self._calib_line_item = QGraphicsLineItem(QLineF(pos, pos))
             self._calib_line_item.setPen(QPen(Qt.GlobalColor.yellow, 3))
-            self.scene.addItem(self._calib_line_item)
+            self._scene.addItem(self._calib_line_item)
 
         elif self.mode == "DRAW" and event.button() == Qt.MouseButton.LeftButton:
             self._drawing_points = [pos]
             self._drawing_item = QGraphicsPolygonItem()
             self._drawing_item.setPen(QPen(QColor(255, 255, 0), 2))
-            self.scene.addItem(self._drawing_item)
+            self._scene.addItem(self._drawing_item)
         else:
             super().mousePressEvent(event)
 
@@ -167,12 +169,12 @@ class MultiChannelCanvas(QGraphicsView):
             self.set_mode("PAN")
 
         elif self.mode == "DRAW" and event.button() == Qt.MouseButton.LeftButton:
-            if len(self._drawing_points) > 2:
+            if len(self._drawing_points) >= _MIN_POLYGON_POINTS:
                 points_list = [(p.x(), p.y()) for p in self._drawing_points]
                 self.cell_drawn.emit(points_list)
 
             if self._drawing_item and self._drawing_item.scene():
-                self.scene.removeItem(self._drawing_item)
+                self._scene.removeItem(self._drawing_item)
             self._drawing_points = []
             self._drawing_item = None
         else:
@@ -199,8 +201,8 @@ class MultiChannelCanvas(QGraphicsView):
 
     def cleanup(self) -> None:
         """Release UI resources. Called when the plugin panel is closed."""
-        if hasattr(self, "scene"):
-            self.scene.clear()
+        if hasattr(self, "_scene"):
+            self._scene.clear()
         self._cell_items.clear()
         self._drawing_points.clear()
         self._calib_line_item = None

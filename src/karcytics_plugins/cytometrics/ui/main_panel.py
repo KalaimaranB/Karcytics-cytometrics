@@ -8,11 +8,13 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import psutil
 from karcytics_sdk.plugin import (
     HeaderLabel,
     PluginBase,
+    PluginState,
     PrimaryButton,
     get_logger,
     task_scheduler,
@@ -60,6 +62,10 @@ from .workers import (
 )
 
 logger = get_logger(__name__, "cytometrics")
+
+_MIN_LINE_POINTS = 2  # need at least 2 points to draw a line segment
+_GAUSSIAN_SPIKE_CUTOFF = 25  # exp(-25) ~= 1.4e-11, negligible past this point
+_TIFF_RESOLUTION_UNIT_CENTIMETERS = 3  # TIFF ResolutionUnit tag value for "centimeters"
 
 
 class HardwareMonitor(QWidget):
@@ -204,7 +210,7 @@ class HardwareMonitor(QWidget):
 
             def _polyline(vals, color):
                 n = len(vals)
-                if n < 2:
+                if n < _MIN_LINE_POINTS:
                     return
                 pen = QPen(color, 2)
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -299,7 +305,7 @@ class ScanningIndicator(QWidget):
         steps = W - 2 * pad
 
         def _wave(x_shift, color, thick, alpha_fn):
-            if steps < 2:
+            if steps < _MIN_LINE_POINTS:
                 return
             prev_x, prev_y = None, None
             for i in range(steps + 1):
@@ -309,7 +315,7 @@ class ScanningIndicator(QWidget):
                 base = _math.sin(angle)
                 # Add a narrow Gaussian spike near t=0.5 to mimic a QRS complex
                 spike_t = ((t - 0.5) / 0.06) ** 2
-                spike = 3.0 * _math.exp(-spike_t) if spike_t < 25 else 0
+                spike = 3.0 * _math.exp(-spike_t) if spike_t < _GAUSSIAN_SPIKE_CUTOFF else 0
                 y_val = base + spike
                 y_val = max(-1.6, min(1.6, y_val))  # clamp
 
@@ -652,7 +658,7 @@ class CytoMetricsPanel(PluginBase):
         self.canvas = MultiChannelCanvas()
 
         # All pipelines are loaded in the background — start empty
-        self.pipelines = {}
+        self.pipelines: dict[str, Any] = {}
 
         self._setup_ui()
         self._update_run_button_state()
@@ -1284,10 +1290,11 @@ class CytoMetricsPanel(PluginBase):
 
         return self.state
 
-    def set_state(self, state: CytoMetricsState) -> None:
+    def set_state(self, state: PluginState) -> None:
         """Restore the workspace from an SDK state object."""
         if not state:
             return
+        assert isinstance(state, CytoMetricsState)
 
         self.state = state
 
@@ -1422,7 +1429,10 @@ class CytoMetricsPanel(PluginBase):
                 x_res, res_unit = img.tag_v2.get(282), img.tag_v2.get(296)
                 if x_res and res_unit and x_res[1] != 0:
                     px_per_unit = x_res[0] / x_res[1]
-                    if res_unit == 3 and (px_per_unit / 10000.0) != 0:
+                    if (
+                        res_unit == _TIFF_RESOLUTION_UNIT_CENTIMETERS
+                        and (px_per_unit / 10000.0) != 0
+                    ):
                         self.state.scale = 1.0 / (px_per_unit / 10000.0)
                         self.lbl_scale.setText(f"Scale: {self.state.scale:.4f} µm/px")
                         self._update_run_button_state()

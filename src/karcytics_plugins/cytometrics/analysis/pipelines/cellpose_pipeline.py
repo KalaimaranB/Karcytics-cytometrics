@@ -56,10 +56,7 @@ class CellposePipeline:
         # Cellpose v4 prefers the array shape to be (Channels, Height, Width)
         if use_dual and seed_name:
             seed_img = next((ch.data for ch in image_stack.channels if ch.name == seed_name), None)
-            if seed_img is not None:
-                stacked_img = np.array([target_img, seed_img])
-            else:
-                stacked_img = target_img
+            stacked_img = np.array([target_img, seed_img]) if seed_img is not None else target_img
         else:
             stacked_img = target_img
 
