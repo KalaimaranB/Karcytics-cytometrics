@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
 
+_MULTI_CHANNEL_NDIM = 3  # array shape is (h, w, c), not a flat (h, w) grayscale image
+_RGB_CHANNEL_COUNT = 3
+
 # Standard fluorescent mapping
 COLOR_MAPS = {
     "gray": (1.0, 1.0, 1.0),
@@ -45,10 +48,10 @@ class ImageStack:
             return channel_data
 
         # If it's a multi-channel image (e.g. RGB)
-        if len(img.shape) == 3:
+        if len(img.shape) == _MULTI_CHANNEL_NDIM:
             h, w, c = img.shape
             # OpenCV loads color as BGR (Blue, Green, Red)
-            color_presets = ["blue", "green", "red"] if c == 3 else ["gray"] * c
+            color_presets = ["blue", "green", "red"] if c == _RGB_CHANNEL_COUNT else ["gray"] * c
 
             for i in range(c):
                 single_channel = to_8bit(img[:, :, i])
@@ -65,7 +68,7 @@ class ImageStack:
 
         return added_info
 
-    def get_composite(self) -> np.ndarray:
+    def get_composite(self) -> np.ndarray | None:
         """Blends all visible channels into a single BGR image for the UI."""
         if not self.channels:
             return None
@@ -89,5 +92,4 @@ class ImageStack:
             composite += colorized
 
         # Clip highlights and convert back to 8-bit image
-        composite = np.clip(composite * 255.0, 0, 255).astype(np.uint8)
-        return composite
+        return np.clip(composite * 255.0, 0, 255).astype(np.uint8)

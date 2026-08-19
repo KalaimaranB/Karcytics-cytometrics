@@ -3,6 +3,8 @@ import math
 import cv2
 import numpy as np
 
+_STACKED_CHANNELS_NDIM = 3  # (channel, height, width) — a dual-channel stack, not a flat 2D image
+
 
 class CellposePipeline:
     def __init__(self):
@@ -29,8 +31,9 @@ class CellposePipeline:
             self.device = torch.device("cpu")
             use_gpu = False
 
-        # FIX: Cellpose v4.0.1+ uses 'model' argument instead of 'model_type'
-        self.model = models.CellposeModel(model="cyto3", gpu=use_gpu, device=self.device)
+        # Cellpose v4.2+ dropped the old cyto/cyto2/cyto3 model zoo in favor of the
+        # Cellpose-SAM generalist model, loaded via `pretrained_model` (not `model`).
+        self.model = models.CellposeModel(pretrained_model="cpsam", gpu=use_gpu, device=self.device)
 
     def run(self, image_stack, params, scale=1.0):
         self._ensure_model()
@@ -52,22 +55,23 @@ class CellposePipeline:
 
         img_h, img_w = target_img.shape
 
-        # --- FIX: CELLPOSE V4 DATA STRUCTURE ---
-        # Cellpose v4 prefers the array shape to be (Channels, Height, Width)
+        # Cellpose-SAM ("cpsam") takes a (Channels, Height, Width) array and is
+        # order-invariant between cytoplasm/nuclei channels — the old `channels=[cyto, nuclei]`
+        # index argument from Cellpose v1-v3 is deprecated and silently ignored in v4+;
+        # `channel_axis` is how the channel dimension is now identified.
         if use_dual and seed_name:
             seed_img = next((ch.data for ch in image_stack.channels if ch.name == seed_name), None)
-            if seed_img is not None:
-                stacked_img = np.array([target_img, seed_img])
-            else:
-                stacked_img = target_img
+            stacked_img = np.array([target_img, seed_img]) if seed_img is not None else target_img
         else:
             stacked_img = target_img
+
+        channel_axis = 0 if stacked_img.ndim == _STACKED_CHANNELS_NDIM else None
 
         # Run the AI
         masks, flows, styles = self.model.eval(
             stacked_img,
             diameter=diameter,
-            channels=[0, 0] if not use_dual else [1, 2],
+            channel_axis=channel_axis,
             flow_threshold=flow_threshold,
         )
 

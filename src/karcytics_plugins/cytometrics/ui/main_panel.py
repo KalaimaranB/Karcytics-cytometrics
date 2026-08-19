@@ -8,12 +8,15 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import psutil
 from karcytics_sdk.plugin import (
     HeaderLabel,
     PluginBase,
+    PluginState,
     PrimaryButton,
+    SecondaryButton,
     get_logger,
     task_scheduler,
 )
@@ -60,6 +63,19 @@ from .workers import (
 )
 
 logger = get_logger(__name__, "cytometrics")
+
+_MIN_LINE_POINTS = 2  # need at least 2 points to draw a line segment
+_GAUSSIAN_SPIKE_CUTOFF = 25  # exp(-25) ~= 1.4e-11, negligible past this point
+_TIFF_RESOLUTION_UNIT_CENTIMETERS = 3  # TIFF ResolutionUnit tag value for "centimeters"
+
+
+def _check_ai_model_installed() -> tuple[bool, float]:
+    """Checks the on-disk Cellpose model cache. Returns (installed, size_mb)."""
+    models_dir = Path.home() / ".cellpose" / "models"
+    if models_dir.exists() and any(models_dir.iterdir()):
+        total_size = sum(f.stat().st_size for f in models_dir.iterdir() if f.is_file())
+        return True, total_size / (1024 * 1024)
+    return False, 0.0
 
 
 class HardwareMonitor(QWidget):
@@ -204,7 +220,7 @@ class HardwareMonitor(QWidget):
 
             def _polyline(vals, color):
                 n = len(vals)
-                if n < 2:
+                if n < _MIN_LINE_POINTS:
                     return
                 pen = QPen(color, 2)
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -299,7 +315,7 @@ class ScanningIndicator(QWidget):
         steps = W - 2 * pad
 
         def _wave(x_shift, color, thick, alpha_fn):
-            if steps < 2:
+            if steps < _MIN_LINE_POINTS:
                 return
             prev_x, prev_y = None, None
             for i in range(steps + 1):
@@ -309,7 +325,7 @@ class ScanningIndicator(QWidget):
                 base = _math.sin(angle)
                 # Add a narrow Gaussian spike near t=0.5 to mimic a QRS complex
                 spike_t = ((t - 0.5) / 0.06) ** 2
-                spike = 3.0 * _math.exp(-spike_t) if spike_t < 25 else 0
+                spike = 3.0 * _math.exp(-spike_t) if spike_t < _GAUSSIAN_SPIKE_CUTOFF else 0
                 y_val = base + spike
                 y_val = max(-1.6, min(1.6, y_val))  # clamp
 
@@ -358,8 +374,6 @@ class ModelManagerDialog(QDialog):
         self.setMinimumWidth(350)
         self.setStyleSheet(f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY};")
 
-        self.model_path = Path.home() / ".cellpose" / "models" / "cyto3"
-
         layout = QVBoxLayout(self)
 
         self.lbl_status = QLabel()
@@ -392,14 +406,9 @@ class ModelManagerDialog(QDialog):
         self._check_status()
 
     def _check_status(self):
-        models_dir = Path.home() / ".cellpose" / "models"
+        installed, size_mb = _check_ai_model_installed()
 
-        # Check if the folder exists and has at least one file inside it
-        if models_dir.exists() and any(models_dir.iterdir()):
-            # Sum up the size of all model files
-            total_size = sum(f.stat().st_size for f in models_dir.iterdir() if f.is_file())
-            size_mb = total_size / (1024 * 1024)
-
+        if installed:
             self.lbl_status.setText(f"✅ AI Engine Installed ({size_mb:.1f} MB)")
             self.btn_download.setEnabled(False)
             self.btn_download.setStyleSheet(
@@ -652,7 +661,7 @@ class CytoMetricsPanel(PluginBase):
         self.canvas = MultiChannelCanvas()
 
         # All pipelines are loaded in the background — start empty
-        self.pipelines = {}
+        self.pipelines: dict[str, Any] = {}
 
         self._setup_ui()
         self._update_run_button_state()
@@ -773,7 +782,7 @@ class CytoMetricsPanel(PluginBase):
 
         session_layout = QHBoxLayout()
 
-        self.btn_save_session = PrimaryButton("💾 Save Session")
+        self.btn_save_session = SecondaryButton("💾 Save Session")
         self.btn_save_session.clicked.connect(self._on_save_workflow)
 
         session_layout.addWidget(self.btn_save_session)
@@ -787,6 +796,13 @@ class CytoMetricsPanel(PluginBase):
             QTabBar::tab:selected {{ background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; font-weight: bold; border-bottom-color: {Colors.BG_MEDIUM}; }}
         """)
 
+        def create_header(text):
+            lbl = QLabel(text)
+            lbl.setStyleSheet(
+                f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};"
+            )
+            return lbl
+
         # ==========================================
         # --- TAB 1: SETUP & CHANNELS ---
         # ==========================================
@@ -794,22 +810,32 @@ class CytoMetricsPanel(PluginBase):
         setup_layout = QVBoxLayout(tab_setup)
         setup_layout.setSpacing(15)
 
+        setup_layout.addWidget(create_header("1. Import Images"))
+
+        self.channel_manager = ChannelManagerWidget(self.image_stack)
+        self.channel_manager.channels_changed.connect(self._render_composite)
+        self.channel_manager.channels_changed.connect(self._update_calibrate_button_state)
+        self.channel_manager.new_image_loaded.connect(self._extract_tiff_metadata)
+        setup_layout.addWidget(self.channel_manager)
+
+        self.canvas.load_requested.connect(self.channel_manager.prompt_add_channel)
+        self.canvas.files_dropped.connect(self.channel_manager.ingest_paths)
+
+        setup_layout.addWidget(create_header("2. Calibrate Scale"))
+
         self.lbl_scale = QLabel("Scale: Uncalibrated")
         self.lbl_scale.setStyleSheet(
             f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; border: none;"
         )
         setup_layout.addWidget(self.lbl_scale)
 
-        self.btn_calibrate = QPushButton("📏  Set Scale / Calibrate")
-        self.btn_calibrate.setStyleSheet(self._btn_style(Colors.BG_DARKEST, align="left"))
+        self.btn_calibrate = SecondaryButton("📏  Set Scale / Calibrate")
+        self.btn_calibrate.setEnabled(False)
+        self.btn_calibrate.setToolTip("Add an image channel first.")
         self.btn_calibrate.clicked.connect(self._on_calibrate_clicked)
         self.canvas.calibration_line_drawn.connect(self._on_calibration_drawn)
         setup_layout.addWidget(self.btn_calibrate)
 
-        self.channel_manager = ChannelManagerWidget(self.image_stack)
-        self.channel_manager.channels_changed.connect(self._render_composite)
-        self.channel_manager.new_image_loaded.connect(self._extract_tiff_metadata)
-        setup_layout.addWidget(self.channel_manager)
         setup_layout.addStretch()
 
         # ==========================================
@@ -841,12 +867,9 @@ class CytoMetricsPanel(PluginBase):
             QComboBox QAbstractItemView {{ background-color: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY}; selection-background-color: {Colors.ACCENT_PRIMARY}; }}
         """
 
-        def create_header(text):
-            lbl = QLabel(text)
-            lbl.setStyleSheet(
-                f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};"
-            )
-            return lbl
+        self.lbl_ai_status = QLabel("⏳ Loading AI engine…")
+        self.lbl_ai_status.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 12px;")
+        detect_layout.addWidget(self.lbl_ai_status)
 
         r = 0
 
@@ -924,9 +947,8 @@ class CytoMetricsPanel(PluginBase):
         self.combo_pipeline.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.combo_pipeline.currentTextChanged.connect(self._on_algorithm_changed)
 
-        self.btn_manage_ai = QPushButton("⚙️ Manage AI")
-        self.btn_manage_ai.setStyleSheet(self._btn_style(Colors.BG_MEDIUM, align="center"))
-        self.btn_manage_ai.clicked.connect(lambda: ModelManagerDialog(self).exec())
+        self.btn_manage_ai = SecondaryButton("⚙️ Manage AI")
+        self.btn_manage_ai.clicked.connect(self._open_model_manager)
 
         algo_row_layout.addWidget(self.combo_pipeline)
         algo_row_layout.addWidget(self.btn_manage_ai)
@@ -1013,8 +1035,7 @@ class CytoMetricsPanel(PluginBase):
         self.progress_bar.setVisible(False)
         detect_layout.addWidget(self.progress_bar)
 
-        self.btn_run_pipeline = QPushButton("✨ Run Segmentation")
-        self.btn_run_pipeline.setStyleSheet(self._btn_style(Colors.ACCENT_PRIMARY, align="center"))
+        self.btn_run_pipeline = PrimaryButton("✨ Run Segmentation")
         self.btn_run_pipeline.clicked.connect(self._on_run_pipeline)
         detect_layout.addWidget(self.btn_run_pipeline)
 
@@ -1049,8 +1070,7 @@ class CytoMetricsPanel(PluginBase):
         results_layout.addWidget(self.histogram)
 
         results_layout.addWidget(create_header("Export"))
-        self.btn_export = QPushButton("💾 Export to CSV")
-        self.btn_export.setStyleSheet(self._btn_style(Colors.BG_MEDIUM, align="center"))
+        self.btn_export = SecondaryButton("💾 Export to CSV")
         self.btn_export.clicked.connect(self._on_export_csv)
         results_layout.addWidget(self.btn_export)
 
@@ -1068,9 +1088,8 @@ class CytoMetricsPanel(PluginBase):
 
         # _on_algorithm_changed will be triggered once _on_ai_loaded populates the combo
 
-        self.btn_draw = QPushButton("✏️  Draw Cells (Manual)")
+        self.btn_draw = SecondaryButton("✏️  Draw Cells (Manual)")
         self.btn_draw.setCheckable(True)
-        self.btn_draw.setStyleSheet(self._btn_style(Colors.BG_MEDIUM, align="left"))
         self.btn_draw.clicked.connect(self._on_draw_toggled)
         self.canvas.cell_drawn.connect(self._on_cell_drawn)
 
@@ -1099,13 +1118,41 @@ class CytoMetricsPanel(PluginBase):
 
         # Inject the canvas into the right hand side of the main splitter
         self.main_splitter.addWidget(self.canvas)
-        self.main_splitter.setStretchFactor(0, 3)
-        self.main_splitter.setStretchFactor(1, 7)
+        self.main_splitter.setStretchFactor(0, 1)
+        self.main_splitter.setStretchFactor(1, 3)
+        # setStretchFactor alone only governs how *extra* space is redistributed on
+        # resize — the initial split needs an explicit ratio, or Qt sizes each pane
+        # by its own sizeHint() instead (which skewed the controls panel far wider
+        # than intended). Values are proportional, not literal pixels — scaled to
+        # whatever the splitter's actual width is at first layout.
+        self.main_splitter.setSizes([1, 3])
 
     def _update_run_button_state(self):
         has_scale = self.state.scale > 0
         self.btn_run_pipeline.setEnabled(has_scale)
         self.lbl_calibration_warning.setVisible(not has_scale)
+
+    def _update_calibrate_button_state(self):
+        has_channels = bool(self.image_stack.channels)
+        self.btn_calibrate.setEnabled(has_channels)
+        self.btn_calibrate.setToolTip("" if has_channels else "Add an image channel first.")
+
+    def _open_model_manager(self):
+        ModelManagerDialog(self).exec()
+        self._refresh_ai_status_label()
+
+    def _refresh_ai_status_label(self):
+        installed, size_mb = _check_ai_model_installed()
+        if installed:
+            self.lbl_ai_status.setText(f"✅ AI engine ready ({size_mb:.1f} MB)")
+            self.lbl_ai_status.setStyleSheet(
+                f"color: {Colors.ACCENT_SUCCESS}; font-size: 12px; font-weight: bold;"
+            )
+        else:
+            self.lbl_ai_status.setText("⚠️ AI model not installed — click Manage AI to install")
+            self.lbl_ai_status.setStyleSheet(
+                f"color: {Colors.ACCENT_WARNING}; font-size: 12px; font-weight: bold;"
+            )
 
     def _on_ai_loaded(self, success, pipelines, message):
         """Called by LibraryLoaderWorker when all libraries + pipelines are ready."""
@@ -1121,12 +1168,17 @@ class CytoMetricsPanel(PluginBase):
             # Unlock and rename tab 2
             self.tabs.setTabEnabled(1, True)
             self.tabs.setTabText(1, "2. Smart Detect")
+            self._refresh_ai_status_label()
 
             # Trigger algorithm-specific controls to update for the current selection
             self._on_algorithm_changed(self.combo_pipeline.currentText())
         else:
             # Partial load — tab stays locked with error label
             self.tabs.setTabText(1, "⚠️ Load Failed")
+            self.lbl_ai_status.setText("⚠️ AI engine failed to load")
+            self.lbl_ai_status.setStyleSheet(
+                f"color: {Colors.ACCENT_DANGER}; font-size: 12px; font-weight: bold;"
+            )
 
     def _on_algorithm_changed(self, text):
         is_ai = "Cellpose" in text
@@ -1202,7 +1254,6 @@ class CytoMetricsPanel(PluginBase):
 
         self.btn_run_pipeline.setEnabled(False)
         self.btn_run_pipeline.setText("⏳ Initializing...")
-        self.btn_run_pipeline.setStyleSheet(self._btn_style(Colors.BG_DARK, align="center"))
 
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
@@ -1236,7 +1287,6 @@ class CytoMetricsPanel(PluginBase):
     def _on_pipeline_finished(self, new_cells):
         self._update_run_button_state()
         self.btn_run_pipeline.setText("✨ Run Segmentation")
-        self.btn_run_pipeline.setStyleSheet(self._btn_style(Colors.ACCENT_PRIMARY, align="center"))
         self.progress_bar.setVisible(False)
 
         if not new_cells:
@@ -1254,7 +1304,6 @@ class CytoMetricsPanel(PluginBase):
     def _on_pipeline_error(self, error_msg):
         self._update_run_button_state()
         self.btn_run_pipeline.setText("✨ Run Segmentation")
-        self.btn_run_pipeline.setStyleSheet(self._btn_style(Colors.ACCENT_PRIMARY, align="center"))
         self.progress_bar.setVisible(False)
         QMessageBox.critical(self, "Pipeline Error", f"An error occurred:\n{error_msg}")
 
@@ -1284,10 +1333,11 @@ class CytoMetricsPanel(PluginBase):
 
         return self.state
 
-    def set_state(self, state: CytoMetricsState) -> None:
+    def set_state(self, state: PluginState) -> None:
         """Restore the workspace from an SDK state object."""
         if not state:
             return
+        assert isinstance(state, CytoMetricsState)
 
         self.state = state
 
@@ -1383,6 +1433,7 @@ class CytoMetricsPanel(PluginBase):
                         color_combo.setCurrentText(saved_color)
                         color_combo.blockSignals(False)
             self._render_composite()
+            self._update_calibrate_button_state()
 
     def _refresh_table(self) -> None:
         """Sync the results table with the current state."""
@@ -1422,7 +1473,10 @@ class CytoMetricsPanel(PluginBase):
                 x_res, res_unit = img.tag_v2.get(282), img.tag_v2.get(296)
                 if x_res and res_unit and x_res[1] != 0:
                     px_per_unit = x_res[0] / x_res[1]
-                    if res_unit == 3 and (px_per_unit / 10000.0) != 0:
+                    if (
+                        res_unit == _TIFF_RESOLUTION_UNIT_CENTIMETERS
+                        and (px_per_unit / 10000.0) != 0
+                    ):
                         self.state.scale = 1.0 / (px_per_unit / 10000.0)
                         self.lbl_scale.setText(f"Scale: {self.state.scale:.4f} µm/px")
                         self._update_run_button_state()
@@ -1451,9 +1505,16 @@ class CytoMetricsPanel(PluginBase):
             self.btn_draw.setChecked(False)
             return
         self.canvas.set_mode("DRAW" if checked else "PAN")
-        self.btn_draw.setStyleSheet(
-            self._btn_style(Colors.ACCENT_PRIMARY if checked else Colors.BG_MEDIUM, align="left")
-        )
+        if checked:
+            # Highlight as active while drawing; restored to the normal SecondaryButton
+            # look via its own theme method once the user toggles it back off.
+            self.btn_draw.setStyleSheet(f"""
+                QPushButton {{ background-color: {Colors.ACCENT_PRIMARY}; color: {Colors.BG_DARKEST};
+                    border: none; border-radius: 6px; padding: 10px 20px; font-size: 13px;
+                    font-weight: bold; text-align: left; }}
+            """)
+        else:
+            self.btn_draw._apply_theme_styles()
 
     def _on_cell_drawn(self, points: list):
         area_px, perim_px = 0.0, 0.0
@@ -1478,13 +1539,6 @@ class CytoMetricsPanel(PluginBase):
         )
         self.set_state(self.state)
         self.state_changed.emit()
-
-    def _btn_style(self, bg_color, align="center"):
-        text_color = Colors.BG_DARKEST if bg_color == Colors.ACCENT_PRIMARY else Colors.FG_PRIMARY
-        return f"""
-            QPushButton {{ background-color: {bg_color}; color: {text_color}; border: 1px solid {Colors.BORDER}; padding: 10px; border-radius: 6px; font-weight: bold; text-align: {align}; }}
-            QPushButton:hover {{ background-color: rgba(255, 255, 255, 0.1); }}
-        """
 
     def _update_dropdowns(self):
         """Safely updates dropdown names without losing the current selection."""

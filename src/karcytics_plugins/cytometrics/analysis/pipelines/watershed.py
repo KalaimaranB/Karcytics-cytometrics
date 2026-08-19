@@ -3,6 +3,8 @@ import math
 import cv2
 import numpy as np
 
+_MASK_ACTIVE_VALUE = 255  # 8-bit binary mask: 255 marks foreground/unknown pixels
+
 
 class WatershedPipeline:
     def __init__(self):
@@ -67,7 +69,7 @@ class WatershedPipeline:
         # Set up the markers array for OpenCV
         _, markers = cv2.connectedComponents(sure_fg)
         markers = markers + 1
-        markers[unknown == 255] = 0
+        markers[unknown == _MASK_ACTIVE_VALUE] = 0
 
         # Run watershed on the smoothed target image
         target_bgr = cv2.cvtColor(blur_target, cv2.COLOR_GRAY2BGR)

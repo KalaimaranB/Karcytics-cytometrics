@@ -18,6 +18,7 @@ class SegmentationPipeline(ABC):
     @abstractmethod
     def run(self, image_stack, parameters: dict, scale: float) -> list[dict]:
         """Executes the algorithm.
-        Returns a list of cell dictionaries: [{"points": [...], "area": X, "perim": Y, "circ": Z}, ...]
+
+        Returns a list of cell dictionaries: [{"points": [...], "area": X, "perim": Y, "circ": Z}, ...].
         """
         pass

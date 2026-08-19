@@ -62,12 +62,16 @@ known-first-party = ["karcytics_plugins"]
     "TID251",   # PyQt6 allowed in UI
     "N802", "N803", "N806", "N815",  # Qt camelCase conventions
     "ARG001", "ARG002", "ARG005",    # Qt event handlers have mandatory unused args
-    "PLR0912", "PLR0917",            # Complex Qt widget methods are unavoidable
+    "PLR0912", "PLR0915", "PLR0917", # Complex Qt widget methods are unavoidable
     "SIM102", "SIM105", "SIM108", "SIM110",  # Qt patterns don't always simplify cleanly
     "C408",    # dict() calls are idiomatic in Qt widget config
     "RET504",  # Early returns in Qt event handlers can reduce clarity
     "C901",    # Complex Qt widget orchestrators are architecturally unavoidable
 ]
+# Numerical image-processing pipelines: sequential algorithm steps (threshold,
+# distance transform, connected components, ...) don't benefit from arbitrary
+# splitting just to satisfy a statement-count budget.
+"**/analysis/pipelines/**/*.py" = ["PLR0915"]
 "__init__.py" = ["TID251", "F401"]
 # ui_daemon.py hosts the module's own QApplication/window in its own process
 # (see karcytics_sdk.plugin.PluginUIDaemon) — same "UI, not analysis" exemption as
