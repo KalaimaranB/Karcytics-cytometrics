@@ -1,11 +1,11 @@
 # CytoMetrics Plugin
 
-[![BioPro Plugin](https://img.shields.io/badge/BioPro-Plugin-10B981?style=for-the-badge)](https://biopro.ai)
-[![Version](https://img.shields.io/badge/Version-0.1.0--beta-blue?style=for-the-badge)](https://github.com/kalaimaran-balasothy/cytometrics)
+[![Karcytics Plugin](https://img.shields.io/badge/Karcytics-Plugin-10B981?style=for-the-badge)](https://github.com/KalaimaranB/Karcytics-cytometrics)
+[![Version](https://img.shields.io/badge/Version-0.2.2-blue?style=for-the-badge)](https://github.com/KalaimaranB/Karcytics-cytometrics)
 
 **AI-assisted multi-channel cell morphology quantification.**
 
-CytoMetrics is a high-performance BioPro plugin designed for automated cell segmentation and morphological analysis. It leverages state-of-the-art AI (Cellpose) and traditional computer vision algorithms to provide accurate quantification of cellular features in complex multi-channel light microscopy images.
+CytoMetrics is a high-performance Karcytics plugin designed for automated cell segmentation and morphological analysis. It leverages state-of-the-art AI (Cellpose) and traditional computer vision algorithms to provide accurate quantification of cellular features in complex multi-channel light microscopy images.
 
 ---
 
@@ -31,7 +31,7 @@ CytoMetrics is a high-performance BioPro plugin designed for automated cell segm
 ## 🚀 Getting Started
 
 ### 1. Installation
-The plugin is installed via the BioPro Plugin Manager. Ensure you have `biopro` installed and configured.
+The plugin is installed via the Karcytics Hub's plugin manager.
 
 ### 2. Setting Up the AI Engine
 The primary AI model (~1.3GB) is managed separately to optimize storage:
@@ -80,7 +80,7 @@ CytoMetrics is designed for modern hardware:
 
 ## 👤 Author
 **Kalaimaran Balasothy**  
-*Lead Developer, BioPro Ecosystem*
+*Lead Developer, Karcytics Ecosystem*
 
 ---
 

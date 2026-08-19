@@ -1,20 +1,22 @@
 #!/bin/bash
-# Pre-commit hook to automatically sign the BioPro plugin
+# Pre-commit hook to automatically sign the Karcytics plugin.
+# Interim: full pre-commit framework migration (ruff/mypy/pytest/sign) lands
+# separately; this just keeps `karcytics-sdk sign` current on every commit.
 
-echo "Signing plugin with BioPro SDK..."
-PLUGIN_ID=$(grep -o '"id": *"[^"]*"' manifest.json | cut -d'"' -f4)
+echo "Signing plugin with Karcytics SDK..."
+PLUGIN_ID=$(grep '^id =' pyproject.toml | head -1 | cut -d'"' -f2)
 
 if [ -z "$PLUGIN_ID" ]; then
-    echo "Error: Could not find plugin ID in manifest.json"
+    echo "Error: Could not find plugin ID in pyproject.toml"
     exit 1
 fi
 
 if [ "$(basename "$PWD")" != "$PLUGIN_ID" ]; then
     ln -s . "$PLUGIN_ID"
-    biopro-sdk sign "$PLUGIN_ID"
+    karcytics-sdk sign "$PLUGIN_ID"
     rm "$PLUGIN_ID"
 else
-    biopro-sdk sign "$PWD"
+    karcytics-sdk sign "$PWD"
 fi
 
 if [ $? -ne 0 ]; then
