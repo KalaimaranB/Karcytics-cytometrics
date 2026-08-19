@@ -1,10 +1,8 @@
 import inspect
 import logging
 import sys
-from pathlib import Path
 from typing import Any
 
-import requests
 from karcytics_sdk.plugin import AnalysisBase, PluginState
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -103,28 +101,19 @@ class CytoPipelineWorker(AnalysisBase):
 
 
 def download_model_func(progress_callback=None):
-    """Logic moved from ModelDownloadWorker for use with FunctionalTask."""
-    model_dir = Path.home() / ".cellpose" / "models"
-    model_dir.mkdir(parents=True, exist_ok=True)
-    model_path = model_dir / "cyto3"
+    """Downloads (and caches) the Cellpose-SAM generalist model via Cellpose's
+    own model registry — cellpose.org's old cyto/cyto2/cyto3 model zoo (and its
+    download URL) no longer exists as of Cellpose v4.2+.
+    """
+    from cellpose.models import cache_model_path
 
-    url = "https://www.cellpose.org/models/cyto3"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    if progress_callback:
+        progress_callback(5)  # cellpose's own downloader doesn't report progress back to us
 
-    response = requests.get(url, stream=True, headers=headers)
-    response.raise_for_status()
+    model_path = cache_model_path("cpsam")
 
-    total_size = int(response.headers.get("content-length", 0))
-    downloaded = 0
-
-    with open(model_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=32768):  # Larger chunks for speed
-            if chunk:
-                f.write(chunk)
-                downloaded += len(chunk)
-                if progress_callback and total_size > 0:
-                    percent = int((downloaded / total_size) * 100)
-                    progress_callback(percent)
+    if progress_callback:
+        progress_callback(100)
 
     return {"success": True, "path": str(model_path)}
 

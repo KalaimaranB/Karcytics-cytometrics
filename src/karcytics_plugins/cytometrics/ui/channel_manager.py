@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from karcytics_sdk.plugin import PrimaryButton
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
@@ -7,7 +8,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QHeaderView,
     QMessageBox,
-    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -30,11 +30,7 @@ class ChannelManagerWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.btn_add = QPushButton("➕ Add Image Channel")
-        self.btn_add.setStyleSheet(f"""
-            QPushButton {{ background-color: {Colors.ACCENT_PRIMARY}; color: {Colors.BG_DARKEST}; font-weight: bold; padding: 8px; border-radius: 4px; }}
-            QPushButton:hover {{ border: 1px solid white; }}
-        """)
+        self.btn_add = PrimaryButton("➕ Add Image Channel")
         self.btn_add.clicked.connect(self._on_add_channel)
         layout.addWidget(self.btn_add)
 
@@ -51,6 +47,10 @@ class ChannelManagerWidget(QWidget):
 
         layout.addWidget(self.table)
 
+    def prompt_add_channel(self):
+        """Public entry point to open the add-image file dialog, for callers outside this widget."""
+        self._on_add_channel()
+
     def _on_add_channel(self):
         # 1. Grab the Project Manager from the main application window
         main_win = self.window()
@@ -66,6 +66,13 @@ class ChannelManagerWidget(QWidget):
         )
         if not path:
             return
+
+        self.ingest_path(path)
+
+    def ingest_path(self, path: str):
+        """Add a single image file as a channel. Shared by the file dialog and drag-and-drop."""
+        main_win = self.window()
+        pm = getattr(main_win, "project_manager", None)
 
         final_path = Path(
             path
@@ -119,6 +126,11 @@ class ChannelManagerWidget(QWidget):
             # Emit the signals using the new, safely managed path
             self.new_image_loaded.emit(file_path_str)
             self.channels_changed.emit()
+
+    def ingest_paths(self, paths: list[str]):
+        """Add multiple image files as channels, e.g. from a drag-and-drop event."""
+        for path in paths:
+            self.ingest_path(path)
 
     def _add_row_to_ui(self, name: str, current_color: str):
         # Block signals so creating the row doesn't trigger a fake "user edit"

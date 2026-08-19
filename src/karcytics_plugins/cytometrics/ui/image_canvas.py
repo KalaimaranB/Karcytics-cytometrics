@@ -1,5 +1,6 @@
 """Custom hardware-accelerated image canvas for multi-channel TIFFs."""
 
+from karcytics_sdk.plugin import PrimaryButton
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PyQt6.QtCore import QLineF, QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont, QPen, QPixmap, QPolygonF
@@ -10,10 +11,16 @@ from PyQt6.QtWidgets import (
     QGraphicsScene,
     QGraphicsSimpleTextItem,
     QGraphicsView,
+    QLabel,
     QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 _MIN_POLYGON_POINTS = 3  # a closed polygon needs at least a triangle
+
+#: Extensions accepted for drag-and-drop, matching ChannelManagerWidget's file dialog filter.
+_SUPPORTED_EXTENSIONS = (".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp")
 
 
 class CellPolygonItem(QGraphicsPolygonItem):
@@ -57,6 +64,8 @@ class MultiChannelCanvas(QGraphicsView):
     calibration_line_drawn = pyqtSignal(float)
     cell_drawn = pyqtSignal(list)
     cell_deleted = pyqtSignal(int)  # <-- NEW PHASE 3 SIGNAL
+    load_requested = pyqtSignal()  # user clicked the empty-state "Load Image" button
+    files_dropped = pyqtSignal(list)  # user dropped one or more image files onto the canvas
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -67,10 +76,11 @@ class MultiChannelCanvas(QGraphicsView):
 
         self.setStyleSheet(f"background: {Colors.BG_DARKEST}; border: none;")
         self.setRenderHint(self.renderHints().Antialiasing)
+        self.setAcceptDrops(True)
 
-        self._placeholder = self._scene.addText("Load an image to begin CytoMetrics.")
-        self._placeholder.setDefaultTextColor(QColor(Colors.FG_SECONDARY))
         self._image_item = None
+        self._user_zoomed = False
+        self._empty_state = self._build_empty_state()
 
         self.mode = "PAN"
         self._calib_start = None
@@ -80,15 +90,84 @@ class MultiChannelCanvas(QGraphicsView):
         self._drawing_item = None
         self._cell_items = []
 
+    def _build_empty_state(self) -> QWidget:
+        """Centered overlay shown when no image is loaded: a CTA button plus a drop hint."""
+        overlay = QWidget(self.viewport())
+        layout = QVBoxLayout(overlay)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon = QLabel("🔬")
+        icon.setStyleSheet("font-size: 40px; border: none;")
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+
+        title = QLabel("Load an image to begin")
+        title.setStyleSheet(
+            f"color: {Colors.FG_PRIMARY}; font-size: 15px; font-weight: bold; border: none;"
+        )
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        self._btn_load = PrimaryButton("➕ Load Image")
+        self._btn_load.clicked.connect(self.load_requested.emit)
+        layout.addWidget(self._btn_load)
+
+        hint = QLabel("or drag & drop an image file here")
+        hint.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 12px; border: none;")
+        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(hint)
+
+        overlay.adjustSize()
+        return overlay
+
+    def _center_empty_state(self):
+        size = self._empty_state.sizeHint()
+        x = (self.viewport().width() - size.width()) // 2
+        y = (self.viewport().height() - size.height()) // 2
+        self._empty_state.setGeometry(max(0, x), max(0, y), size.width(), size.height())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._center_empty_state()
+        if self._image_item is not None and not self._user_zoomed:
+            self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+
     def load_pixmap(self, pixmap: QPixmap):
         if self._image_item:
             self._scene.removeItem(self._image_item)
-        self._placeholder.hide()
+        self._empty_state.hide()
         self._image_item = QGraphicsPixmapItem(pixmap)
         self._scene.addItem(self._image_item)
         self._scene.setSceneRect(QRectF(pixmap.rect()))
+        self._user_zoomed = False
         self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
         self.set_mode("PAN")
+
+    def _has_supported_extension(self, path: str) -> bool:
+        return path.lower().endswith(_SUPPORTED_EXTENSIONS)
+
+    def dragEnterEvent(self, event):
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if any(self._has_supported_extension(url.toLocalFile()) for url in urls):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        paths = [
+            url.toLocalFile()
+            for url in event.mimeData().urls()
+            if self._has_supported_extension(url.toLocalFile())
+        ]
+        if paths:
+            self.files_dropped.emit(paths)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def set_mode(self, mode_str: str):
         self.mode = mode_str
@@ -181,6 +260,7 @@ class MultiChannelCanvas(QGraphicsView):
             super().mouseReleaseEvent(event)
 
     def wheelEvent(self, event):
+        self._user_zoomed = True
         if event.angleDelta().y() > 0:
             self.scale(1.15, 1.15)
         else:
@@ -206,5 +286,5 @@ class MultiChannelCanvas(QGraphicsView):
         self._cell_items.clear()
         self._drawing_points.clear()
         self._calib_line_item = None
-        self._placeholder = None
+        self._empty_state = None
         self._image_item = None
