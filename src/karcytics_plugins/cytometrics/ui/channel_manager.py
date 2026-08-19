@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QTableWidget,
     QTableWidgetItem, QComboBox, QFileDialog, QHeaderView
 )
-from biopro.ui.theme import Colors
+from karcytics_sdk.plugin.theme_fallback import Colors
 from PyQt6.QtWidgets import QMessageBox
 from pathlib import Path
 import os

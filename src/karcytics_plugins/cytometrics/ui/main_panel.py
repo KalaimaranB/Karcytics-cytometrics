@@ -1,7 +1,6 @@
 """CytoMetrics Entry Point."""
 
 import math
-import logging
 import sys
 import os
 import csv
@@ -11,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import requests
 import psutil
+from PIL import Image
 
 from PyQt6.QtCore import Qt, pyqtSignal, QRect, QSize, QTimer
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QPen, QFont
@@ -21,17 +21,16 @@ from PyQt6.QtWidgets import (
     QCheckBox, QDoubleSpinBox, QTabWidget,
     QDialog, QLineEdit, QTextEdit, QDialogButtonBox, QFileDialog
 )
-from biopro.sdk.core import PluginBase
-from biopro.sdk.ui import HeaderLabel, PrimaryButton, SubtitleLabel
-from .workers import PipelineWorker, ModelDownloadWorker, LibraryLoaderWorker
-from biopro.ui.theme import Colors
+from karcytics_sdk.plugin import PluginBase, HeaderLabel, PrimaryButton, SubtitleLabel, get_logger, task_scheduler
+from karcytics_sdk.plugin.theme_fallback import Colors
+from .workers import CytoPipelineWorker, FunctionalAnalysisTask, download_model_func, load_libraries_func
 from .image_canvas import MultiChannelCanvas
 from .channel_manager import ChannelManagerWidget
-from biopro.plugins.cytometrics.analysis.image_stack import ImageStack
-from biopro.plugins.cytometrics.analysis.state import CytoMetricsState
+from ..analysis.image_stack import ImageStack
+from ..analysis.state import CytoMetricsState
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__, "cytometrics")
 
 
 class HardwareMonitor(QWidget):
@@ -187,7 +186,7 @@ class HardwareMonitor(QWidget):
 
         p.end()
 
-class BioLoadingBar(QWidget):
+class ScanningIndicator(QWidget):
     """
     Animated bio-themed loading indicator.
     Draws a scrolling ECG-style sine wave \u2014 looks like a live cell-signal scan.
@@ -305,7 +304,7 @@ class ModelManagerDialog(QDialog):
         self.lbl_status.setStyleSheet("font-size: 14px; margin: 10px;")
         layout.addWidget(self.lbl_status)
 
-        self.progress_bar = BioLoadingBar()
+        self.progress_bar = ScanningIndicator()
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
@@ -360,16 +359,12 @@ class ModelManagerDialog(QDialog):
             QMessageBox.warning(self, "Error", f"Could not delete file:\n{e}")
 
     def _start_download(self):
-        from biopro.sdk.core import FunctionalTask
-        from biopro.core import task_scheduler
-        from .workers import download_model_func
-        
         self.btn_download.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.lbl_status.setText("Downloading via TaskScheduler...")
 
-        task = FunctionalTask(download_model_func)
-        task_id = task_scheduler.submit(task, None) # No state needed for download
+        task = FunctionalAnalysisTask(download_model_func)
+        task_id = task_scheduler.submit(task, None).task_id  # No state needed for download
         
         def _on_finished(tid, results):
             if tid != task_id: return
@@ -568,27 +563,22 @@ class CytoMetricsPanel(PluginBase):
         self._update_run_button_state()
         self.state_changed.connect(self._update_results_tab)
 
-        # Kick off heavy AI imports via FunctionalTask
-        from biopro.core.task_scheduler import FunctionalTask
-        from biopro.core import task_scheduler
-        from .workers import load_libraries_func
-        
-        task = FunctionalTask(load_libraries_func)
-        self._loader_task_id = task_scheduler.submit(task, self.state)
-        
+        # Kick off heavy AI imports as a background task
+        task = FunctionalAnalysisTask(load_libraries_func)
+        self._loader_task_id = task_scheduler.submit(task, self.state).task_id
+
         task_scheduler.task_finished.connect(self._on_loader_finished_handler)
         task_scheduler.task_error.connect(self._on_loader_error_handler)
 
     def _on_loader_finished_handler(self, tid, results):
         if hasattr(self, '_loader_task_id') and tid == self._loader_task_id:
-            from biopro.core import task_scheduler
             try:
                 task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
                 task_scheduler.task_error.disconnect(self._on_loader_error_handler)
             except (TypeError, RuntimeError):
                 pass # Already disconnected or object deleted
-            
-            # FunctionalTask emits the function's return dict directly as results.
+
+            # FunctionalAnalysisTask emits the function's return dict directly as results.
             self._on_ai_loaded(
                 results.get("success", False),
                 results.get("pipelines", {}),
@@ -597,7 +587,6 @@ class CytoMetricsPanel(PluginBase):
 
     def _on_loader_error_handler(self, tid, error):
         if hasattr(self, '_loader_task_id') and tid == self._loader_task_id:
-            from biopro.core import task_scheduler
             try:
                 task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
                 task_scheduler.task_error.disconnect(self._on_loader_error_handler)
@@ -606,56 +595,61 @@ class CytoMetricsPanel(PluginBase):
             self._on_ai_loaded(False, {}, error)
 
     def cleanup(self) -> None:
-        """Called when the Cytometrics tab is closed."""
+        """Called when the CytoMetrics tab is closed."""
         logger.info("Cleaning up CytoMetrics panel...")
 
         # 1. Stop UI timers and child widgets
         if hasattr(self, 'hw_monitor'):
             self.hw_monitor.stop()
-        
+
         if hasattr(self, 'progress_bar'):
             self.progress_bar.setVisible(False)
 
         # 2. Cleanup key components
-        if hasattr(self, 'canvas'):
+        if hasattr(self, 'canvas') and self.canvas:
             self.canvas.cleanup()
-        
+
         if hasattr(self, 'channel_manager'):
             self.channel_manager.cleanup()
-        
+
         # 3. Release image data
         if hasattr(self, 'image_stack') and self.image_stack:
             self.image_stack.clear()
-        
+
         # 4. Disconnect background tasks
-        from biopro.core import task_scheduler
         try:
             task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
             task_scheduler.task_error.disconnect(self._on_loader_error_handler)
         except (TypeError, RuntimeError):
             pass
-        
-        # 5. Disconnect and nullify state
+
+        # 5. Base cleanup (disconnects and nulls state)
         super().cleanup()
 
     def shutdown(self) -> None:
         """Called for global module cleanup."""
         logger.info("Shutting down CytoMetrics module...")
-        
+
         # Release the heavy AI pipelines
         if hasattr(self, 'pipelines'):
             for pipe in self.pipelines.values():
                 if hasattr(pipe, 'model'):
                     pipe.model = None
             self.pipelines.clear()
-        
+
+        # Clear large state objects
+        if self.state:
+            self.state.cells.clear()
+        if self.image_stack:
+            self.image_stack.channels.clear()
+
         # Force VRAM release if torch is loaded
         if "torch" in sys.modules:
             import torch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                # MPS doesn't have an explicit clear_cache like CUDA, 
+                # MPS doesn't have an explicit clear_cache like CUDA,
                 # but setting models to None and garbage collecting helps.
                 import gc
                 gc.collect()
@@ -905,7 +899,7 @@ class CytoMetricsPanel(PluginBase):
         self.lbl_calibration_warning.setAlignment(Qt.AlignmentFlag.AlignCenter)
         detect_layout.addWidget(self.lbl_calibration_warning)
 
-        self.progress_bar = BioLoadingBar()
+        self.progress_bar = ScanningIndicator()
         self.progress_bar.setVisible(False)
         detect_layout.addWidget(self.progress_bar)
 
@@ -1104,13 +1098,10 @@ class CytoMetricsPanel(PluginBase):
         self.state.cells.clear()
         self.state.cell_counter = 0
 
-        from biopro.core import task_scheduler
-        from .workers import CytoPipelineWorker
-        
         analyzer = CytoPipelineWorker()
         analyzer.configure(pipeline, self.image_stack, params, scale)
-        
-        task_id = task_scheduler.submit(analyzer, self.state)
+
+        task_id = task_scheduler.submit(analyzer, self.state).task_id
         
         def _on_finished(tid, results):
             if tid != task_id: return
@@ -1152,25 +1143,7 @@ class CytoMetricsPanel(PluginBase):
         self.progress_bar.setVisible(False)
         QMessageBox.critical(self, "Pipeline Error", f"An error occurred:\n{error_msg}")
 
-    def cleanup(self) -> None:
-        """Called when the CytoMetrics tab is closed."""
-        logger.info("Cleaning up CytoMetrics panel...")
-        # 1. Base cleanup (nulls state)
-        super().cleanup()
-        # 2. Cleanup UI
-        if self.canvas:
-            self.canvas.cleanup()
-
-    def shutdown(self) -> None:
-        """Called when application exits."""
-        logger.info("Shutting down CytoMetrics plugin...")
-        # Clear large state objects
-        if self.state:
-            self.state.cells.clear()
-        if self.image_stack:
-            self.image_stack.channels.clear()
-
-    # ── BioPro API: State Management ──────────────────────────────────
+    # ── State Management ────────────────────────────────────────────────
 
     def get_state(self) -> CytoMetricsState:
         """Package the workspace state for the SDK."""
@@ -1247,7 +1220,7 @@ class CytoMetricsPanel(PluginBase):
         state_obj = CytoMetricsState.from_dict(state_dict)
         self.set_state(state_obj)
 
-    # --- ALIASES FOR BIOPRO DASHBOARD INTEGRATION ---
+    # --- ALIASES FOR HUB DASHBOARD INTEGRATION ---
     def load_workflow(self, payload: dict):
         self.load_state(payload)
 

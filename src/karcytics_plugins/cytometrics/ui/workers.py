@@ -50,7 +50,9 @@ class CellposeLogInterceptor(logging.Handler):
             self.signals.progress_signal.emit(80)
 
 
-from biopro.sdk.core import AnalysisBase, PluginState
+import inspect
+
+from karcytics_sdk.plugin import AnalysisBase, PluginState
 
 class CytoPipelineWorker(AnalysisBase):
     """Worker that runs the AI segmentation pipeline via TaskScheduler."""
@@ -144,20 +146,23 @@ def load_libraries_func():
     return {"success": True, "pipelines": pipelines}
 
 
-# ── COMPATIBILITY WRAPPERS FOR MAIN_PANEL.PY ──────────────────────────
+# ── Functional Task Adapter ─────────────────────────────────────────────
+# karcytics_sdk.plugin.task_scheduler only schedules AnalysisBase instances
+# (via .run(state) -> dict), unlike the old FunctionalTask which could wrap
+# any plain function directly. This adapts download_model_func/
+# load_libraries_func — neither of which needs real PluginState — into that
+# contract.
 
-from biopro.core.task_scheduler import FunctionalTask
+class FunctionalAnalysisTask(AnalysisBase):
+    """Adapts a zero-arg or progress_callback-accepting function into an
+    AnalysisBase so it can run through task_scheduler.submit()."""
 
-class PipelineWorker(CytoPipelineWorker):
-    """Alias for main_panel.py imports."""
-    pass
+    def __init__(self, func, plugin_id: str = "cytometrics") -> None:
+        super().__init__(plugin_id)
+        self._func = func
+        self._accepts_progress = "progress_callback" in inspect.signature(func).parameters
 
-class ModelDownloadWorker(FunctionalTask):
-    """Wrapper to maintain class-based interface for legacy imports."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(download_model_func, *args, **kwargs)
-
-class LibraryLoaderWorker(FunctionalTask):
-    """Wrapper to maintain class-based interface for legacy imports."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(load_libraries_func, *args, **kwargs)
+    def run(self, state: PluginState | None = None) -> dict:
+        if self._accepts_progress:
+            return self._func(progress_callback=self.signals.analysis_progress.emit)
+        return self._func()

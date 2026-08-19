@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from biopro.sdk.core import PluginState
+from karcytics_sdk.plugin import PluginState
 
 logger = logging.getLogger(__name__)
 

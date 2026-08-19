@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QColor, QPixmap, QPen, QPolygonF, QBrush, QFont
 
-from biopro.ui.theme import Colors
+from karcytics_sdk.plugin.theme_fallback import Colors
 
 
 class CellPolygonItem(QGraphicsPolygonItem):
