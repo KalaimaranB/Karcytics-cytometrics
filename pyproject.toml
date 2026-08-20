@@ -1,6 +1,6 @@
 [project]
 name = "cytometrics"
-version = "0.3.0"
+version = "0.3.1"
 description = "A Karcytics plugin for quantitative morphological analysis of multi-channel fluorescence microscopy images — covering image import, scale calibration, classical and AI-assisted (Cellpose) cell segmentation, manual annotation, and CSV export."
 readme = "README.md"
 requires-python = ">=3.11, <3.13"

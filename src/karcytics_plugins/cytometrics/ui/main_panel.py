@@ -759,6 +759,8 @@ class CytoMetricsPanel(PluginBase):
                 gc.collect()
 
     def _setup_ui(self):
+        self._section_headers: list[QLabel] = []
+
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -801,6 +803,7 @@ class CytoMetricsPanel(PluginBase):
             lbl.setStyleSheet(
                 f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};"
             )
+            self._section_headers.append(lbl)
             return lbl
 
         # ==========================================
@@ -1126,6 +1129,70 @@ class CytoMetricsPanel(PluginBase):
         # than intended). Values are proportional, not literal pixels — scaled to
         # whatever the splitter's actual width is at first layout.
         self.main_splitter.setSizes([1, 3])
+
+    def _apply_theme_styles(self) -> None:
+        """Re-applies theme-aware styles when the active theme changes.
+
+        Most widgets here are plain Qt widgets with ``Colors.*`` baked into
+        an f-string stylesheet at construction time, so — unlike the SDK's
+        own ``Bio*`` components (buttons, ``HeaderLabel``, etc.), which
+        already re-style themselves — they need to be explicitly rebuilt
+        here. ``super()`` handles the panel background plus any child that
+        already knows how to restyle itself.
+        """
+        super()._apply_theme_styles()
+
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{ border: 1px solid {Colors.BORDER}; border-radius: 4px; top: -1px; }}
+            QTabBar::tab {{ background: {Colors.BG_DARKEST}; color: {Colors.FG_SECONDARY}; border: 1px solid {Colors.BORDER}; padding: 8px 15px; border-top-left-radius: 4px; border-top-right-radius: 4px; }}
+            QTabBar::tab:selected {{ background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; font-weight: bold; border-bottom-color: {Colors.BG_MEDIUM}; }}
+        """)
+
+        header_style = (
+            f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; "
+            f"padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};"
+        )
+        for lbl in self._section_headers:
+            lbl.setStyleSheet(header_style)
+
+        self.lbl_scale.setStyleSheet(
+            f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; border: none;"
+        )
+
+        input_style = f"""
+            QComboBox, QSpinBox, QDoubleSpinBox {{
+                background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY};
+                border: 1px solid {Colors.BORDER}; border-radius: 4px; padding: 4px; min-height: 24px;
+            }}
+            QComboBox QAbstractItemView {{ background-color: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY}; selection-background-color: {Colors.ACCENT_PRIMARY}; }}
+        """
+        for widget in (
+            self.combo_target_channel,
+            self.combo_seed_channel,
+            self.combo_pipeline,
+            self.spin_diameter,
+            self.spin_flow,
+            self.spin_min_area,
+            self.spin_max_area,
+        ):
+            widget.setStyleSheet(input_style)
+
+        self.check_dual_channel.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
+        self.check_exclude_borders.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
+        self.chk_show_ids.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
+        self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
+
+        self.table.setStyleSheet(
+            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER}; border: none;"
+        )
+
+        # lbl_ai_status's color depends on AI-load state, not just the theme —
+        # reuse the state-aware helper once loaded, otherwise re-apply the
+        # loading-state color with the new theme's FG_SECONDARY.
+        if self.tabs.isTabEnabled(1):
+            self._refresh_ai_status_label()
+        else:
+            self.lbl_ai_status.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 12px;")
 
     def _update_run_button_state(self):
         has_scale = self.state.scale > 0

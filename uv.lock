@@ -362,7 +362,7 @@ wheels = [
 
 [[package]]
 name = "cytometrics"
-version = "0.3.0"
+version = "0.3.1"
 source = { virtual = "." }
 dependencies = [
     { name = "cellpose" },
@@ -602,7 +602,7 @@ wheels = [
 
 [[package]]
 name = "karcytics-sdk"
-version = "2.0.5"
+version = "2.0.7"
 source = { editable = "../Karcytics-SDK" }
 dependencies = [
     { name = "cryptography" },

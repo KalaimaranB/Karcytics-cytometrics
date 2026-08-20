@@ -47,6 +47,23 @@ class ChannelManagerWidget(QWidget):
 
         layout.addWidget(self.table)
 
+    def _apply_theme_styles(self) -> None:
+        """Re-applies theme-aware styles when the active theme changes.
+
+        ``self.table`` and each row's color-picker combo bake ``Colors.*``
+        into their stylesheet at construction time (self.btn_add, an SDK
+        PrimaryButton, already re-styles itself), so they need an explicit
+        refresh here.
+        """
+        self.table.setStyleSheet(
+            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER};"
+        )
+        combo_style = f"background: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY};"
+        for row in range(self.table.rowCount()):
+            combo = self.table.cellWidget(row, 1)
+            if combo is not None:
+                combo.setStyleSheet(combo_style)
+
     def prompt_add_channel(self):
         """Public entry point to open the add-image file dialog, for callers outside this widget."""
         self._on_add_channel()

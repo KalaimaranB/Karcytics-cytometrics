@@ -102,24 +102,42 @@ class MultiChannelCanvas(QGraphicsView):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon)
 
-        title = QLabel("Load an image to begin")
-        title.setStyleSheet(
+        self._empty_state_title = QLabel("Load an image to begin")
+        self._empty_state_title.setStyleSheet(
             f"color: {Colors.FG_PRIMARY}; font-size: 15px; font-weight: bold; border: none;"
         )
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        self._empty_state_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._empty_state_title)
 
         self._btn_load = PrimaryButton("➕ Load Image")
         self._btn_load.clicked.connect(self.load_requested.emit)
         layout.addWidget(self._btn_load)
 
-        hint = QLabel("or drag & drop an image file here")
-        hint.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 12px; border: none;")
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(hint)
+        self._empty_state_hint = QLabel("or drag & drop an image file here")
+        self._empty_state_hint.setStyleSheet(
+            f"color: {Colors.FG_SECONDARY}; font-size: 12px; border: none;"
+        )
+        self._empty_state_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._empty_state_hint)
 
         overlay.adjustSize()
         return overlay
+
+    def _apply_theme_styles(self) -> None:
+        """Re-applies theme-aware styles when the active theme changes.
+
+        The canvas background and the empty-state labels below bake
+        ``Colors.*`` into their stylesheets at construction time, so they
+        need an explicit refresh — unlike ``self._btn_load`` (an SDK
+        ``PrimaryButton``), which already re-styles itself.
+        """
+        self.setStyleSheet(f"background: {Colors.BG_DARKEST}; border: none;")
+        self._empty_state_title.setStyleSheet(
+            f"color: {Colors.FG_PRIMARY}; font-size: 15px; font-weight: bold; border: none;"
+        )
+        self._empty_state_hint.setStyleSheet(
+            f"color: {Colors.FG_SECONDARY}; font-size: 12px; border: none;"
+        )
 
     def _center_empty_state(self):
         size = self._empty_state.sizeHint()
