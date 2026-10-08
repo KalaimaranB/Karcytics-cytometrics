@@ -3,6 +3,7 @@ name = "cytometrics"
 version = "0.3.2"
 description = "A Karcytics plugin for quantitative morphological analysis of multi-channel fluorescence microscopy images — covering image import, scale calibration, classical and AI-assisted (Cellpose) cell segmentation, manual annotation, and CSV export."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11, <3.13"
 authors = [
   { name = "Kalaimaran Balasothy" },
