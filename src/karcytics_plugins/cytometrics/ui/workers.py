@@ -4,22 +4,22 @@ import sys
 from typing import Any
 
 from karcytics_sdk.plugin import AnalysisBase, PluginState
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 logger = logging.getLogger(__name__)
 
 
 class InterceptorSignals(QObject):
-    """Helper class to hold PyQt signals for the standard logging handler."""
+    """Helper class to hold Qt signals for the standard logging handler."""
 
-    progress_signal = pyqtSignal(int)
-    status_signal = pyqtSignal(str)
+    progress_signal = Signal(int)
+    status_signal = Signal(str)
 
 
 class StreamCatcher(QObject):
     """Intercepts terminal output (stderr) so we can see what Cellpose is actually saying."""
 
-    text_written = pyqtSignal(str)
+    text_written = Signal(str)
 
     def __init__(self, original_stream):
         super().__init__()

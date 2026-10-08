@@ -2,9 +2,9 @@
 
 from karcytics_sdk.plugin import PrimaryButton
 from karcytics_sdk.plugin.theme_fallback import Colors
-from PyQt6.QtCore import QLineF, QPointF, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QPen, QPixmap, QPolygonF
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QPen, QPixmap, QPolygonF
+from PySide6.QtWidgets import (
     QGraphicsLineItem,
     QGraphicsPixmapItem,
     QGraphicsPolygonItem,
@@ -61,11 +61,11 @@ class CellPolygonItem(QGraphicsPolygonItem):
 
 
 class MultiChannelCanvas(QGraphicsView):
-    calibration_line_drawn = pyqtSignal(float)
-    cell_drawn = pyqtSignal(list)
-    cell_deleted = pyqtSignal(int)  # <-- NEW PHASE 3 SIGNAL
-    load_requested = pyqtSignal()  # user clicked the empty-state "Load Image" button
-    files_dropped = pyqtSignal(list)  # user dropped one or more image files onto the canvas
+    calibration_line_drawn = Signal(float)
+    cell_drawn = Signal(list)
+    cell_deleted = Signal(int)  # <-- NEW PHASE 3 SIGNAL
+    load_requested = Signal()  # user clicked the empty-state "Load Image" button
+    files_dropped = Signal(list)  # user dropped one or more image files onto the canvas
 
     def __init__(self, parent=None):
         super().__init__(parent)

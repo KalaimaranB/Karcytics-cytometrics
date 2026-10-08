@@ -35,7 +35,7 @@ def test_panel_live_updates_on_theme_change(qtbot):
     channel_table = panel.channel_manager.table
     channel_table.blockSignals(True)
     channel_table.insertRow(0)
-    from PyQt6.QtWidgets import QComboBox
+    from PySide6.QtWidgets import QComboBox
 
     combo = QComboBox()
     combo.addItems(["gray", "magenta"])

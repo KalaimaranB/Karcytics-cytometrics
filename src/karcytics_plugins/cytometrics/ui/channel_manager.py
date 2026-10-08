@@ -2,8 +2,8 @@ from pathlib import Path
 
 from karcytics_sdk.plugin import PrimaryButton
 from karcytics_sdk.plugin.theme_fallback import Colors
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QHeaderView,
@@ -18,8 +18,8 @@ from PyQt6.QtWidgets import (
 class ChannelManagerWidget(QWidget):
     """UI Component for adding images and assigning them to color channels."""
 
-    channels_changed = pyqtSignal()
-    new_image_loaded = pyqtSignal(str)
+    channels_changed = Signal()
+    new_image_loaded = Signal(str)
 
     def __init__(self, image_stack, parent=None):
         super().__init__(parent)

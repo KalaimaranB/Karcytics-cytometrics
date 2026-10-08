@@ -22,9 +22,9 @@ from karcytics_sdk.plugin import (
 )
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PIL import Image
-from PyQt6.QtCore import QRect, QSize, Qt, QTimer
-from PyQt6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QRect, QSize, Qt, QTimer
+from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -527,7 +527,7 @@ class SaveWorkflowDialog(QDialog):
 
 
 class SimpleHistogram(QWidget):
-    """A lightweight, native PyQt histogram with axis labels."""
+    """A lightweight, native Qt histogram with axis labels."""
 
     def __init__(self, parent=None):
         super().__init__(parent)

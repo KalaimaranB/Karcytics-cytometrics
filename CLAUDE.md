@@ -24,4 +24,4 @@ Pre-commit runs ruff, mypy, pip-audit, license compliance, `tests/unit/` (not `t
 
 ## Structure
 
-`src/karcytics_plugins/cytometrics/`: `analysis/` (segmentation + morphometrics, no Qt) and `ui/` (PyQt6 panel, hardware/telemetry dashboard). Same split as the other Karcytics plugins — see [Karcytics-SDK](../Karcytics-SDK)'s `CLAUDE.md` for the `PluginBase`/`AnalysisBase` pattern this follows.
+`src/karcytics_plugins/cytometrics/`: `analysis/` (segmentation + morphometrics, no Qt) and `ui/` (PySide6 panel, hardware/telemetry dashboard). Same split as the other Karcytics plugins — see [Karcytics-SDK](../Karcytics-SDK)'s `CLAUDE.md` for the `PluginBase`/`AnalysisBase` pattern this follows.

@@ -158,7 +158,7 @@ jobs:
           enable-cache: true
 
       # Windows Defender's real-time scanner inspects every .pyd/.dll
-      # individually as it's touched — torch/torchvision/numpy/PyQt6
+      # individually as it's touched — torch/torchvision/numpy/PySide6
       # collectively touch hundreds of them on import, a well-documented
       # 2-3x slowdown multiplier for Python scientific-stack CI on
       # windows-latest. Excluding the workspace and uv's cache dir

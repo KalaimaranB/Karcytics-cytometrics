@@ -8,7 +8,7 @@ authors = [
   { name = "Kalaimaran Balasothy" },
 ]
 dependencies = [
-    "karcytics-sdk>=2.0.1",
+    "karcytics-sdk>=3.0.0",
     "torch>=2.0",
     "torchvision>=0.15",
     "cellpose>=3.0",
@@ -91,7 +91,7 @@ mypy_path = "src"
 [[tool.mypy.overrides]]
 # Third-party packages without bundled type stubs
 module = [
-    "PyQt6.*",
+    "PySide6.*",
     "numpy.*",
     "cv2.*",
     "torch.*",
@@ -100,7 +100,7 @@ module = [
     "psutil.*",
     "karcytics_sdk.*",
     "karcytics.*",
-    "sip.*",
+    "shiboken6.*",
     "requests.*",
     "PIL.*",
 ]
@@ -111,5 +111,5 @@ karcytics-sdk = { path = "../Karcytics-SDK", editable = true }
 
 [dependency-groups]
 dev = [
-    "pyqt6>=6.11.0, <7.0.0",
+    "pyside6-essentials>=6.11.0, <7.0.0",
 ]
