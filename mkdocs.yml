@@ -1,0 +1,51 @@
+site_name: Karcytics CytoMetrics Documentation
+site_url: https://KalaimaranB.github.io/Karcytics-cytometrics
+site_description: Documentation for the Karcytics CytoMetrics plugin.
+site_author: Kalaimaran Balasothy
+
+repo_name: Karcytics CytoMetrics
+repo_url: https://github.com/KalaimaranB/Karcytics-cytometrics
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - tables
+  - attr_list
+  - md_in_html
+
+nav:
+  - "Welcome": index.md
+  - "User Guide":
+      - "Getting Started": user/01_GETTING_STARTED.md
+      - "Analysis Workflow": user/02_ANALYSIS_WORKFLOW.md
+      - "How to Cite": user/03_HOW_TO_CITE.md
+  - "Developer Guide":
+      - "Architecture Overview": developer/00_ARCHITECTURE_OVERVIEW.md
+      - "Testing & QA": developer/01_TESTING_AND_QA.md
+      - "Expansion Plan": developer/plans/EXPANSION_PLAN.md

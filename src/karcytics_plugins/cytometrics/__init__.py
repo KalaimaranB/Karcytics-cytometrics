@@ -5,8 +5,36 @@ AI-assisted multi-channel cell morphology quantification.
 
 from typing import Any
 
-__version__ = "0.2.2"
 __plugin_id__ = "cytometrics"
+
+
+def _read_version() -> str:
+    """Single source of truth: pyproject.toml's [project].version.
+
+    That field is also the release trigger, so a hard-coded copy here drifts
+    (it read 0.2.2 while pyproject said 0.3.2). The plugin is loaded from a
+    source tree via sys.path rather than pip-installed, so fall back to
+    parsing pyproject.toml when package metadata isn't available.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version(__plugin_id__)
+    except PackageNotFoundError:
+        pass
+
+    import tomllib
+    from pathlib import Path
+
+    pyproject_path = Path(__file__).resolve().parents[3] / "pyproject.toml"
+    try:
+        with pyproject_path.open("rb") as f:
+            return str(tomllib.load(f)["project"]["version"])
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return "0.0.0"
+
+
+__version__ = _read_version()
 
 
 def get_panel_class() -> type:

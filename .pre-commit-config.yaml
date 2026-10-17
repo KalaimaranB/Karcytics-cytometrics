@@ -34,6 +34,13 @@ repos:
         language: system
         pass_filenames: false
 
+      # ── 4b. License compliance ────────────────────────────────────────────
+      - id: license-compliance
+        name: License Compliance Check
+        entry: uv run python scripts/check_license_compliance.py
+        language: system
+        pass_filenames: false
+
       # ── 5. Unit tests (fast, headless — functional/UI tests run in CI) ────
       - id: pytest
         name: Unit Test Suite

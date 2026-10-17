@@ -1,7 +1,7 @@
 # CytoMetrics Plugin
 
 [![Karcytics Plugin](https://img.shields.io/badge/Karcytics-Plugin-10B981?style=for-the-badge)](https://github.com/KalaimaranB/Karcytics-cytometrics)
-[![Version](https://img.shields.io/badge/Version-0.2.2-blue?style=for-the-badge)](https://github.com/KalaimaranB/Karcytics-cytometrics)
+[![Version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FKalaimaranB%2FKarcytics-cytometrics%2Fmain%2Fpyproject.toml&query=%24.project.version&label=Version&color=blue&style=for-the-badge)](https://github.com/KalaimaranB/Karcytics-cytometrics)
 
 **AI-assisted multi-channel cell morphology quantification.**
 
@@ -12,7 +12,7 @@ CytoMetrics is a high-performance Karcytics plugin designed for automated cell s
 ## ✨ Key Features
 
 ### 🧠 Advanced AI Segmentation
-*   **Cellpose Integration**: Native support for the `cyto3` model for robust segmentation of diverse cell types.
+*   **Cellpose Integration**: Uses the Cellpose-SAM (`cpsam`) generalist model for robust segmentation of diverse cell types.
 *   **Multi-Channel Awareness**: Utilize primary signal (cytoplasm) and secondary markers (nuclei) simultaneously for precise clump splitting.
 *   **GPU/MPS Acceleration**: Fully optimized for macOS (Metal Performance Shaders) and NVIDIA (CUDA) for lightning-fast analysis.
 

@@ -1,0 +1,75 @@
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true   # Blocks merging until all CR comments resolved
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_instructions:
+    # ── Analysis layer: strictest standards ──────────────────────────────────
+    - path: "src/karcytics_plugins/cytometrics/analysis/**/*.py"
+      instructions: |
+        This is the core analysis layer — it must be framework-agnostic and highly testable.
+        Enforce the following at Google-engineer standard:
+        - All public functions and methods must have complete type annotations (PEP 484).
+          Flag any `Any`, untyped parameters, or missing return types.
+        - No imports of `PySide6`, `PyQt6`, or any UI framework. This is enforced by ruff TID251
+          but flag it at the review level too.
+        - McCabe complexity must be ≤ 10 per function. If a function exceeds this, suggest
+          a specific decomposition strategy (e.g., extract helper, use strategy pattern).
+        - No magic numbers. All numeric constants must be named (e.g., `MAX_BINS = 512`).
+        - No broad `except Exception` — flag these even with `# noqa` and suggest the
+          specific exception type or a structured error hierarchy.
+        - Use the module-level `logger = get_logger(__name__, "cytometrics")` pattern
+          from `karcytics_sdk.plugin`. Flag any `print()` statements.
+        - Any segmenter, measurement or assay based on published work must declare its
+          citations (see docs/developer/plans/EXPANSION_PLAN.md §6). Flag ones that don't.
+        - New models: both code and weights must carry an explicit permissive license
+          (BSD/MIT/Apache). Flag any model whose weights license is unstated.
+        - Prefer dataclasses or typed NamedTuples over plain dicts for structured return types.
+        - Flag mutable default arguments (e.g., `def f(data: list = [])`).
+
+    # ── UI layer: quality without strictness ─────────────────────────────────
+    - path: "src/karcytics_plugins/cytometrics/ui/**/*.py"
+      instructions: |
+        This is the UI layer. Qt naming conventions (camelCase methods) are acceptable.
+        Enforce the following:
+        - No God Classes. If a class exceeds ~300 lines or has more than ~10 public methods,
+          flag it and suggest decomposition into view/controller/service components.
+        - Cross-widget communication must use Qt signals, not direct method calls between
+          sibling widgets. Flag `other_widget.some_method()` patterns.
+        - Worker threads (QThread subclasses or QRunnable) must never directly update UI.
+          All UI updates must be via signals emitted to the main thread.
+        - Flag any `time.sleep()` calls on the main thread.
+        - Magic numbers in pixel sizes, timeouts, or thresholds should be named constants.
+
+    # ── Tests: correctness and clarity ───────────────────────────────────────
+    - path: "tests/**/*.py"
+      instructions: |
+        - Every test function must have at least one explicit `assert`. Flag test bodies
+          that only call functions without asserting outcomes.
+        - Test names must describe the behaviour being tested, not just the function name.
+          e.g., `test_gate_rejects_empty_dataframe` not `test_gate`.
+        - Flag `except Exception` blocks that swallow assertion errors
+          (pattern: `except Exception: pytest.fail(...)` is fine, bare pass is not).
+        - Unit tests (`tests/unit/`) must not import any `PySide6` or UI modules.
+          Analysis tests must remain headless.
+
+    # ── Config and packaging ─────────────────────────────────────────────────
+    - path: "pyproject.toml"
+      instructions: |
+        - All dependencies should have pinned or bounded version specifiers.
+        - Dev dependencies must include mypy, ruff, pytest, pip-audit.
+        - Flag any direct `==` pins on transitive dependencies (they should live in uv.lock).
+
+    - path: ".github/workflows/*.yml"
+      instructions: |
+        - All jobs must run `uv sync` before using `uv run`. Never install ruff or other
+          tools globally without version locking (use `uv sync --all-extras` instead).
+        - The lint job must run before the test matrix to act as a fast-fail gate.
+        - Secrets (tokens, keys) must only be accessed via `${{ secrets.NAME }}`.
+
+chat:
+  auto_reply: true

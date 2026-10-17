@@ -79,6 +79,9 @@ timeout = 120
 timeout_method = "thread"
 markers = [
     "unit: unit tests (fast, headless)",
+    "functional: end-to-end analysis tests (headless)",
+    "slow: slow tests, e.g. ones that need the real Cellpose model",
+    "edge_case: edge case tests",
     "ui: tests that require Qt/display",
     "integration: integration tests",
 ]
