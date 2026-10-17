@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 
-from karcytics_sdk.plugin import PluginState
+from karcytics_sdk.plugin import PluginState, get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__, "cytometrics")
 
 
 @dataclass

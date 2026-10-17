@@ -12,12 +12,24 @@ from typing import Any
 
 import psutil
 from karcytics_sdk.plugin import (
+    BioComboBox,
+    BioDoubleSpinBox,
+    BioLineEdit,
+    BioScrollArea,
+    BioSplitter,
+    BioTableWidget,
+    DangerButton,
     HeaderLabel,
     PluginBase,
     PluginState,
     PrimaryButton,
     SecondaryButton,
+    get_double,
     get_logger,
+    get_save_path,
+    show_error,
+    show_info,
+    show_warning,
     task_scheduler,
 )
 from karcytics_sdk.plugin.theme_fallback import Colors
@@ -26,24 +38,15 @@ from PySide6.QtCore import QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
-    QInputDialog,
     QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QScrollArea,
     QSizePolicy,
-    QSplitter,
-    QTableWidget,
     QTableWidgetItem,
     QTabWidget,
     QTextEdit,
@@ -82,12 +85,12 @@ class HardwareMonitor(QWidget):
     """Live system telemetry widget drawn with QPainter — zero extra dependencies."""
 
     _COLORS = {
-        "bg": QColor("#111827"),
-        "grid": QColor("#374151"),
-        "sys_cpu": QColor("#6B7280"),
-        "app_cpu": QColor("#3B82F6"),
-        "vram": QColor("#F59E0B"),
-        "label": QColor("#9CA3AF"),
+        "bg": QColor(Colors.BG_DARKEST),
+        "grid": QColor(Colors.BORDER),
+        "sys_cpu": QColor(Colors.FG_SECONDARY),
+        "app_cpu": QColor(Colors.ACCENT_PRIMARY),
+        "vram": QColor(Colors.ACCENT_WARNING),
+        "label": QColor(Colors.FG_SECONDARY),
     }
 
     LEGEND_H = 14  # px reserved for the legend strip at the very top
@@ -262,10 +265,10 @@ class ScanningIndicator(QWidget):
     Fully replaces QProgressBar: call setVisible(True/False) to show / hide.
     """
 
-    _BG = QColor("#0F172A")
-    _GLOW = QColor("#10B981")  # emerald green \u2014 bio / life science feel
-    _DIM = QColor("#064E3B")  # dark teal for the faded trailing wave
-    _GRID = QColor("#1E293B")
+    _BG = QColor(Colors.BG_DARKEST)
+    _GLOW = QColor(Colors.ACCENT_PRIMARY)
+    _DIM = QColor(Colors.BG_MEDIUM)
+    _GRID = QColor(Colors.BORDER)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -348,7 +351,7 @@ class ScanningIndicator(QWidget):
         _wave(0, self._GLOW, 2, None)  # sharp bright line
 
         # Small "ANALYSING..." label on the right
-        p.setPen(QColor("#6EE7B7"))
+        p.setPen(QColor(Colors.ACCENT_PRIMARY))
         f = QFont()
         f.setPointSize(7)
         f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
@@ -387,16 +390,10 @@ class ModelManagerDialog(QDialog):
 
         btn_layout = QHBoxLayout()
 
-        self.btn_download = QPushButton("⬇️ Download Model (~1GB)")
-        self.btn_download.setStyleSheet(
-            f"background: {Colors.BG_MEDIUM}; padding: 6px; border-radius: 4px;"
-        )
+        self.btn_download = PrimaryButton("⬇️ Download Model (~1GB)")
         self.btn_download.clicked.connect(self._start_download)
 
-        self.btn_delete = QPushButton("🗑️ Delete to Free Space")
-        self.btn_delete.setStyleSheet(
-            "background: #7F1D1D; color: white; padding: 6px; border-radius: 4px;"
-        )  # Dark red
+        self.btn_delete = DangerButton("🗑️ Delete to Free Space")
         self.btn_delete.clicked.connect(self._delete_model)
 
         btn_layout.addWidget(self.btn_download)
@@ -411,23 +408,11 @@ class ModelManagerDialog(QDialog):
         if installed:
             self.lbl_status.setText(f"✅ AI Engine Installed ({size_mb:.1f} MB)")
             self.btn_download.setEnabled(False)
-            self.btn_download.setStyleSheet(
-                "background: #374151; color: #9CA3AF; padding: 6px; border-radius: 4px;"
-            )
             self.btn_delete.setEnabled(True)
-            self.btn_delete.setStyleSheet(
-                "background: #7F1D1D; color: white; padding: 6px; border-radius: 4px;"
-            )
         else:
             self.lbl_status.setText("❌ AI Engine Not Installed")
             self.btn_download.setEnabled(True)
-            self.btn_download.setStyleSheet(
-                f"background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; padding: 6px; border-radius: 4px;"
-            )
             self.btn_delete.setEnabled(False)
-            self.btn_delete.setStyleSheet(
-                "background: #374151; color: #9CA3AF; padding: 6px; border-radius: 4px;"
-            )
 
     def _delete_model(self):
         models_dir = Path.home() / ".cellpose" / "models"
@@ -437,9 +422,9 @@ class ModelManagerDialog(QDialog):
                     if f.is_file():
                         f.unlink()  # Delete every model file
             self._check_status()
-            QMessageBox.information(self, "Deleted", "AI model successfully removed from disk.")
+            show_info(self, "Deleted", "AI model successfully removed from disk.")
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"Could not delete file:\n{e}")
+            show_warning(self, "Error", f"Could not delete file:\n{e}")
 
     def _start_download(self):
         self.btn_download.setEnabled(False)
@@ -473,9 +458,9 @@ class ModelManagerDialog(QDialog):
     def _on_download_finished(self, success, msg):
         self.progress_bar.setVisible(False)
         if success:
-            QMessageBox.information(self, "Success", msg)
+            show_info(self, "Success", msg)
         else:
-            QMessageBox.critical(self, "Download Error", f"Failed to download AI model:\n{msg}")
+            show_error(self, "Download Error", f"Failed to download AI model:\n{msg}")
         self._check_status()
 
 
@@ -490,7 +475,7 @@ class SaveWorkflowDialog(QDialog):
 
         layout = QFormLayout(self)
 
-        self.input_name = QLineEdit()
+        self.input_name = BioLineEdit()
         self.input_name.setStyleSheet(
             f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
         )
@@ -501,7 +486,7 @@ class SaveWorkflowDialog(QDialog):
         )
         self.input_desc.setMaximumHeight(80)
 
-        self.input_tags = QLineEdit()
+        self.input_tags = BioLineEdit()
         self.input_tags.setPlaceholderText("e.g. wild-type, batch_A (comma separated)")
         self.input_tags.setStyleSheet(
             f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
@@ -767,11 +752,11 @@ class CytoMetricsPanel(PluginBase):
         # Ensure this widget fills the core app's central container
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter = BioSplitter(Qt.Orientation.Horizontal)
         self.main_splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         main_layout.addWidget(self.main_splitter)
 
-        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter = BioSplitter(Qt.Orientation.Vertical)
         self.main_splitter.addWidget(splitter)
 
         controls_widget = QWidget()
@@ -849,9 +834,9 @@ class CytoMetricsPanel(PluginBase):
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
         # Scroll Area protects the grid from being crushed
-        scroll_area = QScrollArea()
+        scroll_area = BioScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll_area.setFrameShape(BioScrollArea.Shape.NoFrame)
         scroll_area.setStyleSheet("background: transparent;")
 
         detect_widget = QWidget()
@@ -884,7 +869,7 @@ class CytoMetricsPanel(PluginBase):
         lbl_target.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         pipe_layout.addWidget(lbl_target, r, 0)
 
-        self.combo_target_channel = QComboBox()
+        self.combo_target_channel = BioComboBox()
         self.combo_target_channel.setStyleSheet(input_style)
         self.combo_target_channel.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
@@ -899,7 +884,7 @@ class CytoMetricsPanel(PluginBase):
         )
         lbl_target_desc.setWordWrap(True)
         lbl_target_desc.setStyleSheet(
-            "color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;"
+            f"color: {Colors.FG_SECONDARY}; font-size: 11px; font-style: italic; margin-bottom: 5px;"
         )
         pipe_layout.addWidget(lbl_target_desc, r, 1)
         r += 1
@@ -913,7 +898,7 @@ class CytoMetricsPanel(PluginBase):
         lbl_seed.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         pipe_layout.addWidget(lbl_seed, r, 0)
 
-        self.combo_seed_channel = QComboBox()
+        self.combo_seed_channel = BioComboBox()
         self.combo_seed_channel.setStyleSheet(input_style)
         self.combo_seed_channel.setMinimumWidth(180)
         self.combo_seed_channel.view().setMinimumWidth(300)
@@ -927,7 +912,7 @@ class CytoMetricsPanel(PluginBase):
         )
         lbl_seed_desc.setWordWrap(True)
         lbl_seed_desc.setStyleSheet(
-            "color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;"
+            f"color: {Colors.FG_SECONDARY}; font-size: 11px; font-style: italic; margin-bottom: 5px;"
         )
         pipe_layout.addWidget(lbl_seed_desc, r, 1)
         r += 1
@@ -943,7 +928,7 @@ class CytoMetricsPanel(PluginBase):
         # --- NEW HORIZONTAL LAYOUT FOR DROPDOWN + BUTTON ---
         algo_row_layout = QHBoxLayout()
 
-        self.combo_pipeline = QComboBox()
+        self.combo_pipeline = BioComboBox()
         for key, pipe in self.pipelines.items():
             self.combo_pipeline.addItem(pipe.name, key)
         self.combo_pipeline.setStyleSheet(input_style)
@@ -962,14 +947,34 @@ class CytoMetricsPanel(PluginBase):
         self.lbl_algo_bio = QLabel("")
         self.lbl_algo_bio.setWordWrap(True)
         self.lbl_algo_bio.setStyleSheet(
-            "color: #9CA3AF; font-size: 11px; font-style: italic; margin-bottom: 5px;"
+            f"color: {Colors.FG_SECONDARY}; font-size: 11px; font-style: italic; margin-bottom: 5px;"
         )
         pipe_layout.addWidget(self.lbl_algo_bio, r, 1)
         r += 1
 
+        # Citation card — visible only when Cellpose (AI engine) is selected
+        self.lbl_ai_citation = QLabel(
+            f"<span style='color:{Colors.FG_SECONDARY};font-size:11px;'>Powered by "
+            "<b>Cellpose</b> (Stringer <i>et al.</i>, "
+            "<i>Nature Methods</i> 2021, 18:100–106).<br>"
+            f"📄 <a href='https://doi.org/10.1038/s41592-020-01018-x' "
+            f"style='color:{Colors.ACCENT_PRIMARY};'>Read the paper</a> &nbsp;·&nbsp; "
+            f"⬇️ <a href='https://www.cellpose.org' "
+            f"style='color:{Colors.ACCENT_PRIMARY};'>Model download info</a></span>"
+        )
+        self.lbl_ai_citation.setOpenExternalLinks(True)
+        self.lbl_ai_citation.setWordWrap(True)
+        self.lbl_ai_citation.setStyleSheet(
+            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER};"
+            " border-radius: 4px; padding: 6px; margin-top: 2px;"
+        )
+        self.lbl_ai_citation.setVisible(False)
+        pipe_layout.addWidget(self.lbl_ai_citation, r, 1)
+        r += 1
+
         self.lbl_diameter = QLabel("Cell Diameter:")
         self.lbl_diameter.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_diameter = QDoubleSpinBox()
+        self.spin_diameter = BioDoubleSpinBox()
         self.spin_diameter.setRange(0, 500)
         self.spin_diameter.setValue(0)
         self.spin_diameter.setDecimals(1)
@@ -982,7 +987,7 @@ class CytoMetricsPanel(PluginBase):
 
         self.lbl_flow = QLabel("Splitting Sensitivity:")
         self.lbl_flow.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_flow = QDoubleSpinBox()
+        self.spin_flow = BioDoubleSpinBox()
         self.spin_flow.setRange(0.1, 1.0)
         self.spin_flow.setValue(0.4)
         self.spin_flow.setSingleStep(0.1)
@@ -1004,7 +1009,7 @@ class CytoMetricsPanel(PluginBase):
 
         self.lbl_min = QLabel("Min Area:")
         self.lbl_min.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_min_area = QDoubleSpinBox()
+        self.spin_min_area = BioDoubleSpinBox()
         self.spin_min_area.setRange(0, 100000)
         self.spin_min_area.setValue(10.0)
         self.spin_min_area.setDecimals(1)
@@ -1016,7 +1021,7 @@ class CytoMetricsPanel(PluginBase):
 
         self.lbl_max = QLabel("Max Area:")
         self.lbl_max.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_max_area = QDoubleSpinBox()
+        self.spin_max_area = BioDoubleSpinBox()
         self.spin_max_area.setRange(0, 100000)
         self.spin_max_area.setValue(5000.0)
         self.spin_max_area.setDecimals(1)
@@ -1029,7 +1034,7 @@ class CytoMetricsPanel(PluginBase):
 
         self.lbl_calibration_warning = QLabel("⚠️ Please set scale in Setup tab to run.")
         self.lbl_calibration_warning.setStyleSheet(
-            "color: #F87171; font-weight: bold; text-align: center; margin-top: 10px;"
+            f"color: {Colors.ACCENT_DANGER}; font-weight: bold; text-align: center; margin-top: 10px;"
         )
         self.lbl_calibration_warning.setAlignment(Qt.AlignmentFlag.AlignCenter)
         detect_layout.addWidget(self.lbl_calibration_warning)
@@ -1104,7 +1109,7 @@ class CytoMetricsPanel(PluginBase):
 
         splitter.addWidget(controls_widget)
 
-        self.table = QTableWidget(0, 5)  # <--- Changed to 5 columns
+        self.table = BioTableWidget(0, 5)  # <--- Changed to 5 columns
         self.table.setHorizontalHeaderLabels(
             ["ID", "Area (µm²)", "Perim (µm)", "Circ.", "Diam. (µm)"]
         )
@@ -1267,13 +1272,14 @@ class CytoMetricsPanel(PluginBase):
         self.lbl_flow.setVisible(is_ai)
         self.spin_flow.setVisible(is_ai)
 
-        # ADD THIS LINE
         if hasattr(self, "check_exclude_borders"):
             self.check_exclude_borders.setVisible(is_ai)
 
-        # Add this line
         if hasattr(self, "btn_manage_ai"):
             self.btn_manage_ai.setVisible(is_ai)
+
+        if hasattr(self, "lbl_ai_citation"):
+            self.lbl_ai_citation.setVisible(is_ai)
 
     def _render_composite(self):
         composite = self.image_stack.get_composite()
@@ -1291,12 +1297,12 @@ class CytoMetricsPanel(PluginBase):
 
     def _on_run_pipeline(self):
         if not self.image_stack.channels:
-            QMessageBox.warning(self, "No Image", "Please add a channel first.")
+            show_warning(self, "No Image", "Please add a channel first.")
             return
 
         scale = self.state.scale
         if not scale:
-            QMessageBox.warning(self, "Uncalibrated", "Please set the image scale first.")
+            show_warning(self, "Uncalibrated", "Please set the image scale first.")
             return
 
         pipeline_key = self.combo_pipeline.currentData()
@@ -1357,7 +1363,7 @@ class CytoMetricsPanel(PluginBase):
         self.progress_bar.setVisible(False)
 
         if not new_cells:
-            QMessageBox.information(self, "No Cells", "No cells found with current parameters.")
+            show_info(self, "No Cells", "No cells found with current parameters.")
             return
 
         for cell_data in new_cells:
@@ -1372,7 +1378,7 @@ class CytoMetricsPanel(PluginBase):
         self._update_run_button_state()
         self.btn_run_pipeline.setText("✨ Run Segmentation")
         self.progress_bar.setVisible(False)
-        QMessageBox.critical(self, "Pipeline Error", f"An error occurred:\n{error_msg}")
+        show_error(self, "Pipeline Error", f"An error occurred:\n{error_msg}")
 
     # ── State Management ────────────────────────────────────────────────
 
@@ -1558,10 +1564,10 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.set_mode("CALIBRATE")
 
     def _on_calibration_drawn(self, pixels: float):
-        microns, ok = QInputDialog.getDouble(
+        microns = get_double(
             self, "Set Scale", f"Line is {pixels:.1f} px long.\nMicrons?", 20.0, 0.001, 10000.0, 3
         )
-        if ok and microns > 0:
+        if microns is not None and microns > 0:
             self.state.scale = microns / pixels
             self.set_state(self.state)
             self._update_run_button_state()
@@ -1658,12 +1664,10 @@ class CytoMetricsPanel(PluginBase):
     def _on_export_csv(self):
         """Saves the data table to a CSV file."""
         if not self.state.cells:
-            QMessageBox.information(self, "No Data", "There are no cells to export.")
+            show_info(self, "No Data", "There are no cells to export.")
             return
 
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Results", "cytometrics_results.csv", "CSV Files (*.csv)"
-        )
+        path = get_save_path(self, "Export Results", "cytometrics_results.csv", "CSV Files (*.csv)")
         if path:
             try:
                 with open(path, "w", newline="") as f:
@@ -1685,9 +1689,9 @@ class CytoMetricsPanel(PluginBase):
                             ]
                         )
 
-                QMessageBox.information(self, "Success", f"Data successfully exported to:\n{path}")
+                show_info(self, "Success", f"Data successfully exported to:\n{path}")
             except Exception as e:
-                QMessageBox.critical(self, "Export Error", f"Could not save file:\n{str(e)}")
+                show_error(self, "Export Error", f"Could not save file:\n{str(e)}")
 
     def _on_table_selection(self):
         """Grabs the selected row, extracts the ID, and highlights it on the canvas."""
@@ -1713,16 +1717,14 @@ class CytoMetricsPanel(PluginBase):
         pm = getattr(main_win, "project_manager", None)
 
         if not pm:
-            QMessageBox.warning(
-                self, "No Active Project", "Please open a project to save this workflow."
-            )
+            show_warning(self, "No Active Project", "Please open a project to save this workflow.")
             return
 
         dialog = SaveWorkflowDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             meta = dialog.get_data()
             if not meta["name"]:
-                QMessageBox.warning(self, "Invalid Input", "A workflow name is required.")
+                show_warning(self, "Invalid Input", "A workflow name is required.")
                 return
 
             try:
@@ -1735,14 +1737,10 @@ class CytoMetricsPanel(PluginBase):
                 # 3. Hand it off to the core Project Manager using the exact kwargs it expects
                 pm.save_workflow(module_id="cytometrics", payload=state_data, metadata=meta)
 
-                QMessageBox.information(
-                    self, "Success", f"Workflow '{meta['name']}' saved successfully!"
-                )
+                show_info(self, "Success", f"Workflow '{meta['name']}' saved successfully!")
 
             except Exception as e:
-                QMessageBox.critical(
-                    self, "Save Error", f"Failed to save workflow to project:\n{str(e)}"
-                )
+                show_error(self, "Save Error", f"Failed to save workflow to project:\n{str(e)}")
 
     def _on_load_workflow(self):
         main_win = self.window()
@@ -1779,6 +1777,6 @@ class CytoMetricsPanel(PluginBase):
                 if hasattr(self, "check_exclude_borders"):
                     self.check_exclude_borders.setChecked(ui_params.get("exclude_borders", True))
 
-            QMessageBox.information(self, "Success", f"Workflow loaded from:\n{Path(path).name}")
+            show_info(self, "Success", f"Workflow loaded from:\n{Path(path).name}")
         except Exception as e:
-            QMessageBox.critical(self, "Load Error", f"Could not load workflow:\n{e}")
+            show_error(self, "Load Error", f"Could not load workflow:\n{e}")

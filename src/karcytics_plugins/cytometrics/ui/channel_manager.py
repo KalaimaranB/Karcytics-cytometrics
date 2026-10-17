@@ -1,14 +1,12 @@
 from pathlib import Path
 
-from karcytics_sdk.plugin import PrimaryButton
+from karcytics_sdk.plugin import BioComboBox, BioTableWidget, PrimaryButton
+from karcytics_sdk.plugin.dialogs import ask_yes_no, show_warning
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QFileDialog,
     QHeaderView,
-    QMessageBox,
-    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -34,7 +32,7 @@ class ChannelManagerWidget(QWidget):
         self.btn_add.clicked.connect(self._on_add_channel)
         layout.addWidget(self.btn_add)
 
-        self.table = QTableWidget(0, 2)
+        self.table = BioTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["File", "Color"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setStyleSheet(
@@ -101,15 +99,12 @@ class ChannelManagerWidget(QWidget):
                 is_in_workspace = pm.assets_dir.resolve() in final_path.resolve().parents
 
                 if not is_in_workspace:
-                    reply = QMessageBox.question(
+                    copy_to_workspace = ask_yes_no(
                         self,
                         "Copy to Workspace?",
                         f"The image '{final_path.name}' is outside the project folder.\n\n"
                         "Would you like to copy it into the project's 'assets' folder for safe keeping and portability?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.Yes,
                     )
-                    copy_to_workspace = reply == QMessageBox.StandardButton.Yes
                 else:
                     copy_to_workspace = False
 
@@ -119,7 +114,7 @@ class ChannelManagerWidget(QWidget):
                     final_path = resolved_path
 
             except Exception as e:
-                QMessageBox.warning(self, "Asset Error", f"Failed to add asset to project:\n{e}")
+                show_warning(self, "Asset Error", f"Failed to add asset to project:\n{e}")
                 return  # Abort if we can't manage the asset safely
 
         # Convert back to a standard string for your CytoMetrics logic
@@ -160,7 +155,7 @@ class ChannelManagerWidget(QWidget):
         item.setToolTip(name)
         self.table.setItem(row, 0, item)
 
-        combo = QComboBox()
+        combo = BioComboBox()
         combo.addItems(["gray", "magenta", "green", "blue", "red", "cyan", "yellow"])
         combo.setCurrentText(current_color)
         combo.currentTextChanged.connect(lambda text, r=row: self._on_color_changed(r, text))

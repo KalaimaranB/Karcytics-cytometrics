@@ -3,10 +3,10 @@ import logging
 import sys
 from typing import Any
 
-from karcytics_sdk.plugin import AnalysisBase, PluginState
+from karcytics_sdk.plugin import AnalysisBase, PluginState, get_logger
 from PySide6.QtCore import QObject, Signal
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__, "cytometrics")
 
 
 class InterceptorSignals(QObject):
