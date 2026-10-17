@@ -3,12 +3,30 @@ import math
 import cv2
 import numpy as np
 
+from .base import area_range_um2
+
 _MASK_ACTIVE_VALUE = 255  # 8-bit binary mask: 255 marks foreground/unknown pixels
 
 
 class WatershedPipeline:
+    citations = ("meyer1992", "otsu1979", "opencv2000")
+
     def __init__(self):
         self.name = "Watershed (Clump Splitting)"
+
+    def describe(self, params: dict, scale: float) -> tuple[str, dict]:
+        """Methods sentence and parameters for a run with `params`."""
+        seeds = (
+            f"seeded from nuclei in the '{params.get('seed_channel')}' channel"
+            if params.get("use_dual_channel") and params.get("seed_channel")
+            else "seeded from distance-transform peaks"
+        )
+        return (
+            f"Cells in the '{params.get('target_channel')}' channel were segmented by marker-based "
+            f"watershed on an Otsu-derived foreground, {seeds}; cells touching the image border "
+            "were excluded",
+            {"size filter": area_range_um2(params, scale)},
+        )
 
     def run(self, image_stack, params, scale=1.0):
         target_name = params.get("target_channel")

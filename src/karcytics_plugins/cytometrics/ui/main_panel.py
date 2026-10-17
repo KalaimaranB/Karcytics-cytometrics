@@ -18,6 +18,7 @@ from karcytics_sdk.plugin import (
     BioScrollArea,
     BioSplitter,
     BioTableWidget,
+    CitationLabel,
     DangerButton,
     FunctionalTask,
     HeaderLabel,
@@ -57,6 +58,7 @@ from PySide6.QtWidgets import (
 
 from ..analysis.image_stack import ImageStack
 from ..analysis.state import CytoMetricsState
+from ..report import build_steps, write_methods_sidecars
 from .channel_manager import ChannelManagerWidget
 from .image_canvas import MultiChannelCanvas
 from .workers import (
@@ -917,24 +919,13 @@ class CytoMetricsPanel(PluginBase):
         pipe_layout.addWidget(self.lbl_algo_bio, r, 1)
         r += 1
 
-        # Citation card — visible only when Cellpose (AI engine) is selected
-        self.lbl_ai_citation = QLabel(
-            f"<span style='color:{Colors.FG_SECONDARY};font-size:11px;'>Powered by "
-            "<b>Cellpose</b> (Stringer <i>et al.</i>, "
-            "<i>Nature Methods</i> 2021, 18:100–106).<br>"
-            f"📄 <a href='https://doi.org/10.1038/s41592-020-01018-x' "
-            f"style='color:{Colors.ACCENT_PRIMARY};'>Read the paper</a> &nbsp;·&nbsp; "
-            f"⬇️ <a href='https://www.cellpose.org' "
-            f"style='color:{Colors.ACCENT_PRIMARY};'>Model download info</a></span>"
-        )
-        self.lbl_ai_citation.setOpenExternalLinks(True)
-        self.lbl_ai_citation.setWordWrap(True)
-        self.lbl_ai_citation.setStyleSheet(
-            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER};"
-            " border-radius: 4px; padding: 6px; margin-top: 2px;"
-        )
-        self.lbl_ai_citation.setVisible(False)
-        pipe_layout.addWidget(self.lbl_ai_citation, r, 1)
+        # "Powered by …" credit for the selected algorithm; one CitationLabel
+        # per pipeline is added once the pipelines have loaded.
+        self._citation_box = QWidget()
+        self._citation_layout = QVBoxLayout(self._citation_box)
+        self._citation_layout.setContentsMargins(0, 2, 0, 0)
+        self._citation_labels: dict[str, CitationLabel] = {}
+        pipe_layout.addWidget(self._citation_box, r, 1)
         r += 1
 
         self.lbl_diameter = QLabel("Cell Diameter:")
@@ -1201,6 +1192,10 @@ class CytoMetricsPanel(PluginBase):
             self.combo_pipeline.clear()
             for key, pipe in pipelines.items():
                 self.combo_pipeline.addItem(pipe.name, key)
+                label = CitationLabel(pipe.name, getattr(pipe, "citations", ()))
+                label.setVisible(False)
+                self._citation_layout.addWidget(label)
+                self._citation_labels[key] = label
 
             # Unlock and rename tab 2
             self.tabs.setTabEnabled(1, True)
@@ -1243,8 +1238,9 @@ class CytoMetricsPanel(PluginBase):
         if hasattr(self, "btn_manage_ai"):
             self.btn_manage_ai.setVisible(is_ai)
 
-        if hasattr(self, "lbl_ai_citation"):
-            self.lbl_ai_citation.setVisible(is_ai)
+        selected = self.combo_pipeline.currentData()
+        for key, label in self._citation_labels.items():
+            label.setVisible(key == selected)
 
     def _render_composite(self):
         composite = self.image_stack.get_composite()
@@ -1298,6 +1294,7 @@ class CytoMetricsPanel(PluginBase):
 
         analyzer = CytoPipelineWorker()
         analyzer.configure(pipeline, self.image_stack, params, scale)
+        self._last_run = (pipeline, params, scale)  # for the methods text on export
 
         submit_task(
             analyzer,
@@ -1567,6 +1564,7 @@ class CytoMetricsPanel(PluginBase):
                 "area": area_um2,
                 "perim": perim_um,
                 "circ": circularity,
+                "source": "manual",
             }
         )
         self.set_state(self.state)
@@ -1648,9 +1646,29 @@ class CytoMetricsPanel(PluginBase):
                             ]
                         )
 
-                show_info(self, "Success", f"Data successfully exported to:\n{path}")
+                sidecars = self._write_methods(path)
+                show_info(
+                    self,
+                    "Success",
+                    f"Data successfully exported to:\n{path}"
+                    + (
+                        f"\n\nMethods and citations:\n{sidecars[0].name}\n{sidecars[1].name}"
+                        if sidecars
+                        else ""
+                    ),
+                )
             except Exception as e:
                 show_error(self, "Export Error", f"Could not save file:\n{str(e)}")
+
+    def _write_methods(self, export_path: str):
+        """Write the methods paragraph and BibTeX beside an export; None if no run to describe."""
+        run = getattr(self, "_last_run", None)
+        if run is None:
+            return None
+        pipeline, params, scale = run
+        n_manual = sum(1 for c in self.state.cells if c.get("source") == "manual")
+        steps = build_steps(pipeline, params, scale, len(self.state.cells), n_manual)
+        return write_methods_sidecars(export_path, steps)
 
     def _on_table_selection(self):
         """Grabs the selected row, extracts the ID, and highlights it on the canvas."""

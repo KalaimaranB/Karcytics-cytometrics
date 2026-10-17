@@ -3,10 +3,34 @@ import math
 import cv2
 import numpy as np
 
+from .base import area_range_um2
+
 _STACKED_CHANNELS_NDIM = 3  # (channel, height, width) — a dual-channel stack, not a flat 2D image
 
 
 class CellposePipeline:
+    citations = ("cpsam2025", "cellpose2021", "pytorch2019")
+
+    def describe(self, params: dict, scale: float) -> tuple[str, dict]:
+        """Methods sentence and parameters for a run with `params`."""
+        second = (
+            f", with the '{params.get('seed_channel')}' channel as a second input"
+            if params.get("use_dual_channel") and params.get("seed_channel")
+            else ""
+        )
+        diameter_px = params.get("diameter")
+        parameters = {
+            "cell diameter": f"{diameter_px * scale:g} µm" if diameter_px else "automatic",
+            "flow threshold": params.get("flow_threshold", 0.4),
+            "size filter": area_range_um2(params, scale),
+            "border cells": "excluded" if params.get("exclude_borders", True) else "kept",
+        }
+        return (
+            f"Cells in the '{params.get('target_channel')}' channel were segmented with the "
+            f"Cellpose-SAM generalist model (cpsam){second}",
+            parameters,
+        )
+
     def __init__(self):
         self.name = "AI Smart Detect (Cellpose)"
         self.model = None

@@ -74,7 +74,7 @@ karcytics_sdk (shared)
   plugin/managed_task.py   FunctionalTask + progress_callback
   plugin/tasks.py          submit_task(task, state, on_finished, on_error, on_progress, on_cancelled) → TaskHandle
   contrib/imaging.py       ImageReader: bit depth kept, physical pixel size from TIFF/OME/ND2 metadata
-  plugin/image_view.py     ImageView: zoom/pan/fit/drop/empty state/scale bar/calibration line, overlay layers
+  plugin/image_view.py     ImageView: zoom/pan/fit/drop/empty state/scale bar/calibration line, overlay layers (done)
   plugin/citations.py      Citation, CitationRegistry, methods-text + BibTeX writer, CitationsPanel widget
   cli: verify-ledger, check-licenses
 
@@ -116,9 +116,9 @@ karcytics_plugins/cytometrics
 ### Phase 1: SDK shared foundations (Karcytics-SDK, then cytometrics adopts)
 - [x] 1.1 `FunctionalTask(progress_callback=...)` (SDK `518e488`). Delete cytometrics' `FunctionalAnalysisTask`.
 - [x] 1.2 `submit_task(...)` + `TaskHandle.cancel()/detach()` (SDK `518e488`, `8ccd52b`): one watcher `QObject` on the GUI thread, exactly one outcome callback, every connection removed however the task ends. Cytometrics adopted it. Follow-up for flow (6 files) and western-blot (3 files): listed in 1.6d.
-- [ ] 1.3 `contrib/imaging.ImageReader` (tifffile, nd2; BSD-3): native dtype, channel axis, z/t axes, physical pixel size. Tests with generated files.
-- [ ] 1.4 `ImageView` base (zoom/pan/fit/drop/empty state/scale bar/calibration tool/overlay layers). Migrate western-blot's `ImageCanvas` onto it.
-- [ ] 1.5 `citations.py`: `Citation` (authors, title, venue, year, DOI/URL, license note), registry, `methods_text()`, `to_bibtex()`, and a `CitationsPanel` widget. Flow can register FlowKit/UMAP later.
+- [x] 1.3 `contrib.imaging.read_image()` (SDK `823010b`): native dtype, canonical TCZYX, pixel size/z step/interval/channel names from OME, ImageJ, cm-unit TIFF resolution, ND2 (optional `karcytics-sdk[imaging]`). Inch-unit resolution is ignored on purpose (screen DPI). Cytometrics adopts it in 2.1.
+- [x] 1.4 `ImageView` (SDK `a20e041`): zoom limits, middle/Ctrl+drag pan (left-drag opt-in), fit, empty state, file drop, calibration line, scale bar, named layers. Cytometrics `9cd8f84` and western-blot `f5d9f72` (on `main`, after fast-forwarding it to `fix/theme-following`) are built on it.
+- [x] 1.5 SDK `citations` + `citation_widgets` (`a852509`): `Citation`, registry, `MethodStep`, `methods_text()`, `to_bibtex()`, `CitationLabel`, `CitationsPanel`. Cytometrics registers verified entries, each pipeline declares `citations` + `describe()`, the Detect step shows a "Powered by" line for every algorithm, and CSV export writes `_methods.md` + `_citations.bib` (pulled forward from §6).
 - [ ] 1.6 CLI `karcytics-sdk verify-ledger` and `karcytics-sdk check-licenses`. Switch cytometrics' pre-commit to them; open follow-ups for the other repos.
 - [ ] 1.6b `read_plugin_version(__file__, plugin_id)` (metadata, then pyproject.toml fallback): flow, western-blot (hard-coded today) and cytometrics each carry their own copy.
 - [ ] 1.6c `run_ui_daemon` pre-imports numpy before starting its stdin reader (Windows deadlock, numpy/numpy#24290); delete the per-plugin workarounds in flow and cytometrics.

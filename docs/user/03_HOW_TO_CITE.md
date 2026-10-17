@@ -25,5 +25,11 @@ CytoMetrics is built on other scientists' published work. If CytoMetrics contrib
 
 - Bradski, G. *The OpenCV Library.* Dr. Dobb's Journal of Software Tools (2000).
 
-!!! note "Coming soon"
-    CytoMetrics will write a ready-made methods paragraph and a BibTeX file next to every export, listing exactly the models, versions and settings you used (Expansion Plan §6).
+## Methods text written for you
+
+Every **💾 Export to CSV** also writes two files next to the CSV:
+
+- `<name>_methods.md`: a methods paragraph naming the software version, pixel size, the segmentation method and the settings you ran it with, with numbered references.
+- `<name>_citations.bib`: the BibTeX for those references, ready for Zotero, EndNote or LaTeX.
+
+The Detect step also shows a "Powered by …" line with a link to the paper for whichever algorithm is selected.

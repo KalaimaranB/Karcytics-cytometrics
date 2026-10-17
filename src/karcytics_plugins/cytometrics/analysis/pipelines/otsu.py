@@ -2,11 +2,21 @@ import math
 
 import cv2
 
-from .base import SegmentationPipeline
+from .base import SegmentationPipeline, area_range_um2
 
 
 class OtsuPipeline(SegmentationPipeline):
     """Classic computer vision segmentation using Otsu's thresholding."""
+
+    citations = ("otsu1979", "opencv2000")
+
+    def describe(self, params: dict, scale: float) -> tuple[str, dict]:
+        """Methods sentence and parameters for a run with `params`."""
+        return (
+            f"Objects in the '{params.get('target_channel')}' channel were segmented by Otsu "
+            "thresholding after a 5 × 5 Gaussian blur",
+            {"size filter": area_range_um2(params, scale)},
+        )
 
     @property
     def name(self) -> str:

@@ -22,3 +22,10 @@ class SegmentationPipeline(ABC):
         Returns a list of cell dictionaries: [{"points": [...], "area": X, "perim": Y, "circ": Z}, ...].
         """
         pass
+
+
+def area_range_um2(params: dict, scale: float) -> str:
+    """The size filter as the user set it, in µm²."""
+    lo = params.get("min_area_px", 0) * scale**2
+    hi = params.get("max_area_px", 0) * scale**2
+    return f"{lo:g}–{hi:g} µm²"
