@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phase 0 done (SDK `11f0835` adds the shared daemon test harness). Next: Phase 1. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phase 0 done; Phase 1 in progress. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -48,7 +48,8 @@ Each use case is an **Assay**, a preset over those five stages. One plugin, seve
 
 ### 2.4 Correctness and performance
 - Cellpose post-processing allocates a full-image array **per cell** (`np.zeros_like(masks)` in the loop), so cost is O(cells × pixels).
-- Nested closures connected to `task_scheduler` signals are plain functions. Per the Hub CLAUDE.md, they run on the sender's thread. Verify which thread the scheduler emits from, and fix via the SDK helper (Phase 1).
+- ~~Nested closures on `task_scheduler` signals run off the GUI thread~~: checked in Phase 1, not a bug (`LocalTaskScheduler` lives on, and emits from, the GUI thread). The closures were still replaced by `submit_task`.
+- A pipeline exception came back as `{"error": ...}` through *finished* and was shown as "No cells found". Fixed in Phase 1.2.
 - An uncalibrated manual draw silently uses a scale of 1.0.
 
 ### 2.5 Cellpose capabilities unused (installed: cellpose 4.2.1.1)
@@ -71,7 +72,7 @@ Only `diameter`, `channel_axis` and `flow_threshold` are passed today. Unused: r
 ```
 karcytics_sdk (shared)
   plugin/managed_task.py   FunctionalTask + progress_callback
-  plugin/tasks.py          run_task(task, owner, on_done, on_error, on_progress) — GUI-thread delivery
+  plugin/tasks.py          submit_task(task, state, on_finished, on_error, on_progress, on_cancelled) → TaskHandle
   contrib/imaging.py       ImageReader: bit depth kept, physical pixel size from TIFF/OME/ND2 metadata
   plugin/image_view.py     ImageView: zoom/pan/fit/drop/empty state/scale bar/calibration line, overlay layers
   plugin/citations.py      Citation, CitationRegistry, methods-text + BibTeX writer, CitationsPanel widget
@@ -113,15 +114,15 @@ karcytics_plugins/cytometrics
 - [x] 0.9 Docs: `mkdocs.yml`, `docs/user` and `docs/developer` skeletons, `deploy-docs.yml`, `.coderabbit.yaml`, and `docs/CITATIONS.md` listing every work the plugin builds on today.
 
 ### Phase 1: SDK shared foundations (Karcytics-SDK, then cytometrics adopts)
-- [ ] 1.1 `FunctionalTask(progress_callback=...)`. Delete cytometrics' `FunctionalAnalysisTask`.
-- [ ] 1.2 `run_task(...)` helper delivering results to bound methods of a GUI-thread `QObject` (PySide6 rule), with one place for connect/disconnect. Adopt in cytometrics; open follow-ups for flow and western-blot.
+- [x] 1.1 `FunctionalTask(progress_callback=...)` (SDK `518e488`). Delete cytometrics' `FunctionalAnalysisTask`.
+- [x] 1.2 `submit_task(...)` + `TaskHandle.cancel()/detach()` (SDK `518e488`, `8ccd52b`): one watcher `QObject` on the GUI thread, exactly one outcome callback, every connection removed however the task ends. Cytometrics adopted it. Follow-up for flow (6 files) and western-blot (3 files): listed in 1.6d.
 - [ ] 1.3 `contrib/imaging.ImageReader` (tifffile, nd2; BSD-3): native dtype, channel axis, z/t axes, physical pixel size. Tests with generated files.
 - [ ] 1.4 `ImageView` base (zoom/pan/fit/drop/empty state/scale bar/calibration tool/overlay layers). Migrate western-blot's `ImageCanvas` onto it.
 - [ ] 1.5 `citations.py`: `Citation` (authors, title, venue, year, DOI/URL, license note), registry, `methods_text()`, `to_bibtex()`, and a `CitationsPanel` widget. Flow can register FlowKit/UMAP later.
 - [ ] 1.6 CLI `karcytics-sdk verify-ledger` and `karcytics-sdk check-licenses`. Switch cytometrics' pre-commit to them; open follow-ups for the other repos.
 - [ ] 1.6b `read_plugin_version(__file__, plugin_id)` (metadata, then pyproject.toml fallback): flow, western-blot (hard-coded today) and cytometrics each carry their own copy.
 - [ ] 1.6c `run_ui_daemon` pre-imports numpy before starting its stdin reader (Windows deadlock, numpy/numpy#24290); delete the per-plugin workarounds in flow and cytometrics.
-- [ ] 1.6d Flow's integration test switches to `karcytics_sdk.testing.ui_daemon` (added in Phase 0, SDK `11f0835`).
+- [ ] 1.6d Flow and western-blot adopt the shared pieces: flow's integration test → `karcytics_sdk.testing.ui_daemon`; their task closures → `submit_task`; their version readers → `read_plugin_version`.
 - [ ] 1.7 SDK version bump; cytometrics raises `karcytics-sdk>=`.
 
 ### Phase 2: domain model (cytometrics)

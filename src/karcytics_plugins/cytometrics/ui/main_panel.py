@@ -19,6 +19,7 @@ from karcytics_sdk.plugin import (
     BioSplitter,
     BioTableWidget,
     DangerButton,
+    FunctionalTask,
     HeaderLabel,
     PluginBase,
     PluginState,
@@ -30,7 +31,7 @@ from karcytics_sdk.plugin import (
     show_error,
     show_info,
     show_warning,
-    task_scheduler,
+    submit_task,
 )
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PIL import Image
@@ -60,7 +61,6 @@ from .channel_manager import ChannelManagerWidget
 from .image_canvas import MultiChannelCanvas
 from .workers import (
     CytoPipelineWorker,
-    FunctionalAnalysisTask,
     download_model_func,
     load_libraries_func,
 )
@@ -431,29 +431,15 @@ class ModelManagerDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.lbl_status.setText("Downloading via TaskScheduler...")
 
-        task = FunctionalAnalysisTask(download_model_func)
-        task_id = task_scheduler.submit(task, None).task_id  # type: ignore[attr-defined]  # No state needed for download
-
-        def _on_finished(tid, results):
-            if tid != task_id:
-                return
-            task_scheduler.task_finished.disconnect(_on_finished)
-            task_scheduler.task_error.disconnect(_on_error)
-
-            self._on_download_finished(
+        submit_task(
+            FunctionalTask(download_model_func, "cytometrics", "Download Cellpose model"),
+            on_finished=lambda results: self._on_download_finished(
                 results.get("success", False),
                 "Model downloaded" if results.get("success") else "Failed",
-            )
-
-        def _on_error(tid, error_msg):
-            if tid != task_id:
-                return
-            task_scheduler.task_finished.disconnect(_on_finished)
-            task_scheduler.task_error.disconnect(_on_error)
-            self._on_download_finished(False, error_msg)
-
-        task_scheduler.task_finished.connect(_on_finished)
-        task_scheduler.task_error.connect(_on_error)
+            ),
+            on_error=lambda message: self._on_download_finished(False, message),
+            on_progress=self.progress_bar.setValue,
+        )
 
     def _on_download_finished(self, success, msg):
         self.progress_bar.setVisible(False)
@@ -653,33 +639,15 @@ class CytoMetricsPanel(PluginBase):
         self.state_changed.connect(self._update_results_tab)
 
         # Kick off heavy AI imports as a background task
-        task = FunctionalAnalysisTask(load_libraries_func)
-        self._loader_task_id = task_scheduler.submit(task, self.state).task_id  # type: ignore[attr-defined]
+        self._loader_task = submit_task(
+            FunctionalTask(load_libraries_func, "cytometrics", "Load segmentation pipelines"),
+            self.state,
+            on_finished=self._on_loader_finished,
+            on_error=lambda message: self._on_ai_loaded(False, {}, message),
+        )
 
-        task_scheduler.task_finished.connect(self._on_loader_finished_handler)
-        task_scheduler.task_error.connect(self._on_loader_error_handler)
-
-    def _on_loader_finished_handler(self, tid, results):
-        if hasattr(self, "_loader_task_id") and tid == self._loader_task_id:
-            try:
-                task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
-                task_scheduler.task_error.disconnect(self._on_loader_error_handler)
-            except (TypeError, RuntimeError):
-                pass  # Already disconnected or object deleted
-
-            # FunctionalAnalysisTask emits the function's return dict directly as results.
-            self._on_ai_loaded(
-                results.get("success", False), results.get("pipelines", {}), "Loaded"
-            )
-
-    def _on_loader_error_handler(self, tid, error):
-        if hasattr(self, "_loader_task_id") and tid == self._loader_task_id:
-            try:
-                task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
-                task_scheduler.task_error.disconnect(self._on_loader_error_handler)
-            except (TypeError, RuntimeError):
-                pass
-            self._on_ai_loaded(False, {}, error)
+    def _on_loader_finished(self, results: dict) -> None:
+        self._on_ai_loaded(results.get("success", False), results.get("pipelines", {}), "Loaded")
 
     def cleanup(self) -> None:
         """Called when the CytoMetrics tab is closed."""
@@ -703,12 +671,9 @@ class CytoMetricsPanel(PluginBase):
         if hasattr(self, "image_stack") and self.image_stack:
             self.image_stack.channels.clear()
 
-        # 4. Disconnect background tasks
-        try:
-            task_scheduler.task_finished.disconnect(self._on_loader_finished_handler)
-            task_scheduler.task_error.disconnect(self._on_loader_error_handler)
-        except (TypeError, RuntimeError):
-            pass
+        # 4. Stop listening to background tasks
+        if hasattr(self, "_loader_task"):
+            self._loader_task.detach()
 
         # 5. Base cleanup (disconnects and nulls state)
         super().cleanup()
@@ -1338,24 +1303,20 @@ class CytoMetricsPanel(PluginBase):
         analyzer = CytoPipelineWorker()
         analyzer.configure(pipeline, self.image_stack, params, scale)
 
-        task_id = task_scheduler.submit(analyzer, self.state).task_id  # type: ignore[attr-defined]
+        submit_task(
+            analyzer,
+            self.state,
+            on_finished=self._on_pipeline_result,
+            on_error=self._on_pipeline_error,
+        )
 
-        def _on_finished(tid, results):
-            if tid != task_id:
-                return
-            task_scheduler.task_finished.disconnect(_on_finished)
-            task_scheduler.task_error.disconnect(_on_error)
+    def _on_pipeline_result(self, results: dict) -> None:
+        # CytoPipelineWorker reports a pipeline exception as {"error": ...}
+        # rather than raising, so it arrives here, not in on_error.
+        if "error" in results:
+            self._on_pipeline_error(results["error"])
+        else:
             self._on_pipeline_finished(results.get("result_cells", []))
-
-        def _on_error(tid, error):
-            if tid != task_id:
-                return
-            task_scheduler.task_finished.disconnect(_on_finished)
-            task_scheduler.task_error.disconnect(_on_error)
-            self._on_pipeline_error(error)
-
-        task_scheduler.task_finished.connect(_on_finished)
-        task_scheduler.task_error.connect(_on_error)
 
     def _on_pipeline_finished(self, new_cells):
         self._update_run_button_state()

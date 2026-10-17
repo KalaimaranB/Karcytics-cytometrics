@@ -1,4 +1,3 @@
-import inspect
 import logging
 import sys
 from typing import Any
@@ -133,27 +132,3 @@ def load_libraries_func():
         "cellpose": CellposePipeline(),
     }
     return {"success": True, "pipelines": pipelines}
-
-
-# ── Functional Task Adapter ─────────────────────────────────────────────
-# karcytics_sdk.plugin.task_scheduler only schedules AnalysisBase instances
-# (via .run(state) -> dict), unlike the old FunctionalTask which could wrap
-# any plain function directly. This adapts download_model_func/
-# load_libraries_func — neither of which needs real PluginState — into that
-# contract.
-
-
-class FunctionalAnalysisTask(AnalysisBase):
-    """Adapts a zero-arg or progress_callback-accepting function into an
-    AnalysisBase so it can run through task_scheduler.submit().
-    """
-
-    def __init__(self, func, plugin_id: str = "cytometrics") -> None:
-        super().__init__(plugin_id)
-        self._func = func
-        self._accepts_progress = "progress_callback" in inspect.signature(func).parameters
-
-    def run(self, state: PluginState | None = None) -> dict:
-        if self._accepts_progress:
-            return self._func(progress_callback=self.signals.analysis_progress.emit)
-        return self._func()
