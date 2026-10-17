@@ -36,7 +36,7 @@ from karcytics_sdk.plugin import (
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PIL import Image
 from PySide6.QtCore import QRect, QSize, Qt, QTimer
-from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -1249,13 +1249,9 @@ class CytoMetricsPanel(PluginBase):
     def _render_composite(self):
         composite = self.image_stack.get_composite()
         if composite is not None:
-            import cv2  # lazy — already in sys.modules once loader finishes
-
-            rgb_image = cv2.cvtColor(composite, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_image.shape
-            bytes_per_line = ch * w
-            qt_img = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-            self.canvas.load_pixmap(QPixmap.fromImage(qt_img))
+            # The composite is BGR (OpenCV order); keep the user's zoom when
+            # only colours or visibility changed.
+            self.canvas.set_array(composite[..., ::-1], keep_view=self.canvas.has_image)
 
         self._update_dropdowns()
         self.state_changed.emit()
@@ -1401,6 +1397,7 @@ class CytoMetricsPanel(PluginBase):
         self.lbl_scale.setText(
             f"Scale: {scale_val:.4f} µm/px" if scale_val > 0 else "Scale: Uncalibrated"
         )
+        self.canvas.set_scale(scale_val)
         self._update_run_button_state()
 
         if state.cells:
@@ -1513,6 +1510,7 @@ class CytoMetricsPanel(PluginBase):
                     ):
                         self.state.scale = 1.0 / (px_per_unit / 10000.0)
                         self.lbl_scale.setText(f"Scale: {self.state.scale:.4f} µm/px")
+                        self.canvas.set_scale(self.state.scale)
                         self._update_run_button_state()
                         self.state_changed.emit()
         except Exception:
