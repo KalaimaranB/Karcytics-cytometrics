@@ -37,7 +37,7 @@ repos:
       # ── 4b. License compliance ────────────────────────────────────────────
       - id: license-compliance
         name: License Compliance Check
-        entry: uv run python scripts/check_license_compliance.py
+        entry: uv run karcytics-sdk check-licenses
         language: system
         pass_filenames: false
 

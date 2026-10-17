@@ -24,14 +24,6 @@ _SRC_DIR = Path(__file__).resolve().parents[2]
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
-# Import numpy (and OpenCV, which loads it) before run_ui_daemon() starts the
-# SDK's stdin-reader thread: on Windows, `import numpy` while another thread
-# is blocked in sys.stdin.buffer.read() deadlocks (numpy/numpy#24290; see
-# flow's ui_daemon.py for the CI evidence). Afterwards every later import of
-# them is a sys.modules hit with nothing to contend over.
-import cv2  # noqa: E402, F401
-import numpy  # noqa: E402, F401
-
 
 def _build_plugin_context() -> Any:
     from karcytics_sdk.plugin.context import PluginContext

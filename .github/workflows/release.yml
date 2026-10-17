@@ -136,7 +136,7 @@ jobs:
         shell: bash
 
       - name: License compliance check
-        run: uv run python scripts/check_license_compliance.py
+        run: uv run karcytics-sdk check-licenses
         shell: bash
 
   test:

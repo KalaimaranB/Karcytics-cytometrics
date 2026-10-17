@@ -44,7 +44,7 @@ Each use case is an **Assay**, a preset over those five stages. One plugin, seve
 - **SRP:** `main_panel.py` holds 8 classes. The panel owns layout, state, geometry, CSV, JSON, TIFF metadata, task orchestration and model management.
 - **OCP:** a new pipeline needs edits in four places, including `"Cellpose" in text` string matching on display names.
 - **LSP/ISP:** only Otsu inherits `SegmentationPipeline`; `name` is a property in one pipeline and an attribute in the others; `get_parameters()` is never called.
-- **DIP:** `self.window().project_manager` (probably `None` in the isolated process); the panel edits `channel_manager._add_row_to_ui` and `.table.cellWidget`; the analysis layer returns UI-shaped dicts.
+- **DIP:** `self.window().project_manager` (works: the daemon runtime sets a `RemoteProjectManager` on the window, but the panel still reaches through its window for it); the panel edits `channel_manager._add_row_to_ui` and `.table.cellWidget`; the analysis layer returns UI-shaped dicts.
 
 ### 2.4 Correctness and performance
 - Cellpose post-processing allocates a full-image array **per cell** (`np.zeros_like(masks)` in the loop), so cost is O(cells × pixels).
@@ -119,11 +119,11 @@ karcytics_plugins/cytometrics
 - [x] 1.3 `contrib.imaging.read_image()` (SDK `823010b`): native dtype, canonical TCZYX, pixel size/z step/interval/channel names from OME, ImageJ, cm-unit TIFF resolution, ND2 (optional `karcytics-sdk[imaging]`). Inch-unit resolution is ignored on purpose (screen DPI). Cytometrics adopts it in 2.1.
 - [x] 1.4 `ImageView` (SDK `a20e041`): zoom limits, middle/Ctrl+drag pan (left-drag opt-in), fit, empty state, file drop, calibration line, scale bar, named layers. Cytometrics `9cd8f84` and western-blot `f5d9f72` (on `main`, after fast-forwarding it to `fix/theme-following`) are built on it.
 - [x] 1.5 SDK `citations` + `citation_widgets` (`a852509`): `Citation`, registry, `MethodStep`, `methods_text()`, `to_bibtex()`, `CitationLabel`, `CitationsPanel`. Cytometrics registers verified entries, each pipeline declares `citations` + `describe()`, the Detect step shows a "Powered by" line for every algorithm, and CSV export writes `_methods.md` + `_citations.bib` (pulled forward from §6).
-- [ ] 1.6 CLI `karcytics-sdk verify-ledger` and `karcytics-sdk check-licenses`. Switch cytometrics' pre-commit to them; open follow-ups for the other repos.
-- [ ] 1.6b `read_plugin_version(__file__, plugin_id)` (metadata, then pyproject.toml fallback): flow, western-blot (hard-coded today) and cytometrics each carry their own copy.
-- [ ] 1.6c `run_ui_daemon` pre-imports numpy before starting its stdin reader (Windows deadlock, numpy/numpy#24290); delete the per-plugin workarounds in flow and cytometrics.
+- [x] 1.6 `karcytics-sdk check-licenses` (SDK `acdbcf3`); `doctor` now flags a repo with no license hook. Cytometrics' copy deleted. **Not** done for the ledger verifier, by decision: it is a stdlib-only script so CI can run it before installing anything (the CLI imports PySide6); its four copies are identical apart from formatting.
+- [x] 1.6b `read_plugin_version` (SDK `cc7b5c5`); cytometrics uses it.
+- [x] 1.6c `run_ui_daemon` pre-imports numpy (SDK `cc7b5c5`); cytometrics' workaround removed. Flow's stays until 1.6d (it also pre-imports pandas for its own reasons).
 - [ ] 1.6d Flow and western-blot adopt the shared pieces: flow's integration test → `karcytics_sdk.testing.ui_daemon`; their task closures → `submit_task`; their version readers → `read_plugin_version`.
-- [ ] 1.7 SDK version bump; cytometrics raises `karcytics-sdk>=`.
+- [ ] 1.7 SDK version bump (proposed 3.1.0) and cytometrics `karcytics-sdk>=3.1.0`. **Waiting on the user:** the SDK's CI publishes to PyPI on push when `main` has an untagged version, and `main` also carries other unpushed work.
 
 ### Phase 2: domain model (cytometrics)
 - [ ] 2.1 `Channel`/`ImageSet` with declared `path`, native bit depth via SDK `ImageReader`; display scaling done only in the view.
@@ -131,7 +131,7 @@ karcytics_plugins/cytometrics
 - [ ] 2.3 `LabelMask` as the single source of truth; contours derived for display.
 - [ ] 2.4 `ObjectTable` on pandas (add `pandas` dependency).
 - [ ] 2.5 `AnalysisSession` + `CytoMetricsState` v2 with a migration from v1 saved workflows.
-- [ ] 2.6 Remove the duplicate `SaveWorkflowDialog`; one save/load path through the SDK project-manager accessor (fixes isolated-process save).
+- [ ] 2.6 Remove the duplicate `SaveWorkflowDialog`; one save/load path through the project manager (load currently bypasses it and reads a raw JSON file).
 
 ### Phase 3: segmenters, using Cellpose fully (cytometrics)
 - [ ] 3.1 `Segmenter` protocol (`id`, `name`, `parameters()`, `citations`, `segment(ImageSet, params) -> LabelMask`) + decorator registry. Otsu and Watershed ported; shared channel lookup and border exclusion.
@@ -250,4 +250,6 @@ All DOI entries were checked against Crossref on 2026-10-17; `meyer1992` against
 | Real test images | — | — | only synthetic or CC0/CC-BY sets with the license recorded in `tests/data/LICENSES.md` |
 
 ## 8. Decision log
+- 2026-10-17: the security-ledger verifier stays a per-repo stdlib script (CI runs it before installing anything); only the license check moved into the SDK CLI.
+- 2026-10-17: western-blot's local `main` fast-forwarded to `fix/theme-following` (one commit, no divergence) so its canvas migration could go on `main`.
 - 2026-10-17: one plugin with modes (Assays); pandas for `ObjectTable`; gating stays local (flow independent); SDK hosts only code shared across plugins; all commits on `main` in cytometrics and the SDK; only models whose code **and** weights licenses are confirmed; citations shown in-app and written into every export.
