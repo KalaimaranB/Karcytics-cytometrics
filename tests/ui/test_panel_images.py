@@ -275,3 +275,66 @@ def test_version_1_saved_settings_still_restore(panel, qtbot):
     values = panel.params_form.display_values()
     assert (values["min_area_px"], values["diameter"], values["flow_threshold"]) == (25, 12, 0.6)
     assert values["use_dual_channel"] is True and values["exclude_borders"] is False
+
+
+def _square(cell_id, x, conf=None):
+    cell = {"points": [[x, 10], [x + 10, 10], [x + 10, 20], [x, 20]], "area": 100.0}
+    cell.update({"perim": 40.0, "circ": 0.78, "label": cell_id})
+    if conf is not None:
+        cell["confidence"] = conf
+    return cell
+
+
+def _deliver(panel, cells, probability=None):
+    panel._on_pipeline_result(
+        {"result_cells": cells, "labels": np.zeros((64, 64), np.int32), "probability": probability}
+    )
+
+
+def test_confidence_column_stats_and_review_order(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0, 0.95), _square(2, 20, 0.40), _square(3, 40, 0.70)])
+
+    assert panel.table.horizontalHeaderItem(5).text() == "Conf."
+    assert panel.table.item(1, 5).text() == "0.40"
+    assert "Mean AI confidence: 0.68" in panel.lbl_stats.text()
+    assert panel.btn_next_uncertain.text() == "Next uncertain (2) ▸"
+
+    picked = []
+    for _ in range(3):
+        panel._on_next_uncertain()
+        picked.append(panel.table.item(panel.table.currentRow(), 0).text())
+    assert picked == ["Cell 2", "Cell 3", "Cell 2"]  # least confident first, then wraps
+
+
+def test_review_tools_are_off_without_confidence(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0)])
+
+    assert not panel.chk_color_confidence.isEnabled()
+    assert not panel.btn_next_uncertain.isEnabled()
+    assert not panel.chk_probability_map.isEnabled()
+    assert panel.table.item(0, 5).text() == ""
+
+
+def test_outlines_coloured_by_confidence(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0, 0.99), _square(2, 20, 0.30)])
+
+    panel.chk_color_confidence.setChecked(True)
+
+    confident, unsure = panel.canvas._cell_items
+    assert confident.color.green() > confident.color.red()
+    assert unsure.color.red() > unsure.color.green()
+
+
+def test_probability_map_overlay_toggles(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    probability = np.zeros((img.CANVAS, img.CANVAS), np.float32)
+    _deliver(panel, [_square(1, 0, 0.9)], probability)
+
+    assert panel.chk_probability_map.isEnabled()
+    panel.chk_probability_map.setChecked(True)
+    assert len(panel.canvas.layer("probability").childItems()) == 1
+    panel.chk_probability_map.setChecked(False)
+    assert panel.canvas.layer("probability").childItems() == []

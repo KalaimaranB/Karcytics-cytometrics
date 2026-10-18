@@ -24,18 +24,22 @@ class CytoPipelineWorker(AnalysisBase):
         self.scale = scale
 
     def run(self, state: PluginState | None = None) -> dict:
-        """Returns ``{"result_cells", "labels"}``, or ``{"error"}`` if the segmenter failed."""
+        """Returns ``{"result_cells", "labels", "probability"}``, or ``{"error"}``."""
         if not self.pipeline:
             return {"error": "No pipeline configured"}
         try:
-            labels, cells = run_segmentation(
+            result = run_segmentation(
                 self.pipeline,
                 self.image_set,
                 self.params,
                 self.scale,
                 self.signals.analysis_progress.emit,
             )
-            return {"result_cells": cells, "labels": labels}
+            return {
+                "result_cells": result.cells,
+                "labels": result.labels,
+                "probability": result.probability,
+            }
         except Exception as e:
             logger.exception("CytoMetrics segmentation error")
             return {"error": str(e)}

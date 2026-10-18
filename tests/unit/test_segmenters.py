@@ -44,7 +44,7 @@ WATERSHED_TOUCHING_AREAS_PX = [1530.0, 1493.0]
 
 
 def _run(segmenter, stack, params=PARAMS, scale=1.0) -> list[dict]:
-    return run_segmentation(segmenter, stack, params, scale)[1]
+    return run_segmentation(segmenter, stack, params, scale).cells
 
 
 def _areas(cells: list[dict]) -> list[float]:

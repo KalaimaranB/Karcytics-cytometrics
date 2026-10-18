@@ -8,9 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import psutil
 from karcytics_sdk.plugin import (
     BioComboBox,
+    BioDoubleSpinBox,
     BioScrollArea,
     BioSplitter,
     BioTableWidget,
@@ -54,7 +56,7 @@ from ..analysis.state import CytoMetricsState
 from ..analysis.units import area_unit, ascii_unit, effective_scale, is_calibrated, length_unit
 from ..report import build_steps, write_methods_sidecars
 from .channel_manager import ChannelManagerWidget
-from .image_canvas import MultiChannelCanvas
+from .image_canvas import MultiChannelCanvas, confidence_color
 from .params_form import ParamsForm
 from .workers import (
     CytoPipelineWorker,
@@ -585,6 +587,9 @@ class CytoMetricsPanel(PluginBase):
         # Detect settings restored before the segmenters finished loading.
         self._pending_pipeline: str | None = None
         self._pending_values: dict[str, Any] = {}
+        # Last run's label mask and (Cellpose only) cell-probability map; not saved.
+        self._labels: np.ndarray | None = None
+        self._probability: np.ndarray | None = None
 
         self.image_set = ImageSet()
         self.canvas = MultiChannelCanvas()
@@ -875,6 +880,37 @@ class CytoMetricsPanel(PluginBase):
         self.chk_show_ids.toggled.connect(self.canvas.set_show_ids)
         results_layout.addWidget(self.chk_show_ids)
 
+        self.chk_color_confidence = QCheckBox("Colour outlines by AI confidence")
+        self.chk_color_confidence.setToolTip(
+            "Cellpose cells only: red = uncertain, amber = borderline, green = confident."
+        )
+        self.chk_color_confidence.toggled.connect(self._redraw_cells)
+        results_layout.addWidget(self.chk_color_confidence)
+
+        self.chk_probability_map = QCheckBox("Show Cellpose cell-probability map")
+        self.chk_probability_map.setToolTip(
+            "Where the model thinks cells are, from the last Cellpose run."
+        )
+        self.chk_probability_map.toggled.connect(self._update_probability_map)
+        results_layout.addWidget(self.chk_probability_map)
+
+        review_row = QHBoxLayout()
+        self.lbl_uncertain = QLabel("Uncertain below:")
+        self.spin_uncertain = BioDoubleSpinBox()
+        self.spin_uncertain.setRange(0.0, 1.0)
+        self.spin_uncertain.setSingleStep(0.05)
+        self.spin_uncertain.setDecimals(2)
+        self.spin_uncertain.setValue(0.75)
+        self.spin_uncertain.setToolTip("Cells whose AI confidence is below this need a look.")
+        self.spin_uncertain.valueChanged.connect(self._update_review_controls)
+        self.btn_next_uncertain = SecondaryButton("Next uncertain ▸")
+        self.btn_next_uncertain.clicked.connect(self._on_next_uncertain)
+        review_row.addWidget(self.lbl_uncertain)
+        review_row.addWidget(self.spin_uncertain)
+        review_row.addWidget(self.btn_next_uncertain)
+        results_layout.addLayout(review_row)
+        self._review_index = -1
+
         results_layout.addWidget(create_header("Area Distribution"))
         self.lbl_stats = QLabel("Total Cells: 0\nAvg Area: 0.0 µm²")
         self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
@@ -915,10 +951,7 @@ class CytoMetricsPanel(PluginBase):
 
         splitter.addWidget(controls_widget)
 
-        self.table = BioTableWidget(0, 5)  # <--- Changed to 5 columns
-        self.table.setHorizontalHeaderLabels(
-            ["ID", "Area (µm²)", "Perim (µm)", "Circ.", "Diam. (µm)"]
-        )
+        self.table = BioTableWidget(0, 6)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setStyleSheet(
             f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER}; border: none;"
@@ -980,6 +1013,8 @@ class CytoMetricsPanel(PluginBase):
         self.combo_pipeline.setStyleSheet(input_style)
         self.params_form.apply_theme()
         self.chk_show_ids.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
+        for widget in (self.chk_color_confidence, self.chk_probability_map, self.lbl_uncertain):
+            widget.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
         self.lbl_units_note.setStyleSheet(
             f"color: {Colors.ACCENT_WARNING}; font-weight: bold; margin-top: 10px;"
@@ -1012,7 +1047,7 @@ class CytoMetricsPanel(PluginBase):
         self.lbl_units_note.setVisible(not is_calibrated(scale))
         self.params_form.set_scale(scale)
         self.table.setHorizontalHeaderLabels(
-            ["ID", f"Area ({area})", f"Perim ({length})", "Circ.", f"Diam. ({length})"]
+            ["ID", f"Area ({area})", f"Perim ({length})", "Circ.", f"Diam. ({length})", "Conf."]
         )
         self._update_results_tab()
 
@@ -1148,6 +1183,7 @@ class CytoMetricsPanel(PluginBase):
             self._on_pipeline_error(results["error"])
         else:
             self._labels = results.get("labels")  # label mask of the last run
+            self._probability = results.get("probability")  # Cellpose only
             self._on_pipeline_finished(results.get("result_cells", []))
 
     def _on_pipeline_finished(self, new_cells):
@@ -1212,9 +1248,7 @@ class CytoMetricsPanel(PluginBase):
         # 3. Restore data & canvas
         self._update_units()
 
-        if state.cells:
-            self.canvas.draw_cells_from_state(state.cells)
-
+        self._redraw_cells()
         self._refresh_table()
         self._update_results_tab()
 
@@ -1275,6 +1309,8 @@ class CytoMetricsPanel(PluginBase):
             self.table.setItem(row, 2, NumericTableItem(f"{cell.get('perim', 0):.1f}"))
             self.table.setItem(row, 3, NumericTableItem(f"{cell.get('circ', 0):.2f}"))
             self.table.setItem(row, 4, NumericTableItem(f"{diam:.1f}"))
+            conf = cell.get("confidence")
+            self.table.setItem(row, 5, NumericTableItem("" if conf is None else f"{conf:.2f}"))
         self.table.setSortingEnabled(True)
         self.table.scrollToBottom()
         self._update_results_tab()
@@ -1368,6 +1404,62 @@ class CytoMetricsPanel(PluginBase):
         self.set_state(self.state)
         self.state_changed.emit()
 
+    def _redraw_cells(self, *_args) -> None:
+        """Outline the cells, coloured by confidence if that's switched on."""
+        colors = None
+        if self.chk_color_confidence.isChecked():
+            colors = {
+                c["id"]: confidence_color(c["confidence"])
+                for c in self.state.cells
+                if c.get("confidence") is not None
+            }
+        self.canvas.draw_cells_from_state(self.state.cells, colors)
+        self.canvas.set_show_ids(self.chk_show_ids.isChecked())
+
+    def _update_probability_map(self, *_args) -> None:
+        probability = self._probability
+        usable = probability is not None and probability.shape == self.image_set.shape
+        self.chk_probability_map.setEnabled(usable)
+        show = usable and self.chk_probability_map.isChecked()
+        self.canvas.set_probability_map(probability if show else None)
+
+    def _uncertain_cells(self) -> list[dict]:
+        """Cells below the confidence threshold, least confident first."""
+        limit = self.spin_uncertain.value()
+        scored = [c for c in self.state.cells if c.get("confidence") is not None]
+        return sorted((c for c in scored if c["confidence"] < limit), key=lambda c: c["confidence"])
+
+    def _update_review_controls(self, *_args) -> None:
+        has_confidence = any(c.get("confidence") is not None for c in self.state.cells)
+        self.chk_color_confidence.setEnabled(has_confidence)
+        for widget in (self.lbl_uncertain, self.spin_uncertain, self.btn_next_uncertain):
+            widget.setEnabled(has_confidence)
+        n = len(self._uncertain_cells())
+        self.btn_next_uncertain.setText(
+            f"Next uncertain ({n}) ▸" if has_confidence else "Next uncertain ▸"
+        )
+        self.btn_next_uncertain.setEnabled(n > 0)
+        self._review_index = -1
+
+    def _on_next_uncertain(self) -> None:
+        """Select, highlight and centre the next least-confident cell."""
+        uncertain = self._uncertain_cells()
+        if not uncertain:
+            return
+        self._review_index = (self._review_index + 1) % len(uncertain)
+        self.select_cell(uncertain[self._review_index]["id"])
+
+    def select_cell(self, cell_id: int) -> None:
+        """Select `cell_id` in the table and centre it on the canvas."""
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item and item.text() == f"Cell {cell_id}":
+                self.table.selectRow(row)
+                self.table.scrollToItem(item)
+                break
+        self.canvas.highlight_cell(cell_id)
+        self.canvas.center_on_cell(cell_id)
+
     def _update_results_tab(self):
         """Refreshes the histogram and stats when cells change."""
         cells = self.state.cells
@@ -1377,6 +1469,14 @@ class CytoMetricsPanel(PluginBase):
             f"Total Cells: {num}\nAvg Area: {avg_area:.1f} {area_unit(self.state.scale)}"
         )
         self.histogram.update_data([c["area"] for c in cells])
+        confidences = [c["confidence"] for c in cells if c.get("confidence") is not None]
+        if confidences:
+            self.lbl_stats.setText(
+                self.lbl_stats.text()
+                + f"\nMean AI confidence: {sum(confidences) / len(confidences):.2f}"
+            )
+        self._update_review_controls()
+        self._update_probability_map()
 
     def _on_export_csv(self):
         """Saves the data table to a CSV file."""

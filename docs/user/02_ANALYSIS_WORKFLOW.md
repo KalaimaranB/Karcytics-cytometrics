@@ -47,6 +47,14 @@ Click **✨ Run Segmentation**; the scanning bar shows progress. Detected cells 
 - **✏️ Draw Cells (Manual)** lets you outline a missed cell by hand.
 - Select a row in the results table to highlight that cell on the canvas.
 
+### Reviewing Cellpose results
+
+Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probability inside the outline. In **3. Results**:
+
+- **Colour outlines by AI confidence**: red = uncertain, amber = borderline, green = confident.
+- **Show Cellpose cell-probability map**: a cyan overlay of where the model thinks cells are. Useful to see dim cells it nearly found (lower the Detection Threshold to include them).
+- **Uncertain below** + **Next uncertain ▸**: steps through cells under the threshold, least confident first, and centres each one so you can delete or keep it.
+
 ## 6. Results and export
 
 **3. Results** shows the cell count, average area and an area histogram. **💾 Export to CSV** writes one row per cell (units are µm, or px if the image isn't calibrated):
