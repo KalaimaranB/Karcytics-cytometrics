@@ -27,3 +27,11 @@ def area_unit(scale: float) -> str:
 def ascii_unit(unit: str) -> str:
     """`unit` spelled for a column header: µm² → um2."""
     return unit.replace("µ", "u").replace("²", "2")
+
+
+def area_range(params: dict, scale: float) -> str:
+    """The size filter as the user set it (params hold pixels), in µm² or px²."""
+    factor = effective_scale(scale) ** 2
+    lo = params.get("min_area_px", 0) * factor
+    hi = params.get("max_area_px", 0) * factor
+    return f"{lo:g}–{hi:g} {area_unit(scale)}"

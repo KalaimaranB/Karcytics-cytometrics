@@ -1,66 +1,19 @@
-import logging
-import sys
 from typing import Any
 
 from karcytics_sdk.plugin import AnalysisBase, PluginState, get_logger
-from PySide6.QtCore import QObject, Signal
+
+from ..analysis.segment import run_segmentation
 
 logger = get_logger(__name__, "cytometrics")
 
 
-class InterceptorSignals(QObject):
-    """Helper class to hold Qt signals for the standard logging handler."""
-
-    progress_signal = Signal(int)
-    status_signal = Signal(str)
-
-
-class StreamCatcher(QObject):
-    """Intercepts terminal output (stderr) so we can see what Cellpose is actually saying."""
-
-    text_written = Signal(str)
-
-    def __init__(self, original_stream):
-        super().__init__()
-        self.original_stream = original_stream
-
-    def write(self, text):
-        self.original_stream.write(text)  # Still print to your Mac terminal
-        if text.strip():  # Only send if it's not an empty newline
-            self.text_written.emit(text.strip())
-
-    def flush(self):
-        self.original_stream.flush()
-
-
-class CellposeLogInterceptor(logging.Handler):
-    """Eavesdrops on Cellpose logs to provide real-time UI updates."""
-
-    def __init__(self):
-        super().__init__()
-        self.signals = InterceptorSignals()
-
-    def emit(self, record):
-        msg = self.format(record).lower()
-        self.signals.status_signal.emit(record.getMessage())
-
-        if "downloading" in msg:
-            self.signals.progress_signal.emit(5)
-        elif "evaluating" in msg or "network" in msg:
-            self.signals.progress_signal.emit(20)
-        elif "computing flows" in msg:
-            self.signals.progress_signal.emit(50)
-        elif "computing masks" in msg:
-            self.signals.progress_signal.emit(80)
-
-
 class CytoPipelineWorker(AnalysisBase):
-    """Worker that runs the AI segmentation pipeline via TaskScheduler."""
+    """Runs one segmenter over the image set on a background thread."""
 
     def __init__(self, plugin_id: str = "cytometrics") -> None:
         super().__init__(plugin_id)
-        self.pipeline = None
-        self.image_set = None
+        self.pipeline: Any = None
+        self.image_set: Any = None
         self.params: dict[str, Any] = {}
         self.scale = 1.0
 
@@ -71,29 +24,21 @@ class CytoPipelineWorker(AnalysisBase):
         self.scale = scale
 
     def run(self, state: PluginState | None = None) -> dict:
-        """Execute the segmentation on a background thread."""
+        """Returns ``{"result_cells", "labels"}``, or ``{"error"}`` if the segmenter failed."""
         if not self.pipeline:
             return {"error": "No pipeline configured"}
-
-        # 1. Hijack the terminal's standard error stream
-        original_stderr = sys.stderr
-        catcher = StreamCatcher(original_stderr)
-        # We can't easily emit signals from here to the exact task,
-        # but the catcher remains for stdout visibility.
-        sys.stderr = catcher
-
         try:
-            # 2. Run the AI
-            result_cells = self.pipeline.run(self.image_set, self.params, self.scale)
-            return {"result_cells": result_cells}
-
+            labels, cells = run_segmentation(
+                self.pipeline,
+                self.image_set,
+                self.params,
+                self.scale,
+                self.signals.analysis_progress.emit,
+            )
+            return {"result_cells": cells, "labels": labels}
         except Exception as e:
-            logger.exception("CytoMetrics Pipeline Error")
+            logger.exception("CytoMetrics segmentation error")
             return {"error": str(e)}
-
-        finally:
-            # 3. Put the terminal back to normal!
-            sys.stderr = original_stderr
 
 
 # ── Functional Task Logic (Utilities) ─────────────────────────────────
@@ -118,17 +63,11 @@ def download_model_func(progress_callback=None):
 
 
 def load_libraries_func():
-    """Builds all pipeline instances. Heavy AI imports are deferred to first use."""
-    from ..analysis.pipelines.cellpose_pipeline import CellposePipeline
-    from ..analysis.pipelines.otsu import OtsuPipeline
-    from ..analysis.pipelines.watershed import WatershedPipeline
+    """One instance of every registered segmenter, keyed by id.
 
-    # NOTE: torch and cellpose are NOT imported here. CellposePipeline.__init__
-    # is lightweight — it only sets self.model = None. The actual 1GB model
-    # loads lazily inside _ensure_model() on the first call to .run().
-    pipelines = {
-        "otsu": OtsuPipeline(),
-        "watershed": WatershedPipeline(),
-        "cellpose": CellposePipeline(),
-    }
-    return {"success": True, "pipelines": pipelines}
+    torch and cellpose are not imported here: the Cellpose segmenter loads
+    its model on its first run.
+    """
+    from ..analysis.segment import REGISTRY
+
+    return {"success": True, "pipelines": {sid: cls() for sid, cls in REGISTRY.items()}}

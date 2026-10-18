@@ -191,3 +191,18 @@ def test_save_and_load_go_through_the_project_manager(panel, monkeypatch):
 
     assert len(offered) == 1 and offered[0].startswith("Run 1")
     assert panel.state.scale == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize("segmenter", ["otsu", "watershed"])
+def test_run_button_finds_cells_and_fills_the_table(panel, qtbot, tmp_path, segmenter):
+    qtbot.waitUntil(lambda: panel.tabs.isTabEnabled(1), timeout=10_000)
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    panel.combo_pipeline.setCurrentIndex(panel.combo_pipeline.findData(segmenter))
+    panel.spin_min_area.setValue(50)
+
+    panel._on_run_pipeline()
+    qtbot.waitUntil(lambda: panel.btn_run_pipeline.isEnabled(), timeout=10_000)
+
+    assert panel.table.rowCount() == len(img.ISOLATED_CENTRES)
+    assert panel._labels.max() == len(img.ISOLATED_CENTRES)
+    assert panel.progress_bar.isHidden()

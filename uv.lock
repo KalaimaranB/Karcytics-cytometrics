@@ -449,6 +449,9 @@ dependencies = [
     { name = "matplotlib" },
     { name = "opencv-python" },
     { name = "psutil" },
+    { name = "scikit-image" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "torch" },
     { name = "torchvision" },
 ]
@@ -472,7 +475,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cellpose", specifier = ">=3.0" },
+    { name = "cellpose", specifier = ">=4.0" },
     { name = "karcytics-sdk", editable = "../Karcytics-SDK" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.9,<2.0" },
@@ -485,6 +488,8 @@ requires-dist = [
     { name = "pytest-qt", marker = "extra == 'dev'", specifier = ">=4.3,<5.0" },
     { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.3,<3.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16,<1.0" },
+    { name = "scikit-image", specifier = ">=0.26" },
+    { name = "scipy", specifier = ">=1.11" },
     { name = "torch", specifier = ">=2.0" },
     { name = "torchvision", specifier = ">=0.15" },
 ]

@@ -18,10 +18,11 @@ CytoMetrics is built on other scientists' published work. If CytoMetrics contrib
 
 ## If you used Watershed (Clump Splitting)
 
-- Meyer, F. *Color image segmentation.* International Conference on Image Processing and its Applications, 303–306, IET (1992). This is the marker-based watershed variant implemented by OpenCV's `cv2.watershed`.
-- Otsu (1979), above: Watershed uses Otsu's threshold to find foreground and seeds.
+- Meyer, F. *Color image segmentation.* International Conference on Image Processing and its Applications, 303–306, IET (1992). The marker-based (flooding) watershed.
+- van der Walt, S. et al. *scikit-image: image processing in Python.* PeerJ 2, e453 (2014). [doi:10.7717/peerj.453](https://doi.org/10.7717/peerj.453). CytoMetrics uses scikit-image's watershed and peak finding.
+- Otsu (1979), above: Watershed uses Otsu's threshold to find the cell footprint.
 
-## Classical image processing (Otsu and Watershed)
+## Classical image processing (Otsu)
 
 - Bradski, G. *The OpenCV Library.* Dr. Dobb's Journal of Software Tools (2000).
 

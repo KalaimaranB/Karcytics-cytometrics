@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 from fixtures import images as img
-from fixtures.segmenters import FakeSegmenter, square_cell
+from fixtures.segmenters import FakeSegmenter, square_labels
 
-from karcytics_plugins.cytometrics.analysis.pipelines.watershed import WatershedPipeline
+from karcytics_plugins.cytometrics.analysis.segment.watershed import WatershedSegmenter
 from karcytics_plugins.cytometrics.ui.workers import CytoPipelineWorker
 
 pytestmark = pytest.mark.functional
@@ -28,17 +28,31 @@ def _run(pipeline, stack, params=PARAMS, scale=1.0) -> dict:
     return worker.run()
 
 
-def test_worker_passes_stack_params_and_scale_to_the_pipeline():
-    fake = FakeSegmenter([square_cell(1, 1, 5)])
-    stack = img.stack(("cells", img.isolated_discs()))
+def test_worker_segments_measures_and_scales():
+    fake = FakeSegmenter(square_labels([(10, 10, 10), (40, 40, 12)]))
+    stack = img.stack(("cells", img.blank()))
 
     result = _run(fake, stack, scale=0.5)
 
-    assert result == {"result_cells": [square_cell(1, 1, 5)]}
-    assert fake.calls == [(stack, PARAMS, 0.5)]
+    assert fake.calls == [(stack, PARAMS)]
+    assert [c["label"] for c in result["result_cells"]] == [1, 2]
+    assert result["result_cells"][0]["area"] == pytest.approx(9 * 9 * 0.25)
+    assert result["labels"].max() == 2
 
 
-def test_worker_reports_pipeline_errors_instead_of_raising():
+def test_worker_reports_progress_up_to_100():
+    worker = CytoPipelineWorker()
+    worker.configure(FakeSegmenter(), img.stack(("cells", img.blank())), PARAMS, 1.0)
+    seen: list[int] = []
+    worker.signals.analysis_progress.connect(seen.append)
+
+    worker.run()
+
+    assert seen[0] == 45 and seen[-1] == 100
+    assert seen == sorted(seen)
+
+
+def test_worker_reports_segmenter_errors_instead_of_raising():
     result = _run(
         FakeSegmenter(error=RuntimeError("GPU fell over")), img.stack(("cells", img.blank()))
     )
@@ -50,17 +64,8 @@ def test_worker_without_a_pipeline_reports_an_error():
     assert CytoPipelineWorker().run() == {"error": "No pipeline configured"}
 
 
-def test_worker_restores_stderr_after_running():
-    import sys
-
-    before = sys.stderr
-    _run(FakeSegmenter(), img.stack(("cells", img.blank())))
-
-    assert sys.stderr is before
-
-
 def test_watershed_through_the_worker_finds_every_isolated_disc():
-    result = _run(WatershedPipeline(), img.stack(("cells", img.isolated_discs())))
+    result = _run(WatershedSegmenter(), img.stack(("cells", img.isolated_discs())))
 
     assert len(result["result_cells"]) == len(img.ISOLATED_CENTRES)
 
@@ -71,9 +76,10 @@ def test_watershed_through_the_worker_finds_every_isolated_disc():
     reason="Cellpose-SAM model not cached (~1.3 GB); never downloaded in tests",
 )
 def test_cellpose_sam_finds_isolated_discs():
-    from karcytics_plugins.cytometrics.analysis.pipelines.cellpose_pipeline import CellposePipeline
+    from karcytics_plugins.cytometrics.analysis.segment.cellpose import CellposeSegmenter
 
     params = {**PARAMS, "diameter": 2 * img.ISOLATED_RADIUS, "exclude_borders": True}
-    result = _run(CellposePipeline(), img.stack(("cells", img.isolated_discs())), params)
+    result = _run(CellposeSegmenter(), img.stack(("cells", img.isolated_discs())), params)
 
     assert len(result["result_cells"]) == len(img.ISOLATED_CENTRES)
+    assert all(0.5 < c["confidence"] <= 1.0 for c in result["result_cells"])

@@ -86,6 +86,25 @@ CITATIONS = (
         year=2000,
         venue="Dr. Dobb's Journal of Software Tools",
     ),
+    Citation(
+        key="skimage2014",
+        authors=(
+            "van der Walt, S.",
+            "Schönberger, J. L.",
+            "Nunez-Iglesias, J.",
+            "Boulogne, F.",
+            "Warner, J. D.",
+            "Yager, N.",
+            "Gouillart, E.",
+            "Yu, T.",
+        ),
+        title="scikit-image: image processing in Python",
+        year=2014,
+        venue="PeerJ",
+        volume="2",
+        pages="e453",
+        doi="10.7717/peerj.453",
+    ),
 )
 
 register(*CITATIONS)

@@ -271,13 +271,19 @@ class ScanningIndicator(QWidget):
         self.setFixedHeight(32)
         self._phase = 0.0  # scrolling phase (radians)
         self._visible = False
+        self._value = 0
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._advance)
 
     # ---- Public API (mirrors QProgressBar) --------------------------------
     def setValue(self, v):
-        pass  # continuous animation \u2014 no discrete value needed
+        """Show `v` percent next to the animation (0 hides the number)."""
+        self._value = max(0, min(100, int(v)))
+        self.update()
+
+    def value(self) -> int:
+        return self._value
 
     def setVisible(self, visible: bool):
         super().setVisible(visible)
@@ -353,12 +359,12 @@ class ScanningIndicator(QWidget):
         f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
         p.setFont(f)
         p.drawText(
-            W - 90,
+            W - 120,
             0,
-            84,
+            114,
             H,
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            "SCANNING\u2026",
+            f"SCANNING\u2026 {self._value}%" if self._value else "SCANNING\u2026",
         )
 
         p.end()
@@ -1197,33 +1203,16 @@ class CytoMetricsPanel(PluginBase):
                 f"color: {Colors.ACCENT_DANGER}; font-size: 12px; font-weight: bold;"
             )
 
-    def _on_algorithm_changed(self, text):
-        is_ai = "Cellpose" in text
-        if is_ai:
-            self.lbl_algo_bio.setText(
-                "Best for complex clusters and faint extensions. Requires an initial ~1GB model download."
-            )
-        elif "Watershed" in text:
-            self.lbl_algo_bio.setText(
-                "Best for clustered, circular cells. Uses classical math to split touching boundaries."
-            )
-        else:
-            self.lbl_algo_bio.setText(
-                "Best for sparse, isolated cells. Very fast, but will merge touching cells together."
-            )
-
+    def _on_algorithm_changed(self, _text=None):
+        selected = self.combo_pipeline.currentData()
+        segmenter = self.pipelines.get(selected)
+        self.lbl_algo_bio.setText(getattr(segmenter, "summary", ""))
+        is_ai = selected == "cellpose"
         self.lbl_diameter.setVisible(is_ai)
         self.spin_diameter.setVisible(is_ai)
         self.lbl_flow.setVisible(is_ai)
         self.spin_flow.setVisible(is_ai)
-
-        if hasattr(self, "check_exclude_borders"):
-            self.check_exclude_borders.setVisible(is_ai)
-
-        if hasattr(self, "btn_manage_ai"):
-            self.btn_manage_ai.setVisible(is_ai)
-
-        selected = self.combo_pipeline.currentData()
+        self.btn_manage_ai.setVisible(is_ai)
         for key, label in self._citation_labels.items():
             label.setVisible(key == selected)
 
@@ -1282,6 +1271,7 @@ class CytoMetricsPanel(PluginBase):
             self.state,
             on_finished=self._on_pipeline_result,
             on_error=self._on_pipeline_error,
+            on_progress=self.progress_bar.setValue,
         )
 
     def _on_pipeline_result(self, results: dict) -> None:
@@ -1290,6 +1280,7 @@ class CytoMetricsPanel(PluginBase):
         if "error" in results:
             self._on_pipeline_error(results["error"])
         else:
+            self._labels = results.get("labels")  # label mask of the last run
             self._on_pipeline_finished(results.get("result_cells", []))
 
     def _on_pipeline_finished(self, new_cells):

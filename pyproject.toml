@@ -12,10 +12,12 @@ dependencies = [
     "karcytics-sdk>=3.0.0",
     "torch>=2.0",
     "torchvision>=0.15",
-    "cellpose>=3.0",
+    "cellpose>=4.0",  # Cellpose-SAM (cpsam) needs v4
     "opencv-python>=4.8",
     "psutil>=5.9",
     "matplotlib>=3.8",
+    "scipy>=1.11",
+    "scikit-image>=0.26",
 ]
 
 [project.optional-dependencies]
@@ -107,6 +109,8 @@ module = [
     "shiboken6.*",
     "requests.*",
     "PIL.*",
+    "scipy.*",
+    "skimage.*",
 ]
 ignore_missing_imports = true
 

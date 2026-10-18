@@ -131,15 +131,15 @@ karcytics_plugins/cytometrics
 - Moved: `LabelMask` → 3.1, `ObjectTable` (pandas) → 4.1, `AnalysisSession` + state v2 migration → 5.1. They belong with the code that first needs them.
 
 ### Phase 3: segmenters, using Cellpose fully (cytometrics)
-- [ ] 3.1 `LabelMask` as the single source of truth (contours derived for display) and the `Segmenter` protocol (`id`, `name`, `parameters()`, `citations`, `segment(ImageSet, params) -> LabelMask`) + decorator registry. Otsu and Watershed ported; shared channel lookup and border exclusion.
+- [x] 3.1 `LabelMask` as the single source of truth (contours derived for display) and the `Segmenter` protocol (`id`, `name`, `parameters()`, `citations`, `segment(ImageSet, params) -> LabelMask`) + decorator registry. Otsu and Watershed ported; shared channel lookup and border exclusion. **Done as** `analysis/segment/` (`base.py`: `Param`, `Segmenter`, `SegmentationResult`, `@register`, `cells_from_labels`; `run_segmentation` applies border exclusion and the area filter once for every segmenter). The label mask is the result; cell outlines/measurements are derived from it (still outline-polygon measurements until 4.1). Border exclusion is now a choice for every segmenter. Watershed seeds from distance-transform peaks (`peak_local_max`, new "Min. Cell Separation" parameter) and runs scikit-image's watershed, so a two-cell clump now splits without a nuclei channel (the strict xfail is now a passing test); it cites scikit-image.
 - [ ] 3.2 Cellpose: raw 16-bit input with the `normalize` options (percentiles, tile normalisation for uneven illumination); `cellprob_threshold`, `min_size`, `max_size_fraction`, `niter`, `augment` ("High quality"), `batch_size`/`bsize` (memory).
-- [ ] 3.3 `progress` callback → real progress bar. Delete the stderr hijack and `CellposeLogInterceptor`.
-- [ ] 3.4 Per-object **confidence** (mean cell probability inside the mask) from `flows`; confidence heat-map layer; "review uncertain" list.
-- [ ] 3.5 Fix the O(cells × pixels) loop (`scipy.ndimage.find_objects` / `skimage.measure.regionprops`).
+- [x] 3.3 Progress: Cellpose's own `progress` argument only reports in 3-D, so segmenters report stages through a `progress` callback (model loaded, network run, then per-object measuring 90–100%), shown as a percentage on the scanning indicator. The stderr hijack, `StreamCatcher` and `CellposeLogInterceptor` are deleted.
+- [ ] 3.4 (computing done: each Cellpose cell carries `confidence`; the heat-map layer and review list are still to do) Per-object **confidence** (mean cell probability inside the mask) from `flows`; confidence heat-map layer; "review uncertain" list.
+- [x] 3.5 Fix the O(cells × pixels) loop (`scipy.ndimage.find_objects` / `skimage.measure.regionprops`).
 - [ ] 3.6 Export ImageJ ROIs and `_seg.npy` (Cellpose GUI/Fiji/QuPath interop).
 - [ ] 3.7 Optional Cellpose3 `denoise` pre-step. Benchmark on synthetic noise first; adopt only if it helps Cellpose-SAM.
 - [ ] 3.8 `params_form.py`: controls generated from `parameters()` (basic/advanced). Delete the display-name string matching.
-- [ ] 3.9 Each segmenter shows its citations ("Powered by …") in the Detect step.
+- [x] 3.9 Each segmenter shows its citations ("Powered by …") in the Detect step.
 
 ### Phase 4: measurements (cytometrics)
 - [ ] 4.1 `ObjectTable` on pandas (add `pandas`) and the `Measurer` protocol + registry. Shape: area, perimeter, circularity, solidity, eccentricity, major/minor axis, Feret max/min, equivalent diameter.
