@@ -38,7 +38,7 @@
         "src/karcytics_plugins/cytometrics/ui/__init__.py": "79d6e5e8b25080fa220507c98183def79a99ded6f19509eca7225813ff536f94",
         "src/karcytics_plugins/cytometrics/ui/channel_manager.py": "1890c4168abc0373561d1a108cae4c8f652a54afd062382230f31809b9829a8e",
         "src/karcytics_plugins/cytometrics/ui/dialogs/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "src/karcytics_plugins/cytometrics/ui/dialogs/model_center.py": "fdb2aabf5de9132deb0b36ca96d10e134be398ac62c9407a72f97ec8ffd30367",
+        "src/karcytics_plugins/cytometrics/ui/dialogs/model_center.py": "db09cf5701077b8860e8a365f712fa661cac8939e8814bc53dfb64a8a9abcd4f",
         "src/karcytics_plugins/cytometrics/ui/image_canvas.py": "3ada8be12e218eeb949a21dbeb55d73638b850f7882507c6c13305f643a06576",
         "src/karcytics_plugins/cytometrics/ui/main_panel.py": "8b911d75aa50d32ad2512ee78e4792520a3e8bc7d7af34be567c3d5dae9d524e",
         "src/karcytics_plugins/cytometrics/ui/mode_picker.py": "7692583a0e5b28b12d283ac297913d54e865bc5ab89fde19f6fc13c4912b6bcb",

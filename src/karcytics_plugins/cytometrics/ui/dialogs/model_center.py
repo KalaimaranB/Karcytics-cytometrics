@@ -132,10 +132,6 @@ class ModelCenterDialog(QDialog):
         for card in self.cards:
             layout.addWidget(card)
 
-        layout.addWidget(SubtitleLabel("Your models"))
-        layout.addWidget(
-            BioCaptionLabel("Models you fine-tune on your own corrected cells will appear here.")
-        )
         layout.addWidget(SubtitleLabel("Not included"))
         layout.addWidget(
             BioCaptionLabel(

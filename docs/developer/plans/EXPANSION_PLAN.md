@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phases 0, 2, 3, 4 and 5 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Paused for the user's review before Phase 6. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0, 2, 3, 4 and 5 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 6. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -85,7 +85,7 @@ karcytics_plugins/cytometrics
     segment/      Segmenter protocol + registry; otsu, watershed, cellpose, colony, (gated) instanseg
     measure/      Measurer protocol → pandas columns; shape, intensity, texture, ratio
     table.py      ObjectTable (pandas DataFrame wrapper; CellProfiler-style column names)
-    classify/     gates (threshold, polygon, boolean), trainable classifier
+    classify/     gates (threshold, polygon, boolean)
     track/        overlap/Hungarian linker, (gated) trackastra
     assays/       Assay protocol + registry; one module per assay
     batch.py      folder/plate runs, condition/replicate metadata, per-condition stats
@@ -125,7 +125,7 @@ karcytics_plugins/cytometrics
 - [ ] 1.7 SDK version bump (proposed 3.1.0) and cytometrics `karcytics-sdk>=3.1.0`. **Waiting on the user:** the SDK's CI publishes to PyPI on push when `main` has an untagged version, and `main` also carries other unpushed work.
 
 ### Phase 2: domain model (cytometrics)
-- [x] 2.1 `analysis/model.py`: `Channel` (native dtype, `path`, `as_uint8()` for display and the 8-bit OpenCV segmenters) and `ImageSet` (`add_file` via SDK `read_image`, `get(name)`, `composite()` in RGB, size check). Multi-channel files take their names from metadata (OME/ND2) and colours from stain names (DAPI → blue, GFP → green, Cy5 → magenta, …). Only t=0, z=0 for now (3-D is Phase 10). `ImageStack` and its 16-bit truncation are gone; Cellpose now gets native 16-bit data.
+- [x] 2.1 `analysis/model.py`: `Channel` (native dtype, `path`, `as_uint8()` for display and the 8-bit OpenCV segmenters) and `ImageSet` (`add_file` via SDK `read_image`, `get(name)`, `composite()` in RGB, size check). Multi-channel files take their names from metadata (OME/ND2) and colours from stain names (DAPI → blue, GFP → green, Cy5 → magenta, …). Only t=0, z=0 for now (3-D is 8.10). `ImageStack` and its 16-bit truncation are gone; Cellpose now gets native 16-bit data.
 - [x] 2.2 Calibration: pixel size from file metadata is applied automatically unless a scale is already set; the calibration line sets it manually; `state.scale_source` records which, and the methods text says so. Uncalibrated runs are allowed: every control, table header, CSV column and methods sentence reads px/px². Recalibrating converts already-measured cells.
 - [x] 2.6 Save/load through the project manager only: the SDK `SaveWorkflowDialog`, a 📂 Load Session button listing this project's CytoMetrics workflows (`pm.workflows.list_all()` → `pm.load_workflow_payload`). The duplicate dialog, the raw-JSON loader, the `apply_state` alias and the three copies of the UI-parameter restore are gone. `CytoMetricsState.from_dict` ignores keys it doesn't know.
 - Moved: `LabelMask` → 3.1, `ObjectTable` (pandas) → 4.1, `AnalysisSession` + state v2 migration → 5.1. They belong with the code that first needs them.
@@ -158,7 +158,7 @@ karcytics_plugins/cytometrics
 - [x] 5.6 "Preview region": run the segmenter on the visible viewport only. **Done:** 👁 Preview on visible area draws dashed outlines on a separate layer; nothing is kept, a full run clears them.
 - [x] 5.7 Inspector: selected object's thumbnail, every measurement, confidence, flag. **Done:** the Cell tab of the results dock (`widgets/inspector.py`): thumbnail cut from the displayed composite with the outline, all measurements with units, source and confidence, 🚩 Flag (saved in the cell, `Flagged` column, dashed outline, undoable). Selection highlight is now white so it stands out over any colour-by.
 - [x] 5.8 Results dock: Table / Histogram (any metric) / Scatter / Plate / Methods & citations. **Done** (`ui/results_dock.py`): Table · Histogram (any metric) · Scatter (any two measurements; click a point to select its cell, canvas selection highlights points: the two-way link from 6.1) · Cell. **Plate** comes with plate layouts in Phase 7; **Methods & citations** live in the Report step rather than twice.
-- [x] 5.9 Model Center (replaces Manage AI): per model, size, license, citation, download/delete, installed fine-tuned models. **Done:** `analysis/models.py` (model registry with code/weights licences, source, citations; the excluded models and why, from §7) and `ui/dialogs/model_center.py`. Delete now removes only that model's file (the old dialog emptied the whole shared `~/.cellpose/models` cache). "Your models" is an empty section until Phase 9.
+- [x] 5.9 Model Center (replaces Manage AI): per model, size, license, citation, download/delete. **Done:** `analysis/models.py` (model registry with code/weights licences, source, citations; the excluded models and why, from §7) and `ui/dialogs/model_center.py`. Delete now removes only that model's file (the old dialog emptied the whole shared `~/.cellpose/models` cache). The "Your models" placeholder was removed when fine-tuning was dropped (see the decision log).
 - [x] 5.10 Hardware monitor collapses into a status bar. **Done:** `widgets/status_bar.py`, one line under the steps (app/system CPU, RAM, GPU memory once torch is loaded; never imports torch).
 - [x] 5.11 UI tests for each view (offscreen): steps/picker (`test_steps.py`), editing/undo/dock (`test_editing.py`), images/calibration/measurements (`test_panel_images.py`), params form, canvas, Model Center, plus the Qt-free session/edit/measure units. 192 tests.
 
@@ -174,32 +174,25 @@ karcytics_plugins/cytometrics
 - [ ] 7.3 Per-image / per-condition stats with replicates; plate heat-map; comparison plots.
 - [ ] 7.4 Batch export (combined CSV/FCS + methods report).
 
-### Phase 8: Assay framework + colony counter (cytometrics)
+### Phase 8: assay framework and new assays (cytometrics)
+An **assay** is a preset for one kind of experiment: which segmenter and settings to use, which steps to show, what to measure, what extra result to compute (CFU/mL, % viable, % positive, …) and what goes in the report and its citations. Each one is a card in the "What are you analysing?" picker. Cells and Nuclei (Phase 5) are the first two.
+
 - [ ] 8.1 `Assay` protocol: segmenter + params + measurers + classifiers + steps + report spec + citations.
 - [ ] 8.2 "Fluorescent cells" assay = today's workflow, migrated.
 - [ ] 8.3 **Colony counter**: plate (Hough circle) detection and masking, background flattening, colony segmentation with distance-transform splitting of touching colonies, size/colour per colony, CFU/mL from dilution factor and plated volume. Algorithm reimplemented from the literature (cite OpenCFU; no code reuse).
+- [ ] 8.4 **Nuclei / cell cycle**: integrated DAPI intensity histogram → G1/S/G2-M. InstanSeg is offered only if the weights-license gate passes; otherwise Cellpose-SAM.
+- [ ] 8.5 **Hemocytometer / viability**: grid detection, counting-square selection, trypan-blue live/dead, cells/mL and % viability.
+- [ ] 8.6 **Transfection / % positive** against a negative-control image.
+- [ ] 8.7 **Confluence / scratch wound**: % area covered, wound width and closure over time.
+- [ ] 8.8 **Bacteria**: Cellpose-SAM with length/width/curvature, dividing-cell flag.
+- [ ] 8.9 **Spheroid / organoid** sizing and growth over time.
+- [ ] 8.10 **Z-stacks**: `do_3D` / `stitch_threshold`, volume measurements.
 
-### Phase 9: teach the model (cytometrics)
-- [ ] 9.1 Training set from corrected masks (images + label masks stored in the project).
-- [ ] 9.2 Fine-tune Cellpose-SAM via `train.train_seg` as a background task with progress; MPS/CUDA/CPU. Prototype MPS speed first.
-- [ ] 9.3 Project-scoped custom models in the Model Center.
-- [ ] 9.4 Validation report: `metrics.average_precision` vs. held-out annotated images.
-- [ ] 9.5 Trainable object classifier (random forest on measurements, scikit-learn BSD-3): "click 10 live, 10 dead".
-
-### Phase 10: more assays and models (cytometrics)
-- [ ] 10.1 **Nuclei / cell cycle**: integrated DAPI intensity histogram → G1/S/G2-M. InstanSeg is offered only if the weights-license gate passes; otherwise Cellpose-SAM.
-- [ ] 10.2 **Hemocytometer / viability**: grid detection, counting-square selection, trypan-blue live/dead, cells/mL and % viability.
-- [ ] 10.3 **Transfection / % positive** against a negative-control image.
-- [ ] 10.4 **Confluence / scratch wound**: % area covered, wound width and closure over time.
-- [ ] 10.5 **Bacteria**: Cellpose-SAM (+ fine-tuning) with length/width/curvature, dividing-cell flag.
-- [ ] 10.6 **Spheroid / organoid** sizing and growth over time.
-- [ ] 10.7 **Z-stacks**: `do_3D` / `stitch_threshold`, volume measurements.
-
-### Phase 11: time and interaction (cytometrics)
-- [ ] 11.1 Time-lapse tracking: overlap + Hungarian linker (SciPy) by default; Trackastra if its weights-license gate passes (greedy/SCIP linking only, never Gurobi).
-- [ ] 11.2 Lineages, growth curves, division events.
-- [ ] 11.3 Click-to-segment with µSAM if its weights-license gate passes; otherwise the box-prompt Cellpose tool from 5.5.
-- [ ] 11.4 Academy courses for CytoMetrics (SDK `academy.py`): "Count your first plate", "Gate GFP+ cells", "Teach Cellpose".
+### Phase 9: time and interaction (cytometrics)
+- [ ] 9.1 Time-lapse tracking: overlap + Hungarian linker (SciPy) by default; Trackastra if its weights-license gate passes (greedy/SCIP linking only, never Gurobi).
+- [ ] 9.2 Lineages, growth curves, division events.
+- [ ] 9.3 Click-to-segment with µSAM if its weights-license gate passes; otherwise the box-prompt Cellpose tool from 5.5.
+- [ ] 9.4 Academy courses for CytoMetrics (SDK `academy.py`): "Count your first plate", "Gate GFP+ cells", "Score a scratch wound".
 
 ## 6. Citations in the app
 
@@ -210,7 +203,7 @@ karcytics_plugins/cytometrics
 | Key | Citation | Used by |
 |---|---|---|
 | cellpose2021 | Stringer, Wang, Michaelos & Pachitariu. *Cellpose: a generalist algorithm for cellular segmentation.* Nature Methods 18:100–106 (2021). doi:10.1038/s41592-020-01018-x | Cellpose segmenter |
-| cellpose2022 | Pachitariu & Stringer. *Cellpose 2.0: how to train your own model.* Nature Methods 19:1634–1641 (2022). doi:10.1038/s41592-022-01663-4 | Fine-tuning (Phase 9) |
+| cellpose2022 | Pachitariu & Stringer. *Cellpose 2.0: how to train your own model.* Nature Methods 19:1634–1641 (2022). doi:10.1038/s41592-022-01663-4 | Not used: fine-tuning dropped |
 | cellpose3 | Stringer & Pachitariu. *Cellpose3: one-click image restoration for improved cellular segmentation.* Nature Methods 22:592–599 (2025). doi:10.1038/s41592-025-02595-5 | Denoise pre-step |
 | cpsam2025 | Pachitariu, Rariden & Stringer. *Cellpose-SAM: superhuman generalization for cellular segmentation.* bioRxiv (2025). doi:10.1101/2025.04.28.651001 | Default model |
 | pytorch2019 | Paszke et al. *PyTorch: An Imperative Style, High-Performance Deep Learning Library.* NeurIPS 32 (2019). arXiv:1912.01703 | Cellpose runtime |
@@ -249,6 +242,7 @@ All DOI entries were checked against Crossref on 2026-10-17; `meyer1992` against
 | Real test images | — | — | only synthetic or CC0/CC-BY sets with the license recorded in `tests/data/LICENSES.md` |
 
 ## 8. Decision log
+- 2026-10-17: the old Phase 9 (fine-tuning Cellpose-SAM, training sets, custom models, validation report, trainable live/dead classifier) dropped at the user's request: not enough annotated data to train on. The old Phases 8 and 10 merged into one Phase 8 (assay framework plus every new assay, colony counter included), and the old Phase 11 became Phase 9.
 - 2026-10-17: 3.7 (Cellpose3 denoise) dropped: removed from Cellpose 4.2 (only training-augmentation code remains).
 - 2026-10-17: Phase 3 keeps outline-polygon measurements so the golden values only move once, in 4.1.
 - 2026-10-17: the security-ledger verifier stays a per-repo stdlib script (CI runs it before installing anything); only the license check moved into the SDK CLI.
