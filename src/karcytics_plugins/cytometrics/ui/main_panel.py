@@ -526,7 +526,7 @@ class CytoMetricsPanel(PluginBase):
         self.push_state(f"Load {Path(path).name}")
 
     def _on_photo_replaced(self) -> None:
-        """A new photo replaced the old one: its objects went with it."""
+        """A new image replaced the old one: its objects went with it."""
         self.session.probability = None
         self.canvas.set_preview(None)
         self.session.replace_cells([])

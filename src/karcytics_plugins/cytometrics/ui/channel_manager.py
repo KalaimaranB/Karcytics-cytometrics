@@ -245,17 +245,34 @@ class ChannelManagerWidget(QWidget):
                 return  # Abort if we can't manage the asset safely
 
         assert self.image_set is not None
-        if self.photo_mode and self.image_set.channels:  # one photo at a time
-            self.image_set.clear()
-            self.clear_ui()
-            self.image_replaced.emit()
         palette = ["gray", "green", "magenta", "blue", "red"]
         color = palette[len(self.image_set.channels) % len(palette)]
+        new = ImageSet()  # read it on its own first: a failed read leaves the current image be
         try:
-            added = self.image_set.add_file(final_path, final_path.name, color)
+            added = new.add_file(final_path, final_path.name, color)
         except (OSError, ValueError) as e:  # includes UnsupportedImageError
             show_warning(self, "Can't Add Image", f"Could not read '{final_path.name}':\n{e}")
             return
+
+        current = self.image_set.shape
+        if current is not None and (self.photo_mode or new.shape != current):
+            if not self.photo_mode:  # a different size can't be another stain of this image
+                h, w = current
+                nh, nw = new.shape or (0, 0)
+                if not ask_yes_no(
+                    self,
+                    "Replace the Image?",
+                    f"'{final_path.name}' is {nw} × {nh} px, so it can't be another channel of "
+                    f"the current {w} × {h} px image.\n\nReplace the current image (and its "
+                    "cells) with it? Settings, calibration and the experiment are kept.",
+                ):
+                    return
+            self.image_set.clear()
+            self.clear_ui()
+            self.image_replaced.emit()
+        self.image_set.channels.extend(added)
+        if self.image_set.pixel_size is None:
+            self.image_set.pixel_size = new.pixel_size
 
         for ch in added:
             self._add_row_to_ui(ch.name, ch.color)

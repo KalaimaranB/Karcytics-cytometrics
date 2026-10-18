@@ -254,3 +254,27 @@ def test_switching_assay_mid_analysis_keeps_the_new_photo(qtbot, monkeypatch, tm
     assert p.assay.id == "spheroids" and not p.state.cells
     assert [c.name for c in p.image_set.channels] == ["well.png"]
     p.cleanup()
+
+
+def test_a_different_sized_image_offers_to_replace_the_current_one(qtbot, monkeypatch, tmp_path):
+    import numpy as np
+
+    from karcytics_plugins.cytometrics.ui import channel_manager
+
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("cells")
+    _load(p, tmp_path, "first.png", img.isolated_discs())
+    _segment(p, qtbot, "otsu", {"target_channel": "first.png", "min_area_px": 50})
+    assert p.state.cells
+
+    asked = []
+    monkeypatch.setattr(channel_manager, "ask_yes_no", lambda *a, **k: asked.append(a) or False)
+    _load(p, tmp_path, "small.png", np.zeros((50, 80), np.uint8))
+    assert [c.name for c in p.image_set.channels] == ["first.png"] and p.state.cells  # kept
+    assert "80 × 50 px" in asked[0][2]
+
+    monkeypatch.setattr(channel_manager, "ask_yes_no", lambda *a, **k: True)
+    _load(p, tmp_path, "small.png", np.zeros((50, 80), np.uint8))
+    assert [c.name for c in p.image_set.channels] == ["small.png"]
+    assert p.image_set.shape == (50, 80) and not p.state.cells
+    p.cleanup()
