@@ -1,6 +1,6 @@
 """Segmenters: ImageSet → label mask. Importing this package registers all of them."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -35,6 +35,7 @@ class Segmentation:
     labels: np.ndarray
     cells: list[dict]
     probability: np.ndarray | None = None
+    extras: dict = field(default_factory=dict)
 
 
 def run_segmentation(segmenter, image_set, params: dict, progress=None) -> Segmentation:
@@ -55,4 +56,4 @@ def run_segmentation(segmenter, image_set, params: dict, progress=None) -> Segme
         result.probability,
         lambda v: report(90 + v // 10),
     )
-    return Segmentation(labels, cells, result.probability)
+    return Segmentation(labels, cells, result.probability, dict(result.extras))

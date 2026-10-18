@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-from karcytics_sdk.plugin import BioCaptionLabel, HeaderLabel, ModuleCard, SubtitleLabel
+from karcytics_sdk.plugin import (
+    BioCaptionLabel,
+    BioScrollArea,
+    HeaderLabel,
+    ModuleCard,
+    SubtitleLabel,
+)
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QVBoxLayout, QWidget
 
 from ..analysis.assays import Assay
 
@@ -20,7 +26,10 @@ class AssayCard(ModuleCard):
         layout.setContentsMargins(14, 12, 14, 12)
         title = SubtitleLabel(f"{assay.icon}  {assay.name}")
         layout.addWidget(title)
-        layout.addWidget(BioCaptionLabel(assay.description))
+        description = BioCaptionLabel(assay.description)
+        description.setWordWrap(True)
+        layout.addWidget(description)
+        layout.addStretch()
         self.setToolTip(f"Start a {assay.name.lower()} analysis")
 
     def mouseReleaseEvent(self, event):
@@ -45,9 +54,24 @@ class ModePicker(QWidget):
             )
         )
         self.cards: dict[str, AssayCard] = {}
-        for assay in assays:
-            card = AssayCard(assay)
-            card.clicked.connect(self.assay_chosen)
-            layout.addWidget(card)
-            self.cards[assay.id] = card
-        layout.addStretch()
+        content = QWidget()
+        column = QVBoxLayout(content)
+        column.setContentsMargins(0, 0, 6, 0)
+        column.setSpacing(8)
+        for group in dict.fromkeys(a.group for a in assays):
+            column.addWidget(SubtitleLabel(group))
+            grid = QGridLayout()
+            grid.setSpacing(8)
+            members = [a for a in assays if a.group == group]
+            for i, assay in enumerate(members):
+                card = AssayCard(assay)
+                card.clicked.connect(self.assay_chosen)
+                grid.addWidget(card, i // 2, i % 2)
+                self.cards[assay.id] = card
+            column.addLayout(grid)
+        column.addStretch()
+        scroll = BioScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(BioScrollArea.Shape.NoFrame)
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)

@@ -7,6 +7,7 @@ from .gate import GateStep
 from .load import LoadStep
 from .measure import MeasureStep
 from .report import ReportStep
+from .results import ResultsStep
 from .review import ReviewStep
 
 PAGES = {
@@ -16,6 +17,7 @@ PAGES = {
     "review": ReviewStep,
     "measure": MeasureStep,
     "gate": GateStep,
+    "results": ResultsStep,
     "report": ReportStep,
     "batch": BatchStep,
 }
@@ -29,5 +31,6 @@ __all__ = [
     "LoadStep",
     "MeasureStep",
     "ReportStep",
+    "ResultsStep",
     "ReviewStep",
 ]

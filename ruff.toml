@@ -60,6 +60,7 @@ known-first-party = ["karcytics_plugins"]
 # Segmenters and measurers implement a shared protocol; not every one uses every argument.
 "**/analysis/segment/*.py" = ["ARG002"]
 "**/analysis/measure/*.py" = ["ARG002"]
+"**/analysis/assays/*.py" = ["ARG002"]
 # UI files: Qt uses camelCase overrides and optional event args — relax naming/arg rules
 "**/ui/**/*.py" = [
     "TID251",   # PySide6 allowed in UI

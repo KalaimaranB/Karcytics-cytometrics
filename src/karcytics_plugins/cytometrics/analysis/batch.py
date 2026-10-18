@@ -34,6 +34,8 @@ import numpy as np
 import pandas as pd
 
 from . import gating
+from .assays import REGISTRY as ASSAYS
+from .assays import AssayContext
 from .fcs import numeric_columns as fcs_columns
 from .fcs import write_fcs
 from .gating import Gate
@@ -66,6 +68,7 @@ class Recipe:
     scale: float = 0.0
     scale_source: str = ""
     assay: str = ""
+    assay_settings: dict[str, Any] = field(default_factory=dict)
 
     @property
     def files_per_item(self) -> int:
@@ -81,6 +84,7 @@ class BatchItem:
     n_cells: int = 0
     error: str = ""
     seconds: float = 0.0
+    results: dict[str, Any] = field(default_factory=dict)  # the assay's headline values
 
 
 @dataclass
@@ -148,6 +152,7 @@ class Batch:
         """Mark items (default: all) to be analysed again."""
         for item in items if items is not None else self.items:
             item.status, item.n_cells, item.error, item.seconds = PENDING, 0, "", 0.0
+            item.results = {}
 
 
 # ── Finding and naming images ────────────────────────────────────────────────
@@ -364,8 +369,8 @@ def load_item(item: BatchItem, recipe: Recipe) -> ImageSet:
 
 def analyse_item(
     item: BatchItem, recipe: Recipe, segmenter: Any, progress: Callable[[int], None] | None = None
-) -> tuple[list[dict], pd.DataFrame]:
-    """Segment, measure and gate one item. Returns its cells and measurement table."""
+) -> tuple[list[dict], pd.DataFrame, dict[str, Any]]:
+    """Segment, measure and gate one item: its cells, measurement table and assay results."""
     report = progress or (lambda _v: None)
     image_set = load_item(item, recipe)
     result = run_segmentation(segmenter, image_set, recipe.params, lambda v: report(int(v * 0.8)))
@@ -381,14 +386,22 @@ def analyse_item(
         lambda v: report(80 + v // 5),
     )
     gates = [Gate.from_dict(g) for g in recipe.gates]
-    return cells, gating.with_gate_columns(gates, table)
+    assay = ASSAYS.get(recipe.assay)
+    results: dict[str, Any] = {}
+    if assay is not None and assay.analysis is not None:
+        settings = {**assay.default_settings(), **recipe.assay_settings}
+        context = AssayContext(recipe.scale, image_set.shape, dict(result.extras))
+        table = assay.analysis.derive(table, settings, context)
+        for value in assay.analysis.results(table, gates, settings, context):
+            results[value.key] = value.value
+    return cells, gating.with_gate_columns(gates, table), results
 
 
 def run_item(batch: Batch, item: BatchItem, segmenter: Any, progress=None) -> None:
     """Analyse `item` and write its results; records success or the error on the item."""
     start = time.perf_counter()
     try:
-        cells, table = analyse_item(item, batch.recipe, segmenter, progress)
+        cells, table, results = analyse_item(item, batch.recipe, segmenter, progress)
         cells_path, table_path = batch.cells_path(item), batch.table_path(item)
         cells_path.parent.mkdir(parents=True, exist_ok=True)
         table_path.parent.mkdir(parents=True, exist_ok=True)
@@ -398,6 +411,7 @@ def run_item(batch: Batch, item: BatchItem, segmenter: Any, progress=None) -> No
         if not units_path.exists():
             units_path.write_text(json.dumps(table.attrs.get("units", {})), encoding="utf-8")
         item.status, item.n_cells, item.error = DONE, len(cells), ""
+        item.results = results
     except Exception as e:  # one bad image must not stop the batch
         item.status, item.n_cells, item.error = FAILED, 0, str(e)
     item.seconds = round(time.perf_counter() - start, 2)
@@ -466,6 +480,8 @@ def image_summary(batch: Batch, cells: pd.DataFrame | None = None) -> pd.DataFra
                 row[f"Pct_{gate.name}"] = 100.0 * inside.sum() / n_parent if n_parent else np.nan
             for column in _measurement_columns(mine):
                 row[f"Mean_{column}"] = float(pd.to_numeric(mine[column], errors="coerce").mean())
+        for key, value in item.results.items():
+            row[f"Result_{key}"] = value if item.status == DONE else np.nan
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -541,7 +557,12 @@ def plate_shape(wells: Iterable[str]) -> tuple[int, int]:
 
 def result_metrics(images: pd.DataFrame) -> list[str]:
     """The per-image values worth comparing: count, population %, mean measurements."""
-    return [c for c in images.columns if c == "Count" or c.startswith(("Pct_", "Count_", "Mean_"))]
+    return [
+        c
+        for c in images.columns
+        if (c == "Count" or c.startswith(("Result_", "Pct_", "Count_", "Mean_")))
+        and pd.api.types.is_numeric_dtype(images[c])
+    ]
 
 
 def export(batch: Batch, out_dir: str | Path) -> list[Path]:

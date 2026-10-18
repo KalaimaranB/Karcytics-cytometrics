@@ -16,6 +16,7 @@ import pandas as pd
 
 from ..report import Measured, build_steps, gating_step
 from . import edit, gating
+from .assays import Assay, AssayContext, ResultValue
 from .gating import Gate
 from .measure import MeasureOptions, measure_cells, rescale
 from .model import ImageSet
@@ -36,10 +37,57 @@ class AnalysisSession:
         self.image_set = ImageSet()
         self.state = CytoMetricsState()
         self.measure_options = MeasureOptions()
-        self.measurements: pd.DataFrame = measure_cells([], self.image_set, 0.0)
+        self.assay: Assay | None = None  # set by the panel; its analysis derives columns
+        self._raw: pd.DataFrame = measure_cells([], self.image_set, 0.0)
+        self._measurements: pd.DataFrame = self._raw
         self.labels: np.ndarray | None = None  # last run's label mask (not saved)
         self.probability: np.ndarray | None = None  # last Cellpose probability map (not saved)
         self.last_run: LastRun | None = None
+
+    # ── Measurements and the assay ───────────────────────────────────────────
+
+    @property
+    def measurements(self) -> pd.DataFrame:
+        """The measured table plus the assay's derived columns."""
+        return self._measurements
+
+    @measurements.setter
+    def measurements(self, df: pd.DataFrame) -> None:
+        self._raw = df
+        self._measurements = self._derive(df)
+
+    def _derive(self, df: pd.DataFrame) -> pd.DataFrame:
+        analysis = self.assay.analysis if self.assay else None
+        if analysis is None:
+            return df
+        return analysis.derive(df, self.assay_settings, self.context())
+
+    def refresh_derived(self) -> None:
+        """Recompute the assay's columns (after its settings or the assay changed)."""
+        self._measurements = self._derive(self._raw)
+
+    def context(self) -> AssayContext:
+        return AssayContext(self.scale, self.image_set.shape, dict(self.state.extras))
+
+    @property
+    def assay_settings(self) -> dict:
+        """The assay's settings: its defaults, overridden by what the user set."""
+        defaults = self.assay.default_settings() if self.assay else {}
+        return {**defaults, **self.state.assay_settings}
+
+    def set_assay_settings(self, values: dict) -> None:
+        self.state.assay_settings = {**self.state.assay_settings, **values}
+        self.refresh_derived()
+
+    def assay_overlays(self) -> list:
+        analysis = self.assay.analysis if self.assay else None
+        return analysis.overlays(self.assay_settings, self.context()) if analysis else []
+
+    def assay_results(self) -> list[ResultValue]:
+        analysis = self.assay.analysis if self.assay else None
+        if analysis is None:
+            return []
+        return analysis.results(self.measurements, self.gates, self.assay_settings, self.context())
 
     # ── Calibration ──────────────────────────────────────────────────────────
 
@@ -49,7 +97,7 @@ class AnalysisSession:
 
     def set_scale(self, scale: float, source: str) -> None:
         """Change the calibration; lengths and areas already measured are converted."""
-        self.measurements = rescale(self.measurements, scale)
+        self.measurements = rescale(self._raw, scale)
         self.state.scale = scale
         self.state.scale_source = source if is_calibrated(scale) else ""
 
@@ -170,13 +218,15 @@ class AnalysisSession:
                     cell["flagged"] = True
                 else:
                     cell.pop("flagged", None)
-        if "Flagged" in self.measurements.columns:
-            rows = self.measurements["ObjectNumber"].isin(cell_ids)
-            self.measurements.loc[rows, "Flagged"] = flagged
+        if "Flagged" in self._raw.columns:
+            raw = self._raw.copy()
+            raw.loc[raw["ObjectNumber"].isin(cell_ids), "Flagged"] = flagged
+            raw.attrs = self._raw.attrs
+            self.measurements = raw
 
     def _drop_rows(self, cell_ids: set[int]) -> None:
-        kept = self.measurements[~self.measurements["ObjectNumber"].isin(cell_ids)].copy()
-        kept.attrs = self.measurements.attrs
+        kept = self._raw[~self._raw["ObjectNumber"].isin(cell_ids)].copy()
+        kept.attrs = self._raw.attrs
         self.measurements = kept
 
     def needs_measuring(self) -> bool:
@@ -306,6 +356,9 @@ class AnalysisSession:
                 self.measure_options.nucleus_channel,
             ),
         )
+        analysis = self.assay.analysis if self.assay else None
+        if analysis is not None:
+            steps.extend(analysis.methods(self.assay_settings, self.context()))
         if self.state.gates and len(self.measurements):
             steps.append(gating_step(self.gate_stats()))
         return steps

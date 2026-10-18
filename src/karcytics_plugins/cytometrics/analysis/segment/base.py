@@ -53,6 +53,9 @@ class SegmentationResult:
     labels: np.ndarray
     probability: np.ndarray | None = None
     notes: list[str] = field(default_factory=list)
+    # Anything else the segmenter found that the assay or the canvas needs
+    # (e.g. the Petri dish: {"dish": [x, y, r]}). JSON-safe; saved with the session.
+    extras: dict = field(default_factory=dict)
 
 
 class Segmenter(Protocol):

@@ -55,6 +55,7 @@ class CytoPipelineWorker(AnalysisBase):
                 "measurements": table,
                 "labels": result.labels,
                 "probability": result.probability,
+                "extras": result.extras,
             }
         except Exception as e:
             logger.exception("CytoMetrics segmentation error")

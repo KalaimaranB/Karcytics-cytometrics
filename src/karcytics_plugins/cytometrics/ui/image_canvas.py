@@ -11,6 +11,7 @@ from karcytics_sdk.plugin import ImageView
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
+    QGraphicsEllipseItem,
     QGraphicsLineItem,
     QGraphicsPathItem,
     QGraphicsPixmapItem,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 _MIN_POLYGON_POINTS = 3  # a closed polygon needs at least a triangle
 _CELLS_LAYER = "cells"
 _PREVIEW_LAYER = "preview"
+_OVERLAY_LAYER = "assay"
 _DRAG_TOOLS = ("SPLIT", "BRUSH_ADD", "BRUSH_ERASE", "BOX")
 _CLICK_SLOP_PX = 4  # a press and release closer than this is a click, not a drag
 _PROBABILITY_LAYER = "probability"  # below the outlines
@@ -163,6 +165,33 @@ class MultiChannelCanvas(ImageView):
             item.setPen(pen)
             self.add_to_layer(_PREVIEW_LAYER, item)
         self.layer(_PREVIEW_LAYER).setZValue(2)
+
+    def set_overlays(self, overlays) -> None:
+        """Draw an assay's shapes (``analysis.assays.Overlay``) over the image."""
+        self.clear_layer(_OVERLAY_LAYER)
+        for o in overlays:
+            pen = QPen(
+                QColor(o.color), 2, Qt.PenStyle.DashLine if o.dashed else Qt.PenStyle.SolidLine
+            )
+            pen.setCosmetic(True)
+            item: QGraphicsEllipseItem | QGraphicsRectItem | QGraphicsLineItem
+            if o.kind == "circle":
+                x, y, r = o.coords
+                item = QGraphicsEllipseItem(x - r, y - r, 2 * r, 2 * r)
+            elif o.kind == "rect":
+                x0, y0, x1, y1 = o.coords
+                item = QGraphicsRectItem(QRectF(QPointF(x0, y0), QPointF(x1, y1)).normalized())
+            else:
+                item = QGraphicsLineItem(*o.coords)
+            item.setPen(pen)
+            self.add_to_layer(_OVERLAY_LAYER, item)
+            if o.label:
+                text = QGraphicsSimpleTextItem(o.label)
+                text.setBrush(QColor(o.color))
+                text.setFlag(QGraphicsSimpleTextItem.GraphicsItemFlag.ItemIgnoresTransformations)
+                text.setPos(item.boundingRect().topLeft())
+                self.add_to_layer(_OVERLAY_LAYER, text)
+        self.layer(_OVERLAY_LAYER).setZValue(3)
 
     @property
     def selection(self) -> list[int]:

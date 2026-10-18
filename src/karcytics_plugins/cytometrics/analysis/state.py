@@ -68,6 +68,8 @@ class CytoMetricsState(PluginState):
                             "measure": measurement options}``.
         gates:              Gates on the measurements (``analysis.gating.Gate`` dicts).
         batch_manifest:     Path of the batch run's ``batch.json`` (empty if none).
+        assay_settings:     The assay's own settings (e.g. dilution, chamber depth).
+        extras:             What the segmenter found besides cells (e.g. the dish circle).
         version:            Format version; older saves are migrated by ``from_dict``.
     """
 
@@ -80,6 +82,8 @@ class CytoMetricsState(PluginState):
     ui_params: dict = field(default_factory=dict)
     gates: list[dict] = field(default_factory=list)
     batch_manifest: str = ""
+    assay_settings: dict = field(default_factory=dict)
+    extras: dict = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CytoMetricsState:

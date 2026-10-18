@@ -72,6 +72,7 @@ from .steps import (
     LoadStep,
     MeasureStep,
     ReportStep,
+    ResultsStep,
     ReviewStep,
 )
 from .steps.detect import PREVIEW_TEXT
@@ -267,6 +268,7 @@ class CytoMetricsPanel(PluginBase):
         self.review_step = ReviewStep()
         self.measure_step = MeasureStep()
         self.gate_step = GateStep()
+        self.results_step = ResultsStep()
         self.report_step = ReportStep()
         self.batch_step = BatchStep()
         self.step_pages = {
@@ -276,6 +278,7 @@ class CytoMetricsPanel(PluginBase):
             "review": self.review_step,
             "measure": self.measure_step,
             "gate": self.gate_step,
+            "results": self.results_step,
             "report": self.report_step,
             "batch": self.batch_step,
         }
@@ -351,6 +354,7 @@ class CytoMetricsPanel(PluginBase):
         self.batch = BatchController(self, self.batch_step, self.results.batch, self)
         self._review_index = -1
         self._assay: Assay | None = None
+        self._box_action: str | None = None  # an assay action waiting for a dragged box
         self._wire()
         self._apply_theme_styles()
         self.undo_history.reset(self.get_state().to_dict())
@@ -395,6 +399,9 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.brush_painted.connect(self._on_brush_painted)
         self.canvas.box_drawn.connect(self._on_box_drawn)
         self.detect_step.btn_preview.clicked.connect(self._on_preview)
+        self.results_step.form.changed.connect(self._on_assay_settings_changed)
+        self.results_step.action_clicked.connect(self._on_assay_action)
+        self.results_step.apply_gates_clicked.connect(self._on_apply_suggested_gates)
         self.btn_undo.clicked.connect(self.undo)
         self.btn_redo.clicked.connect(self.redo)
         self.signals.undo_available.connect(self.btn_undo.setEnabled)
@@ -436,13 +443,18 @@ class CytoMetricsPanel(PluginBase):
         if assay is self._assay and not apply_defaults:
             return  # restoring (e.g. undo): stay on the current step
         self._assay = assay
+        self.session.assay = assay
+        self.results_step.set_assay(assay)
         self.btn_assay.setText(f"{assay.icon} {assay.name} ▾")
         self.stepper.set_steps(
             [(sid, STEP_LABELS[sid], self.step_pages[sid]) for sid in assay.steps]
         )
         self.left_stack.setCurrentWidget(self.stepper)
         if not apply_defaults:
+            self._show_assay_settings()
             return
+        self.state.assay_settings = {}
+        self._show_assay_settings()
         self._apply_ui_params({"pipeline": assay.segmenter, "values": dict(assay.settings)})
         self._set_measure_controls(MeasureOptions(**assay.measure))
         self._apply_assay_target()
@@ -694,6 +706,7 @@ class CytoMetricsPanel(PluginBase):
         if not cells:
             show_info(self, "No Cells", "No cells found with current parameters.")
             return
+        self.state.extras = dict(results.get("extras") or {})
         self.session.replace_cells(
             cells, results.get("measurements"), results.get("labels"), results.get("probability")
         )
@@ -749,6 +762,8 @@ class CytoMetricsPanel(PluginBase):
         if state.ui_params.get("assay") in ASSAYS:
             self.set_assay(state.ui_params["assay"], apply_defaults=False)
         self._apply_ui_params(state.ui_params)
+        if self._assay is not None:
+            self._show_assay_settings()
 
         # 3. Restore data & canvas
         self._update_units()
@@ -1042,6 +1057,11 @@ class CytoMetricsPanel(PluginBase):
         show_error(self, "Segmentation Error", message)
 
     def _on_box_drawn(self, box) -> None:
+        if self._box_action is not None:
+            action, self._box_action = self._box_action, None
+            self.canvas.set_mode("PAN")
+            self._run_assay_action(action, box)
+            return
         self._region_task(box, self._on_box_segmented)
 
     def _on_box_segmented(self, results: dict) -> None:
@@ -1183,6 +1203,7 @@ class CytoMetricsPanel(PluginBase):
     def _update_results_tab(self, *_args):
         """Refresh the plots, pickers, colours and summary when cells or values change."""
         self.gating.refresh()
+        self._refresh_assay_view()
         self._update_color_by_options(numeric_columns(self.measurements))
         self._update_stats()
         self._update_review_controls()
@@ -1202,6 +1223,79 @@ class CytoMetricsPanel(PluginBase):
         if "Confidence" in df and df["Confidence"].notna().any():
             lines.append(f"Mean AI confidence: {df['Confidence'].mean():.2f}")
         self.lbl_stats.setText("\n".join(lines))
+
+    # ── The assay's own settings, results and actions (Results step) ─────
+
+    def _show_assay_settings(self) -> None:
+        form = self.results_step.form
+        form.blockSignals(True)
+        form.set_display_values(self.session.assay_settings)
+        form.blockSignals(False)
+        self.session.refresh_derived()
+        self._refresh_assay_view()
+
+    def _refresh_assay_view(self) -> None:
+        self.results_step.show_results(self.session.assay_results())
+        self.canvas.set_overlays(self.session.assay_overlays())
+
+    def _on_assay_settings_changed(self) -> None:
+        self.session.set_assay_settings(self.results_step.form.display_values())
+        self._refresh_table()
+        self._refresh_methods_preview()
+        self.push_state("Change assay settings")
+
+    def _on_assay_action(self, action: str) -> None:
+        if action.startswith("box:"):
+            if not self.image_set.channels:
+                return
+            self._box_action = action
+            self.canvas.set_mode("BOX")
+            self.results_step.lbl_action.setText("Drag a box on the image.")
+            return
+        self._run_assay_action(action)
+
+    def _run_assay_action(self, action: str, box=None) -> None:
+        analysis = self._assay.analysis if self._assay else None
+        if analysis is None:
+            return
+        try:
+            outcome = analysis.run_action(
+                action, self.measurements, self.session.assay_settings, self.session.context(), box
+            )
+        except ValueError as e:
+            show_warning(self, "Can't Do That Yet", str(e))
+            return
+        if outcome.settings:
+            self.session.set_assay_settings(outcome.settings)
+            self._show_assay_settings()
+        for gate in outcome.gates:
+            self._replace_gate(gate)
+        self.results_step.lbl_action.setText(outcome.message)
+        self._refresh_table()
+        self.gating.refresh()
+        self._on_population_colors_changed()
+        self.push_state(outcome.message or "Assay action")
+
+    def _replace_gate(self, gate) -> None:
+        """Add `gate`, replacing a gate of the same name (and what depends on it)."""
+        if any(g.name == gate.name for g in self.session.gates):
+            self.session.remove_gate(gate.name)
+        self.session.add_gate(gate)
+
+    def _on_apply_suggested_gates(self) -> None:
+        analysis = self._assay.analysis if self._assay else None
+        if analysis is None or not len(self.measurements):
+            return
+        gates = analysis.suggested_gates(self.measurements, self.session.assay_settings)
+        for gate in gates:
+            self._replace_gate(gate)
+        self.gating.refresh()
+        self._on_population_colors_changed()
+        self._refresh_assay_view()
+        self.push_state("Add suggested gates")
+        self.results_step.lbl_action.setText(
+            f"Added {len(gates)} gate(s): adjust them in the Gate step."
+        )
 
     # ── Batch host (see ui/batch.py) ─────────────────────────────────────
 
@@ -1225,6 +1319,7 @@ class CytoMetricsPanel(PluginBase):
             channel_tokens=tokens,
             measure=asdict(self.measure_options),
             gates=list(self.state.gates),
+            assay_settings=dict(self.session.assay_settings),
             scale=self.state.scale,
             scale_source=self.state.scale_source,
             assay=self._assay.id if self._assay else "",
