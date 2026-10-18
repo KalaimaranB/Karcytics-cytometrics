@@ -67,7 +67,9 @@ class AnalysisSession:
         self._measurements = self._derive(self._raw)
 
     def context(self) -> AssayContext:
-        return AssayContext(self.scale, self.image_set.shape, dict(self.state.extras))
+        return AssayContext(
+            self.scale, self.image_set.shape, dict(self.state.extras), self.image_set
+        )
 
     @property
     def assay_settings(self) -> dict:

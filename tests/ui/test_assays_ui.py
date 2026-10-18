@@ -73,3 +73,43 @@ def test_colony_counter(qtbot, monkeypatch, tmp_path):
     assert p.state.extras["dish"]
     assert p.canvas.layer("assay").childItems()  # the dish is drawn
     p.cleanup()
+
+
+def test_hemocytometer_area_and_grid_calibration(qtbot, monkeypatch, tmp_path):
+    import numpy as np
+
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("hemocytometer")
+    grid = np.full((400, 400), 160, np.uint8)
+    for v in range(10, 400, 40):
+        grid[:, v] = 90
+        grid[v, :] = 90
+    _load(p, tmp_path, "chamber.png", grid)
+
+    p.results_step.action_clicked.emit("calibrate_grid")
+    assert p.state.scale == pytest.approx(250 / 40, rel=0.03)  # 0.25 mm per 40 px
+    assert p.state.scale_source == "hemocytometer grid"
+
+    p.results_step.action_clicked.emit("box:counting_area")
+    assert p.canvas.mode == "BOX"
+    p.canvas.box_drawn.emit((10, 10, 330, 330))
+    assert p.session.assay_settings["counting_area"] == [10, 10, 330, 330]
+    assert p.canvas.mode == "PAN"
+    assert p.canvas.layer("assay").childItems()
+    p.undo()
+    assert "counting_area" not in p.session.assay_settings
+    p.cleanup()
+
+
+def test_transfection_control_button(qtbot, monkeypatch, tmp_path):
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("transfection")
+    _load(p, tmp_path, "GFP.png", img.isolated_discs())
+    assert p.session.assay_settings["reporter_channel"] == "GFP.png"
+    _segment(p, qtbot, "otsu", {"target_channel": "GFP.png", "min_area_px": 50})
+
+    p.results_step.action_clicked.emit("set_control")
+    assert p.session.assay_settings["cutoff"] > 0
+    assert [g.name for g in p.session.gates] == ["Positive"]
+    assert "control cells" in p.results_step.lbl_action.text()
+    p.cleanup()

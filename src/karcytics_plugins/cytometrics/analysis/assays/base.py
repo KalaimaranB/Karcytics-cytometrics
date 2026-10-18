@@ -80,6 +80,8 @@ class ActionResult:
     settings: dict[str, Any] = field(default_factory=dict)
     gates: list[Gate] = field(default_factory=list)
     message: str = ""
+    scale: float | None = None  # a new calibration (µm/px), e.g. measured from a grid
+    scale_source: str = ""
 
 
 @dataclass
@@ -89,6 +91,7 @@ class AssayContext:
     scale: float = 0.0  # µm/px, 0 when uncalibrated
     shape: tuple[int, int] | None = None  # image (height, width) in px
     extras: dict[str, Any] = field(default_factory=dict)  # from the segmenter (e.g. the dish)
+    image_set: Any = None  # the images, for actions that look at them (not set in batch runs)
 
 
 class AssayAnalysis:
@@ -99,6 +102,8 @@ class AssayAnalysis:
 
     citations: tuple[str, ...] = ()
     suggests_gates = False  # True when ``suggested_gates`` returns something
+    # Default stain colour for each channel setting ({"dna_channel": "blue"}).
+    channel_stains: dict[str, str] = {}  # noqa: RUF012  (read-only class default)
     # (action id, button text, tooltip): buttons in the Results step; see ``run_action``.
     # An id starting with "box:" first asks the user to drag a box on the image.
     actions: tuple[tuple[str, str, str], ...] = ()

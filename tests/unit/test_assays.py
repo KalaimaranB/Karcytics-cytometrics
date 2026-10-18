@@ -150,3 +150,83 @@ def test_bacteria_results_and_dividing_gate():
     assert results["MedianLength"] == 4.5 and results["PctDividing"] == 50
     gate = analysis.suggested_gates(table, {})[0]
     assert gating.evaluate([gate], table)["Dividing"].tolist() == [False, True, False, True]
+
+
+# ── Transfection ─────────────────────────────────────────────────────────────
+
+
+def test_negative_control_sets_the_cutoff_and_scores_samples():
+    analysis = REGISTRY["transfection"].analysis
+    rng = np.random.default_rng(1)
+    control = pd.DataFrame({"Intensity_MeanIntensity_GFP": rng.normal(100, 10, 1000)})
+    settings = {"reporter_channel": "GFP", "statistic": "MeanIntensity", "percentile": 99}
+
+    outcome = analysis.run_action("set_control", control, settings, AssayContext())
+    cutoff = outcome.settings["cutoff"]
+    assert cutoff == pytest.approx(100 + 2.33 * 10, rel=0.03)
+    assert outcome.gates[0].name == "Positive" and outcome.gates[0].params["value"] == cutoff
+
+    sample = pd.DataFrame(
+        {"Intensity_MeanIntensity_GFP": np.r_[rng.normal(100, 10, 700), rng.normal(400, 50, 300)]}
+    )
+    settings.update(outcome.settings)
+    results = {
+        r.key: r.value for r in analysis.results(sample, outcome.gates, settings, AssayContext())
+    }
+    assert results["PctPositive"] == pytest.approx(30, abs=1.5)
+    assert "negative-control cells" in analysis.methods(settings, AssayContext())[0].description
+
+
+def test_no_cutoff_asks_for_a_control():
+    analysis = REGISTRY["transfection"].analysis
+    table = pd.DataFrame({"Intensity_MeanIntensity_GFP": [1.0, 2.0]})
+    (value,) = analysis.results(table, [], {"reporter_channel": "GFP"}, AssayContext())
+    assert "negative control" in value.warning
+
+
+# ── Hemocytometer ────────────────────────────────────────────────────────────
+
+
+def test_grid_period_from_the_lines():
+    from karcytics_plugins.cytometrics.analysis.assays.hemocytometer import grid_period
+
+    rng = np.random.default_rng(2)
+    image = rng.normal(150, 8, (512, 640))
+    for x in np.arange(7.3, 640, 42.6):
+        image[:, int(round(x))] -= 60
+    for y in np.arange(20.0, 512, 42.6):
+        image[int(round(y)), :] -= 60
+    assert grid_period(image) == pytest.approx(42.6, rel=0.02)
+    assert grid_period(rng.normal(150, 8, (300, 300))) is None
+
+
+def test_viability_counts_inside_the_area_and_converts_to_cells_per_ml():
+    analysis = REGISTRY["hemocytometer"].analysis
+    table = pd.DataFrame(
+        {
+            "Location_Center_X": [10, 20, 30, 40, 500],
+            "Location_Center_Y": [10, 20, 30, 40, 500],
+            "Intensity_MeanIntensity_red": [180, 170, 60, 175, 50],
+            "Intensity_Background_red": [150, 150, 150, 150, 150],
+        }
+    )
+    settings = {
+        "stain_channel": "red",
+        "darkness_cutoff": 0.35,
+        "dilution_factor": 2,
+        "depth_um": 100,
+        "counting_area": [0, 0, 100, 100],
+    }
+    context = AssayContext(scale=10.0)  # 100 px = 1 mm
+    derived = analysis.derive(table, settings, context)
+    assert derived["Viability_Darkness"].round(2).tolist() == [0, 0, 0.6, 0, 0.67]
+    results = {r.key: r.value for r in analysis.results(derived, [], settings, context)}
+    assert (results["Counted"], results["Dead"]) == (4, 1)  # the cell at (500, 500) is outside
+    assert results["Viability"] == 75
+    # 1 mm² × 0.1 mm = 0.1 µL = 1e-4 mL; 3 live / 1e-4 × 2 = 60,000 /mL
+    assert results["LivePerML"] == pytest.approx(60_000)
+
+    uncalibrated = {r.key: r for r in analysis.results(derived, [], settings, AssayContext())}
+    assert "calibrate" in uncalibrated["LivePerML"].warning
+    box = analysis.run_action("box:counting_area", derived, settings, context, box=(90, 80, 10, 5))
+    assert box.settings["counting_area"] == [10, 5, 90, 80]

@@ -3,7 +3,14 @@
 Importing this package registers every assay, in picker order.
 """
 
-from . import bacteria, cells, colonies, nuclei  # noqa: F401  (registration side effect)
+from . import (  # noqa: F401  (registration side effect)
+    bacteria,
+    cells,
+    colonies,
+    hemocytometer,
+    nuclei,
+    transfection,
+)
 from .base import (
     ALL_STEPS,
     REGISTRY,

@@ -31,6 +31,7 @@ PHASES = (
 
 
 class CellCycle(AssayAnalysis):
+    channel_stains = {"dna_channel": "blue"}
     citations = ("roukos2015",)
     suggests_gates = True
 

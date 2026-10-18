@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 from ..analysis.assays import DEFAULT as DEFAULT_ASSAY
 from ..analysis.assays import REGISTRY as ASSAYS
 from ..analysis.assays import STEP_LABELS, Assay
+from ..analysis.assays.common import stain_channel
 from ..analysis.batch import Recipe, channel_tokens
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
 from ..analysis.fcs import numeric_columns as fcs_columns
@@ -1269,8 +1270,12 @@ class CytoMetricsPanel(PluginBase):
             if p.kind == "channel" and settings.get(p.key) not in names
         ]
         if unset:
-            default = self._assay.default_target(names) or names[0]  # type: ignore[union-attr]
-            self.session.set_assay_settings(dict.fromkeys(unset, default))
+            fallback = self._assay.default_target(names) or names[0]  # type: ignore[union-attr]
+            defaults = {
+                key: stain_channel(names, analysis.channel_stains.get(key, "")) or fallback
+                for key in unset
+            }
+            self.session.set_assay_settings(defaults)
             form.set_display_values(self.session.assay_settings)
 
     def _on_assay_settings_changed(self) -> None:
@@ -1300,6 +1305,8 @@ class CytoMetricsPanel(PluginBase):
         except ValueError as e:
             show_warning(self, "Can't Do That Yet", str(e))
             return
+        if outcome.scale:
+            self._set_scale(outcome.scale, outcome.scale_source or "assay")
         if outcome.settings:
             self.session.set_assay_settings(outcome.settings)
             self._show_assay_settings()
