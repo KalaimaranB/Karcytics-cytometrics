@@ -6,4 +6,4 @@ Prefer synthetic images from `tests/fixtures/images.py`, which need no entry.
 
 | File | Source | License | Attribution |
 |---|---|---|---|
-| _(none yet)_ | | | |
+| `generate_samples.py` → `samples/` (not committed; see [SAMPLES.md](SAMPLES.md)) | synthetic, drawn by the script | CC0 (no third-party data) | none |

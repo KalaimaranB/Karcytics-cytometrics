@@ -21,3 +21,6 @@ dev_private_key.pem
 
 # Claude Code local settings (can contain machine-specific absolute paths)
 .claude/
+
+# Sample images: made by tests/data/generate_samples.py (see tests/data/SAMPLES.md)
+tests/data/samples/

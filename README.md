@@ -36,6 +36,8 @@ The plugin is installed via the Karcytics Hub's plugin manager.
 ### 2. Choose what you're analysing
 CytoMetrics asks **What are you analysing?** when it opens: **Cells**, **Nuclei & cell cycle**, **Transfection / % positive**, **Hemocytometer & viability**, **Colony counter**, **Bacteria**, **Confluence**, **Scratch wound** or **Spheroids & organoids**. The choice sets the steps, the starting algorithm, the measurements and the headline results (CFU/mL, % viable, % positive, wound width, spheroid volume, …), and is remembered for the project. See [Assays](docs/user/02_ANALYSIS_WORKFLOW.md#9-assays). Change it any time from the button next to the title.
 
+Sample images for every assay, with the true answers to check against: run `uv run python tests/data/generate_samples.py` and see [tests/data/SAMPLES.md](tests/data/SAMPLES.md).
+
 ### 3. Work through the steps
 **Load › Calibrate › Detect › Review › Measure › Gate › Report › Batch**. Use Back/Next or click any step.
 
