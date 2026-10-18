@@ -28,7 +28,6 @@ from .base import (
     MeasureOptions,
     ObjectView,
 )
-from .intensity import global_background
 
 ID_COLUMNS = [
     Column("ObjectNumber", NONE, "The cell's ID, as shown on the canvas."),
@@ -74,14 +73,10 @@ def measure_cells(
         return _empty(cols, scale)
 
     labels = cells_to_labels(cells, shape)  # label k = k-th cell
-    background = (
-        global_background(image_set, labels, options.ring_gap_px)
-        if options.background == "global"
-        else {}
-    )
     margin = options.ring_gap_px + options.ring_width_px + 1
     eff = effective_scale(scale)
     active = measurers(options)
+    context = {m.id: m.prepare(image_set, labels, options) for m in active if hasattr(m, "prepare")}
     rows = []
     slices = ndimage.find_objects(labels)
     for k, (cell, sl) in enumerate(zip(cells, slices, strict=False), start=1):
@@ -102,7 +97,7 @@ def measure_cells(
                 image_set=image_set,
                 scale=eff,
                 options=options,
-                background=background,
+                context=context,
             )
             for m in active:
                 row.update(m.measure(obj))

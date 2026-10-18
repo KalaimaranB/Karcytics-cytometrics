@@ -122,6 +122,16 @@ CITATIONS = (
         pages="433",
         doi="10.1186/s12859-021-04344-9",
     ),
+    Citation(
+        key="haralick1973",
+        authors=("Haralick, R. M.", "Shanmugam, K.", "Dinstein, I."),
+        title="Textural Features for Image Classification",
+        year=1973,
+        venue="IEEE Transactions on Systems, Man, and Cybernetics",
+        volume="SMC-3(6)",
+        pages="610–621",
+        doi="10.1109/TSMC.1973.4309314",
+    ),
 )
 
 register(*CITATIONS)

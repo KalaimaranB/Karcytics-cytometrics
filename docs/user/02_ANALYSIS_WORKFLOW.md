@@ -60,6 +60,8 @@ Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probabil
 Every cell is measured from its mask, the same way whether it was detected, drawn by hand, edited or reloaded. The results table shows every measurement; hover over a column header for its definition. In **3. Results**:
 
 - **Intensity background**: *None* reports raw intensities. *Global* subtracts the median of all pixels outside the cells. *Local ring* subtracts the median of a 5-pixel ring 2 pixels outside each cell, skipping neighbouring cells. Either adds Background and Corrected… columns.
+- **Nucleus / cytoplasm from**: pick a nuclear stain (e.g. DAPI). Each cell is split into nucleus (above the stain's Otsu threshold) and cytoplasm; you get `Nucleus_Area`, `Cytoplasm_Area`, `Nucleus_NCAreaRatio` and, per channel, `Intensity_NucleusMean_…`, `Intensity_CytoplasmMean_…` and `Intensity_NCRatio_…` (above 1 = enriched in the nucleus, e.g. for translocation assays).
+- **Texture (Haralick features)**: six co-occurrence features per channel (`Texture_AngularSecondMoment/Contrast/Correlation/InverseDifferenceMoment/Entropy/Variance_<channel>_3`), at a 3-pixel distance, averaged over four directions. Slower on large images.
 - **Distribution**: pick any measurement for the histogram and its mean.
 
 **💾 Export to CSV** writes one row per cell. Column names follow [CellProfiler](https://cellprofiler-manual.s3.amazonaws.com/CellProfiler-4.2.6/modules/measurement.html), with the unit in brackets (µm when calibrated, px when not; intensities in the image's native units, "a.u."):

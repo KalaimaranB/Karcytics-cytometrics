@@ -180,3 +180,73 @@ class TestTable:
 )
 def test_channel_key(name, key):
     assert channel_key(name) == key
+
+
+class TestTexture:
+    def test_flat_and_noisy_patches(self):
+        from karcytics_plugins.cytometrics.analysis.measure.texture import haralick
+
+        mask = np.zeros((40, 40), bool)
+        mask[5:35, 5:35] = True
+        flat = haralick(np.full((40, 40), 100, np.uint8), mask, 3)
+        noisy = haralick(np.random.default_rng(0).integers(0, 255, (40, 40), np.uint8), mask, 3)
+
+        assert flat["Contrast"] == 0 and flat["AngularSecondMoment"] == 1
+        assert noisy["Contrast"] > 1000 and noisy["Entropy"] > flat["Entropy"]
+
+    def test_pixels_outside_the_object_are_ignored(self):
+        from karcytics_plugins.cytometrics.analysis.measure.texture import haralick
+
+        plane = np.full((30, 30), 100, np.uint8)
+        plane[:, :5] = 255  # bright stripe outside the mask
+        mask = np.zeros((30, 30), bool)
+        mask[5:25, 10:25] = True
+
+        assert haralick(plane, mask, 3)["Contrast"] == 0
+
+    def test_object_thinner_than_the_distance_gives_nan(self):
+        from karcytics_plugins.cytometrics.analysis.measure.texture import haralick
+
+        mask = np.zeros((10, 10), bool)
+        mask[5, 5] = True
+
+        assert np.isnan(haralick(np.zeros((10, 10), np.uint8), mask, 3)["Contrast"])
+
+    def test_columns_only_when_switched_on(self):
+        cells = [_rect(1, 10, 10, 20, 20)]
+
+        off = measure_cells(cells, _images(c=_plane(5)), 0.0)
+        on = measure_cells(cells, _images(c=_plane(5)), 0.0, MeasureOptions(texture=True))
+
+        assert not any(c.startswith("Texture_") for c in off.columns)
+        assert on["Texture_Contrast_c_3"].iloc[0] == 0
+
+
+class TestNucleus:
+    def test_areas_and_translocation_ratio(self):
+        dapi = _plane()
+        dapi[16:24, 16:24] = 1000
+        gfp = _plane(10)
+        gfp[10:30, 10:30] = 100
+        gfp[16:24, 16:24] = 200
+
+        row = measure_cells(
+            [_rect(1, 10, 10, 20, 20)],
+            _images(DAPI=dapi, GFP=gfp),
+            0.5,
+            MeasureOptions(nucleus_channel="DAPI"),
+        ).iloc[0]
+
+        assert row["Nucleus_Area"] == 64 * 0.25
+        assert row["Cytoplasm_Area"] == 336 * 0.25
+        assert row["Nucleus_NCAreaRatio"] == pytest.approx(64 / 336)
+        assert row["Intensity_NCRatio_GFP"] == pytest.approx(2.0)
+
+    def test_missing_nucleus_channel_is_an_error(self):
+        with pytest.raises(ValueError, match="'DAPI' is not loaded"):
+            measure_cells(
+                [_rect(1, 5, 5, 4, 4)],
+                _images(c=_plane()),
+                0.0,
+                MeasureOptions(nucleus_channel="DAPI"),
+            )

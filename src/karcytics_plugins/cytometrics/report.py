@@ -36,6 +36,8 @@ class Measured:
 
     channels: tuple[str, ...] = ()
     background: str = "none"
+    texture: bool = False
+    nucleus_channel: str | None = None
 
 
 def build_steps(
@@ -59,6 +61,25 @@ def build_steps(
     if n_manual:
         steps.append(MethodStep(f"{n_manual} cell(s) were outlined manually"))
     steps.append(_measurement_step(n_cells, measured.channels, measured.background))
+    if measured.nucleus_channel:
+        steps.append(
+            MethodStep(
+                f"Each cell was divided into nucleus (pixels above the Otsu threshold of the "
+                f"'{measured.nucleus_channel}' channel) and cytoplasm, and nuclear and cytoplasmic "
+                "areas and mean intensities and their ratios were measured",
+                ("otsu1979",),
+            )
+        )
+    if measured.texture:
+        steps.append(
+            MethodStep(
+                "Haralick texture features (angular second moment, contrast, correlation, inverse "
+                "difference moment, entropy and variance) were computed from each cell's grey-level "
+                "co-occurrence matrix at a distance of 3 pixels, averaged over four directions, "
+                "after scaling each channel to 8 bits",
+                ("haralick1973", "skimage2014"),
+            )
+        )
     return steps
 
 

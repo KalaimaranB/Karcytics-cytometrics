@@ -22,6 +22,19 @@ CytoMetrics is built on other scientists' published work. If CytoMetrics contrib
 - van der Walt, S. et al. *scikit-image: image processing in Python.* PeerJ 2, e453 (2014). [doi:10.7717/peerj.453](https://doi.org/10.7717/peerj.453). CytoMetrics uses scikit-image's watershed and peak finding.
 - Otsu (1979), above: Watershed uses Otsu's threshold to find the cell footprint.
 
+## Measurements (always)
+
+- van der Walt, S. et al. *scikit-image: image processing in Python.* PeerJ 2, e453 (2014). [doi:10.7717/peerj.453](https://doi.org/10.7717/peerj.453). Shape measurements are computed with scikit-image.
+- Stirling, D. R., Swain-Bowden, M. J., Lucas, A. M., Carpenter, A. E., Cimini, B. A. & Goodman, A. *CellProfiler 4: improvements in speed, utility and usability.* BMC Bioinformatics 22, 433 (2021). [doi:10.1186/s12859-021-04344-9](https://doi.org/10.1186/s12859-021-04344-9). Measurement names follow CellProfiler.
+
+## If you turned on Texture
+
+- Haralick, R. M., Shanmugam, K. & Dinstein, I. *Textural Features for Image Classification.* IEEE Transactions on Systems, Man, and Cybernetics SMC-3(6), 610–621 (1973). [doi:10.1109/TSMC.1973.4309314](https://doi.org/10.1109/TSMC.1973.4309314)
+
+## If you used Nucleus / cytoplasm
+
+- Otsu (1979), above: the nucleus is the part of each cell above the nuclear stain's Otsu threshold.
+
 ## Classical image processing (Otsu)
 
 - Bradski, G. *The OpenCV Library.* Dr. Dobb's Journal of Software Tools (2000).

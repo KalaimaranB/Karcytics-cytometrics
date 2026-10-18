@@ -949,6 +949,27 @@ class CytoMetricsPanel(PluginBase):
         background_row.addWidget(self.combo_background, 1)
         results_layout.addLayout(background_row)
 
+        nucleus_row = QHBoxLayout()
+        self.lbl_nucleus = QLabel("Nucleus / cytoplasm from:")
+        self.combo_nucleus = BioComboBox()
+        self.combo_nucleus.setToolTip(
+            "A nuclear stain (e.g. DAPI). Each cell is split into nucleus (above the stain's Otsu "
+            "threshold) and cytoplasm, and every channel's nuclear/cytoplasmic ratio is measured."
+        )
+        self.combo_nucleus.addItem("Off", None)
+        self.combo_nucleus.currentIndexChanged.connect(self._on_measure_options_changed)
+        nucleus_row.addWidget(self.lbl_nucleus)
+        nucleus_row.addWidget(self.combo_nucleus, 1)
+        results_layout.addLayout(nucleus_row)
+
+        self.chk_texture = QCheckBox("Texture (Haralick features, slower)")
+        self.chk_texture.setToolTip(
+            "Six grey-level co-occurrence features per channel (Haralick et al., 1973): "
+            "uniformity, contrast, correlation, homogeneity, entropy and variance."
+        )
+        self.chk_texture.toggled.connect(self._on_measure_options_changed)
+        results_layout.addWidget(self.chk_texture)
+
         results_layout.addWidget(create_header("Distribution"))
         self.combo_hist_metric = BioComboBox()
         self.combo_hist_metric.currentIndexChanged.connect(self._update_results_tab)
@@ -1071,6 +1092,8 @@ class CytoMetricsPanel(PluginBase):
             self.chk_probability_map,
             self.lbl_uncertain,
             self.lbl_background,
+            self.lbl_nucleus,
+            self.chk_texture,
         ):
             widget.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
@@ -1266,7 +1289,11 @@ class CytoMetricsPanel(PluginBase):
         self.state.ui_params = {
             "pipeline": self.combo_pipeline.currentData() or self._pending_pipeline,
             "values": self.params_form.display_values() or self._pending_values,
-            "measure": {"background": self.measure_options.background},
+            "measure": {
+                "background": self.measure_options.background,
+                "texture": self.measure_options.texture,
+                "nucleus_channel": self.measure_options.nucleus_channel,
+            },
         }
 
         # Sync channels metadata
@@ -1380,11 +1407,15 @@ class CytoMetricsPanel(PluginBase):
         if not ui:
             return
         pipeline, values = _ui_params_v2(ui)
-        background = ui.get("measure", {}).get("background", "none")
-        self.combo_background.blockSignals(True)
-        self.combo_background.setCurrentIndex(max(self.combo_background.findData(background), 0))
-        self.combo_background.blockSignals(False)
-        self.measure_options = MeasureOptions(background=background)
+        measure = ui.get("measure", {})
+        self._update_dropdowns()  # the nucleus picker needs the channel names first
+        self._set_measure_controls(
+            MeasureOptions(
+                background=measure.get("background", "none"),
+                texture=bool(measure.get("texture", False)),
+                nucleus_channel=measure.get("nucleus_channel"),
+            )
+        )
         self._pending_pipeline, self._pending_values = pipeline, values
         index = self.combo_pipeline.findData(pipeline)
         if index >= 0:
@@ -1437,8 +1468,19 @@ class CytoMetricsPanel(PluginBase):
         self._on_cells_edited()
 
     def _update_dropdowns(self):
-        """Offer the current channel names in the Detect settings."""
-        self.params_form.set_channels([c.name for c in self.image_set.channels])
+        """Offer the current channel names in the Detect settings and the nucleus picker."""
+        names = [c.name for c in self.image_set.channels]
+        self.params_form.set_channels(names)
+        current = self.combo_nucleus.currentData()
+        self.combo_nucleus.blockSignals(True)
+        self.combo_nucleus.clear()
+        self.combo_nucleus.addItem("Off", None)
+        for name in names:
+            self.combo_nucleus.addItem(name, name)
+        self.combo_nucleus.setCurrentIndex(max(self.combo_nucleus.findData(current), 0))
+        self.combo_nucleus.blockSignals(False)
+        if current and current not in names:  # its channel was renamed or removed
+            self._on_measure_options_changed()
 
     def _on_tab_changed(self, index):
         """Force a refresh of the dropdowns when switching to the Smart Detect tab."""
@@ -1554,8 +1596,28 @@ class CytoMetricsPanel(PluginBase):
         self.state_changed.emit()
 
     def _on_measure_options_changed(self, *_args) -> None:
-        self.measure_options = MeasureOptions(background=self.combo_background.currentData())
+        self.measure_options = MeasureOptions(
+            background=self.combo_background.currentData(),
+            texture=self.chk_texture.isChecked(),
+            nucleus_channel=self.combo_nucleus.currentData(),
+        )
         self._remeasure()
+
+    def _set_measure_controls(self, options: MeasureOptions) -> None:
+        """Show `options` in the Measurements controls without re-measuring."""
+        widgets = (self.combo_background, self.combo_nucleus, self.chk_texture)
+        for w in widgets:
+            w.blockSignals(True)
+        self.combo_background.setCurrentIndex(
+            max(self.combo_background.findData(options.background), 0)
+        )
+        self.combo_nucleus.setCurrentIndex(
+            max(self.combo_nucleus.findData(options.nucleus_channel), 0)
+        )
+        self.chk_texture.setChecked(options.texture)
+        for w in widgets:
+            w.blockSignals(False)
+        self.measure_options = options
 
     def _remeasure(self) -> None:
         """Measure every cell again on a background thread; only the newest result is kept."""
@@ -1679,7 +1741,10 @@ class CytoMetricsPanel(PluginBase):
             n_manual=n_manual,
             scale_source=self.state.scale_source,
             measured=Measured(
-                tuple(c.name for c in self.image_set.channels), self.measure_options.background
+                tuple(c.name for c in self.image_set.channels),
+                self.measure_options.background,
+                self.measure_options.texture,
+                self.measure_options.nucleus_channel,
             ),
         )
         return write_methods_sidecars(export_path, steps)

@@ -54,6 +54,11 @@ class IntensityMeasurer:
                 ]
         return cols
 
+    def prepare(self, image_set: ImageSet, labels: np.ndarray, options: MeasureOptions):
+        if options.background == "global":
+            return global_background(image_set, labels, options.ring_gap_px)
+        return {}
+
     def measure(self, obj: ObjectView) -> dict[str, Any]:
         out: dict[str, Any] = {}
         mode = obj.options.background
@@ -73,7 +78,7 @@ class IntensityMeasurer:
             out[f"Intensity_IntegratedIntensity_{key}"] = integrated
             if mode in _BACKGROUND:
                 if mode == "global":
-                    bg = obj.background.get(ch.name, 0.0)
+                    bg = obj.context[self.id].get(ch.name, float("nan"))
                 else:
                     assert ring is not None
                     bg = float(np.median(pixels[ring])) if ring.any() else float("nan")

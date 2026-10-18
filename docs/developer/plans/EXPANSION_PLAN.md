@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phases 0, 2 and 3 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 4. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0, 2, 3 and 4 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 5. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -144,10 +144,10 @@ karcytics_plugins/cytometrics
 ### Phase 4: measurements (cytometrics)
 - [x] 4.1 `ObjectTable` on pandas (add `pandas`) and the `Measurer` protocol + registry. Shape: area, perimeter, circularity, solidity, eccentricity, major/minor axis, Feret max/min, equivalent diameter. **Done** in `analysis/measure/` (`base.py` Column/Measurer/ObjectView/MeasureOptions, `shape.py`, `intensity.py`, `table.py` `measure_cells`/`rescale`/`write_csv`). Cells are rasterised from their outlines and measured per bounding box (1,585 cells on a 2048² image in 0.6 s). The worker measures after segmenting; edits, background changes and reloads re-measure in a background task (newest result wins). Recalibration rescales lengths/areas without re-measuring. The area filter now uses the same pixel area that is reported. Min Feret uses rotating calipers on the hull of pixel corners (exact for rectangles).
 - [x] 4.2 Intensity per channel: mean, median, min, max, std, integrated; local-annulus or global background subtraction.
-- [ ] 4.3 Texture (GLCM / Haralick, via scikit-image) and nucleus/cytoplasm ratio when a seed channel exists.
+- [x] 4.3 Texture (GLCM / Haralick, via scikit-image) and nucleus/cytoplasm ratio when a seed channel exists. **Done:** `texture.py` (6 CellProfiler-named Haralick features per channel, image-wide 8-bit quantisation, only in-object pixel pairs, 4 directions averaged) and `nucleus.py` (nucleus = cell ∩ above the nuclear channel's Otsu threshold; areas, N/C area ratio, per-channel nuclear/cytoplasmic means and ratio). Both are opt-in in the Results tab (the nucleus channel is picked there, independent of the Detect seed channel). Measurers gained optional `enabled(options)` and `prepare(image_set, labels, options)` hooks.
 - [x] 4.4 CellProfiler-style column names; units in headers (`AreaShape_Area [um2]` in the CSV, `Area (µm²)` in the table; tooltips carry the definitions).
 - [x] 4.5 Manual cells: polygon → mask → same measurers. Delete the shoelace copy.
-- [ ] 4.6 Measurement families carry citations (Haralick 1973; CellProfiler naming).
+- [x] 4.6 Measurement families carry citations (Haralick 1973; CellProfiler naming). Crossref-verified `skimage2014`, `cellprofiler4`, `haralick1973`; the methods text adds a sentence per family used.
 
 ### Phase 5: UI overhaul (cytometrics, may grow as we go)
 - [ ] 5.1 Split `main_panel.py`: widgets/dialogs to their own files; panel becomes wiring only. `AnalysisSession` + `CytoMetricsState` v2 with a migration from v1 saved workflows.

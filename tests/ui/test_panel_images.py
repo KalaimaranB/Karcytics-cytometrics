@@ -432,3 +432,27 @@ def test_reloaded_session_is_measured_again(panel, qtbot, tmp_path):
         panel.measurements["AreaShape_Area"].tolist()
     )
     other.cleanup()
+
+
+def test_nucleus_and_texture_options_add_columns_and_survive_a_reload(panel, qtbot, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path, "dapi.png")))
+    panel.channel_manager.ingest_path(str(_png(tmp_path, "gfp.png")))
+    _deliver(panel, [_square(1, 0), _square(2, 30)])
+
+    panel.combo_nucleus.setCurrentIndex(panel.combo_nucleus.findData("dapi.png"))
+    panel.chk_texture.setChecked(True)
+    qtbot.waitUntil(
+        lambda: (
+            {"Intensity_NCRatio_gfp_png", "Texture_Contrast_gfp_png_3"}
+            <= set(panel.measurements.columns)
+        ),
+        timeout=5000,
+    )
+
+    other = main_panel.CytoMetricsPanel()
+    qtbot.addWidget(other)
+    other.load_state(panel.export_state())
+    assert other.combo_nucleus.currentData() == "dapi.png"
+    assert other.chk_texture.isChecked()
+    qtbot.waitUntil(lambda: "Nucleus_Area" in other.measurements.columns, timeout=5000)
+    other.cleanup()

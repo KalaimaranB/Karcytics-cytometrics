@@ -38,7 +38,7 @@ class OtsuSegmenter:
         self,
         image_set: ImageSet,
         params: dict,
-        progress: Progress | None = None,  # noqa: ARG002  (protocol signature; Otsu is instant)
+        progress: Progress | None = None,
     ) -> SegmentationResult:
         target = require_channel(image_set, params.get("target_channel"))
         mask, _ = otsu_mask(target.as_uint8())

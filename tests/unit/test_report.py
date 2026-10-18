@@ -131,3 +131,19 @@ def test_measurements_cite_scikit_image_and_cellprofiler_and_name_the_background
     assert "5-pixel-wide ring" in md
     refs = md.split("## References")[1]
     assert "van der Walt, S." in refs and "Stirling, D. R." in refs
+
+
+def test_texture_and_nucleus_steps_are_described_and_cited():
+    md = methods_markdown(
+        build_steps(
+            OtsuSegmenter(),
+            PARAMS,
+            SCALE,
+            3,
+            measured=Measured(("GFP", "DAPI"), texture=True, nucleus_channel="DAPI"),
+        )
+    )
+
+    assert "divided into nucleus (pixels above the Otsu threshold of the 'DAPI' channel)" in md
+    assert "Haralick texture features" in md
+    assert "Haralick, R. M." in md.split("## References")[1]

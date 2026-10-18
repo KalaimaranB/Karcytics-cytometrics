@@ -57,6 +57,9 @@ known-first-party = ["karcytics_plugins"]
 "PySide6" = { msg = "Do not import PySide6. The analysis layer must not depend on UI frameworks." }
 
 [lint.extend-per-file-ignores]
+# Segmenters and measurers implement a shared protocol; not every one uses every argument.
+"**/analysis/segment/*.py" = ["ARG002"]
+"**/analysis/measure/*.py" = ["ARG002"]
 # UI files: Qt uses camelCase overrides and optional event args — relax naming/arg rules
 "**/ui/**/*.py" = [
     "TID251",   # PySide6 allowed in UI

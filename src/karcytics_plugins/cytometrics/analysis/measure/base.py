@@ -55,7 +55,8 @@ class ObjectView:
     image_set: ImageSet
     scale: float  # µm per px; 1 when uncalibrated
     options: MeasureOptions
-    background: dict[str, float] = field(default_factory=dict)  # global, per channel
+    # Per-measurer image-wide results of ``prepare``, keyed by measurer id.
+    context: dict[str, Any] = field(default_factory=dict)
 
     def pixels(self, channel_name: str) -> np.ndarray:
         """The channel's crop as float64 (native intensity values)."""
@@ -65,6 +66,13 @@ class ObjectView:
 
 
 class Measurer(Protocol):
+    """A family of measurements.
+
+    Optional class hooks: ``enabled(options) -> bool`` (default: always on)
+    and ``prepare(image_set, labels, options)``, run once per image, whose
+    result reaches ``measure`` as ``obj.context[id]``.
+    """
+
     id: str
     name: str
     citations: tuple[str, ...]

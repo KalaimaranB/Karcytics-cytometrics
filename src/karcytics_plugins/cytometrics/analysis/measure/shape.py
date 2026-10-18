@@ -58,7 +58,7 @@ class ShapeMeasurer:
     name = "Size & shape"
     citations = ("skimage2014", "cellprofiler4")
 
-    def columns(self, image_set: ImageSet, options: MeasureOptions) -> list[Column]:  # noqa: ARG002
+    def columns(self, image_set: ImageSet, options: MeasureOptions) -> list[Column]:
         return list(COLUMNS)
 
     def measure(self, obj: ObjectView) -> dict[str, Any]:
