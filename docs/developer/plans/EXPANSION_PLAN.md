@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phases 0, 2–7 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Working on 8; pause before Phase 9 for the user's review. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0, 2–7 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Phase 8 done except 8.10 (z-stacks, deferred). Paused before Phase 9 for the user's review. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -177,21 +177,22 @@ karcytics_plugins/cytometrics
 ### Phase 8: assay framework and new assays (cytometrics)
 An **assay** is a preset for one kind of experiment: which segmenter and settings to use, which steps to show, what to measure, what extra result to compute (CFU/mL, % viable, % positive, …) and what goes in the report and its citations. Each one is a card in the "What are you analysing?" picker. Cells and Nuclei (Phase 5) are the first two.
 
-- [ ] 8.1 `Assay` protocol: segmenter + params + measurers + classifiers + steps + report spec + citations.
-- [ ] 8.2 "Fluorescent cells" assay = today's workflow, migrated.
-- [ ] 8.3 **Colony counter**: plate (Hough circle) detection and masking, background flattening, colony segmentation with distance-transform splitting of touching colonies, size/colour per colony, CFU/mL from dilution factor and plated volume. Algorithm reimplemented from the literature (cite OpenCFU; no code reuse).
-- [ ] 8.4 **Nuclei / cell cycle**: integrated DAPI intensity histogram → G1/S/G2-M. InstanSeg is offered only if the weights-license gate passes; otherwise Cellpose-SAM.
-- [ ] 8.5 **Hemocytometer / viability**: grid detection, counting-square selection, trypan-blue live/dead, cells/mL and % viability.
-- [ ] 8.6 **Transfection / % positive** against a negative-control image.
-- [ ] 8.7 **Confluence / scratch wound**: % area covered, wound width and closure over time.
-- [ ] 8.8 **Bacteria**: Cellpose-SAM with length/width/curvature, dividing-cell flag.
-- [ ] 8.9 **Spheroid / organoid** sizing and growth over time.
-- [ ] 8.10 **Z-stacks**: `do_3D` / `stitch_threshold`, volume measurements.
+- [x] 8.1 `Assay` protocol. **Done:** `analysis/assays/`: an `Assay` (segmenter, Detect settings, steps, measurements, picker group, citations, the word for one object) with an optional `AssayAnalysis` (its own settings, derived columns, suggested gates, headline results, overlays, actions such as "draw the counting area", methods text). A Results step shows the headline values as cards; batch runs add them per image as `Result_<key>` columns.
+- [x] 8.2 "Cells" assay = today's workflow, migrated.
+- [x] 8.3 **Colony counter**. **Done:** `colonies` segmenter (Hough dish, rim excluded, blur-subtracted flattening, polarity by skew, Otsu, distance-transform watershed); CFU/mL, countable-range warning (30–300), median diameter, plate coverage. Cites OpenCFU and Breed & Dotterrer 1916.
+- [x] 8.4 **Nuclei / cell cycle**. **Done:** DNA content (integrated intensity ÷ G1 peak × 2), Sub-G1/G1/S/G2-M/>4N with suggested range gates. Cellpose-SAM (InstanSeg not adopted).
+- [x] 8.5 **Hemocytometer / viability**. **Done:** trypan-blue darkness (1 − mean / local background), a counting-area box, cells/mL from chamber depth and dilution, calibration from the grid line spacing (autocorrelation of the line profile).
+- [x] 8.6 **Transfection / % positive**. **Done:** cut-off from a negative-control image (a percentile of its reporter intensity), a Positive gate, % positive.
+- [x] 8.7 **Confluence / scratch wound**. **Done:** `texture` segmenter (local SD, Otsu, small gaps filled); Confluence %; wound area, mean and narrowest width, closure against a start area set on the first image. The batch time course (closure over time per well) moved to 9.5.
+- [x] 8.8 **Bacteria**. **Done:** `rods` measurer (skeleton length, width with EDT correction, curvature, constriction, dividing flag).
+- [x] 8.9 **Spheroid / organoid** sizing. **Done:** `spheroid` segmenter (smoothing, Otsu, largest objects kept); diameter, area, volume π d³/6, circularity, solidity (Zanoni 2016). Growth over time moved to 9.5.
+- [ ] 8.10 **Z-stacks**: `do_3D` / `stitch_threshold`, volume measurements. **Deferred** (user, 2026-10-17: not a priority).
 
 ### Phase 9: time and interaction (cytometrics)
 - [ ] 9.1 Time-lapse tracking: overlap + Hungarian linker (SciPy) by default; Trackastra if its weights-license gate passes (greedy/SCIP linking only, never Gurobi).
 - [ ] 9.2 Lineages, growth curves, division events.
 - [ ] 9.3 Click-to-segment with µSAM if its weights-license gate passes; otherwise the box-prompt Cellpose tool from 5.5.
+- [ ] 9.5 Batch time course: a `{time}` field in file names, results over time per well/condition, closure or growth relative to the first time point (wound closure, spheroid growth).
 - [ ] 9.4 Academy courses for CytoMetrics (SDK `academy.py`): "Count your first plate", "Gate GFP+ cells", "Score a scratch wound".
 
 ## 6. Citations in the app
@@ -242,6 +243,7 @@ All DOI entries were checked against Crossref on 2026-10-17; `meyer1992` against
 | Real test images | — | — | only synthetic or CC0/CC-BY sets with the license recorded in `tests/data/LICENSES.md` |
 
 ## 8. Decision log
+- 2026-10-17: 8.10 (z-stacks) deferred at the user's request. The time-based parts of 8.7 and 8.9 (closure and growth over time in batches) moved to Phase 9 as 9.5, with the other time work.
 - 2026-10-17: the old Phase 9 (fine-tuning Cellpose-SAM, training sets, custom models, validation report, trainable live/dead classifier) dropped at the user's request: not enough annotated data to train on. The old Phases 8 and 10 merged into one Phase 8 (assay framework plus every new assay, colony counter included), and the old Phase 11 became Phase 9.
 - 2026-10-17: 3.7 (Cellpose3 denoise) dropped: removed from Cellpose 4.2 (only training-augmentation code remains).
 - 2026-10-17: Phase 3 keeps outline-polygon measurements so the golden values only move once, in 4.1.

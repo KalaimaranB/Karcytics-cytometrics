@@ -34,7 +34,7 @@ CytoMetrics is a high-performance Karcytics plugin designed for automated cell s
 The plugin is installed via the Karcytics Hub's plugin manager.
 
 ### 2. Choose what you're analysing
-CytoMetrics asks **What are you analysing?** when it opens: **Cells** or **Nuclei**. The choice sets the steps, the starting algorithm and the measurements, and is remembered for the project. Change it any time from the button next to the title.
+CytoMetrics asks **What are you analysing?** when it opens: **Cells**, **Nuclei & cell cycle**, **Transfection / % positive**, **Hemocytometer & viability**, **Colony counter**, **Bacteria**, **Confluence**, **Scratch wound** or **Spheroids & organoids**. The choice sets the steps, the starting algorithm, the measurements and the headline results (CFU/mL, % viable, % positive, wound width, spheroid volume, …), and is remembered for the project. See [Assays](docs/user/02_ANALYSIS_WORKFLOW.md#9-assays). Change it any time from the button next to the title.
 
 ### 3. Work through the steps
 **Load › Calibrate › Detect › Review › Measure › Gate › Report › Batch**. Use Back/Next or click any step.

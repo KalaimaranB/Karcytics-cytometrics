@@ -151,3 +151,21 @@ Results are in the **Batch** tab under the steps:
 
 **💾 Export batch results…** writes a folder with `cells.csv` (every cell, with its image's metadata), `images.csv`, `conditions.csv` (per-condition statistics for every value), `fcs/` (one FCS 3.1 file per image, with the metadata as keywords, for flow software) and the methods text and BibTeX.
 
+## 9. Assays
+
+What you pick in **What are you analysing?** sets up the steps, the algorithm and the measurements. Assays with their own results add a **Results** step: the headline values as cards, the assay's settings, buttons for its actions and the paper behind the method. In a batch, every image gets the same values as `Result_…` columns, so they can be compared by condition and on the plate.
+
+| Assay | Detects with | Results | Settings and actions |
+|---|---|---|---|
+| **Cells** | Cellpose-SAM | size, shape, intensity of every channel | |
+| **Nuclei & cell cycle** | Cellpose-SAM on the DNA stain | DNA content (2N = the G1 peak), % Sub-G1, G1, S, G2/M, >4N | ✨ adds a gate per phase; set the G1 peak by hand if the automatic one is wrong |
+| **Transfection / % positive** | Cellpose-SAM | % positive, the cut-off, mean of positive cells | load an untransfected control and press **🎯 Use this image as the negative control**: the cut-off is a percentile (default 99th) of its reporter intensity |
+| **Hemocytometer & viability** | Cellpose-SAM | counted, live, dead, % viable, live and total cells/mL | **⬚ Draw the counting area** (cells whose centre is inside count); **📐 Calibrate from the grid** (pick the grid line spacing); dilution, chamber depth; dead = darker than the cut-off (trypan blue) |
+| **Colony counter** | finds the plate, evens out the lighting, splits touching colonies | colonies, CFU/mL (warns outside 30–300), median diameter, % of the plate covered | dilution factor and volume plated |
+| **Bacteria** | Cellpose-SAM | length, width and curvature along each cell's midline, % dividing | ✨ adds a Dividing gate |
+| **Confluence** | texture (cells are textured, the dish smooth) | % of the image covered | texture window about one cell wide; sensitivity |
+| **Scratch wound** | texture, keeping the open gaps | wound area, % open, mean width (area ÷ length), narrowest point, % closure | **📍 This is the start** on the first image; later images' closure is measured from it |
+| **Spheroids & organoids** | smoothing and threshold, keeping the largest objects | diameter, area, volume (π d³ / 6), circularity, solidity | how many spheroids per image; a warning when a spheroid is too irregular for the volume estimate |
+
+Each object is named after the assay in the table and inspector ("Colony 3", "Spheroid 1"). The methods text and citations of each assay are added to every export.
+
