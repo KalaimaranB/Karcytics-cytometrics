@@ -172,3 +172,26 @@ def test_composite_tints_and_adds_visible_channels_only():
 )
 def test_colour_from_stain_name(name, color):
     assert color_for_name(name) == color
+
+
+def test_display_range_scales_the_view_only():
+    channel = Channel("c", np.array([[0, 100], [200, 4000]], dtype=np.uint16))
+
+    channel.display_range = (0.0, 200.0)
+
+    assert channel.display_uint8().tolist() == [[0, 128], [255, 255]]
+    assert channel.as_uint8().max() == 255 and channel.data.max() == 4000
+
+
+def test_auto_range_ignores_a_few_hot_pixels():
+    data = np.full((100, 100), 100, dtype=np.uint16)
+    data[:50] = 1000
+    data[0, 0] = 65535
+
+    lo, hi = Channel("c", data).auto_range()
+
+    assert lo == 100 and hi == 1000
+
+
+def test_full_range_is_the_dtype_range():
+    assert Channel("c", np.zeros((2, 2), np.uint16)).full_range() == (0, 65535)

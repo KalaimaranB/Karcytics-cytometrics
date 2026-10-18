@@ -1,12 +1,22 @@
 from pathlib import Path
 
-from karcytics_sdk.plugin import BioComboBox, BioTableWidget, PrimaryButton
+from karcytics_sdk.plugin import (
+    BioCaptionLabel,
+    BioComboBox,
+    BioDoubleSpinBox,
+    BioTableWidget,
+    PrimaryButton,
+    SecondaryButton,
+    SubtitleLabel,
+)
 from karcytics_sdk.plugin.dialogs import ask_yes_no, show_warning
 from karcytics_sdk.plugin.theme_fallback import Colors
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
+    QHBoxLayout,
     QHeaderView,
+    QLabel,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -42,10 +52,30 @@ class ChannelManagerWidget(QWidget):
         )
         self.table.verticalHeader().hide()
 
-        # --- NEW: Listen for user edits in the table ---
+        self.table.setToolTip("Tick to show a channel; double-click its name to rename it.")
         self.table.itemChanged.connect(self._on_item_changed)
-
+        self.table.itemSelectionChanged.connect(self._on_row_selected)
         layout.addWidget(self.table)
+
+        # Display contrast of the selected channel (the canvas only; analysis uses all data).
+        layout.addWidget(SubtitleLabel("Display contrast"))
+        self.lbl_contrast = BioCaptionLabel("Select a channel to adjust how it's displayed.")
+        layout.addWidget(self.lbl_contrast)
+        row = QHBoxLayout()
+        self.lbl_low, self.lbl_high = QLabel("Black:"), QLabel("White:")
+        self.spin_low, self.spin_high = BioDoubleSpinBox(), BioDoubleSpinBox()
+        for spin in (self.spin_low, self.spin_high):
+            spin.setDecimals(0)
+            spin.setRange(-1e9, 1e9)
+            spin.setEnabled(False)
+            spin.valueChanged.connect(self._on_contrast_edited)
+        self.btn_auto = SecondaryButton("Auto")
+        self.btn_auto.setToolTip("Stretch from the 0.1st to the 99.9th percentile.")
+        self.btn_auto.setEnabled(False)
+        self.btn_auto.clicked.connect(self._on_auto_contrast)
+        for w in (self.lbl_low, self.spin_low, self.lbl_high, self.spin_high, self.btn_auto):
+            row.addWidget(w)
+        layout.addLayout(row)
 
     def _apply_theme_styles(self) -> None:
         """Re-applies theme-aware styles when the active theme changes.
@@ -59,6 +89,8 @@ class ChannelManagerWidget(QWidget):
             f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER};"
         )
         combo_style = f"background: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY};"
+        for label in (self.lbl_low, self.lbl_high):
+            label.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         for row in range(self.table.rowCount()):
             combo = self.table.cellWidget(row, 1)
             if combo is not None:
@@ -145,6 +177,13 @@ class ChannelManagerWidget(QWidget):
 
         item = QTableWidgetItem(name)
         item.setToolTip(name)
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        visible = (
+            self.image_set.channels[row].visible
+            if self.image_set and row < len(self.image_set.channels)
+            else True
+        )
+        item.setCheckState(Qt.CheckState.Checked if visible else Qt.CheckState.Unchecked)
         self.table.setItem(row, 0, item)
 
         combo = BioComboBox()
@@ -163,18 +202,64 @@ class ChannelManagerWidget(QWidget):
 
         # We only care if they edited the Name column (Column 0)
         if col == 0 and self.image_set and row < len(self.image_set.channels):
-            new_name = item.text()
-            # 1. Update the underlying data model
-            self.image_set.channels[row].name = new_name
-            # 2. Update the hover tooltip to match
-            item.setToolTip(new_name)
-            # 3. Tell the rest of the app to refresh!
+            channel = self.image_set.channels[row]
+            channel.name = item.text()
+            channel.visible = item.checkState() == Qt.CheckState.Checked
+            item.setToolTip(channel.name)
             self.channels_changed.emit()
 
     def _on_color_changed(self, row: int, new_color: str):
         if self.image_set and row < len(self.image_set.channels):
             self.image_set.channels[row].color = new_color
             self.channels_changed.emit()
+
+    def _selected_channel(self):
+        rows = {i.row() for i in self.table.selectedIndexes()}
+        if len(rows) != 1 or not self.image_set:
+            return None
+        row = rows.pop()
+        return self.image_set.channels[row] if row < len(self.image_set.channels) else None
+
+    def _on_row_selected(self) -> None:
+        channel = self._selected_channel()
+        for w in (self.spin_low, self.spin_high, self.btn_auto):
+            w.setEnabled(channel is not None)
+        if channel is None:
+            self.lbl_contrast.setText("Select a channel to adjust how it's displayed.")
+            return
+        self._show_range(channel)
+
+    def _show_range(self, channel) -> None:
+        lo, hi = channel.display_range or channel.auto_range()
+        full_lo, full_hi = channel.full_range()
+        mode = "manual" if channel.display_range else "auto"
+        self.lbl_contrast.setText(
+            f"'{channel.name}' ({channel.data.dtype}, {mode}). Values from {full_lo:g} to "
+            f"{full_hi:g}; only the display changes."
+        )
+        for spin, value in ((self.spin_low, lo), (self.spin_high, hi)):
+            spin.blockSignals(True)
+            spin.setRange(full_lo, full_hi)
+            spin.setValue(value)
+            spin.blockSignals(False)
+
+    def _on_contrast_edited(self, *_args) -> None:
+        channel = self._selected_channel()
+        if channel is None:
+            return
+        lo, hi = self.spin_low.value(), self.spin_high.value()
+        if hi > lo:
+            channel.display_range = (lo, hi)
+            self._show_range(channel)
+            self.channels_changed.emit()
+
+    def _on_auto_contrast(self) -> None:
+        channel = self._selected_channel()
+        if channel is None:
+            return
+        channel.display_range = None
+        self._show_range(channel)
+        self.channels_changed.emit()
 
     def clear_ui(self):
         """Safely removes all channel rows from the UI table."""

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from karcytics_sdk.plugin import BioCaptionLabel, BioDoubleSpinBox, SecondaryButton
+from karcytics_sdk.plugin import BioCaptionLabel, BioComboBox, BioDoubleSpinBox, SecondaryButton
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel
 
@@ -17,14 +17,28 @@ class ReviewStep(StepPage):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.section("Show")
+        row = QHBoxLayout()
+        self.chk_show_outlines = QCheckBox("Outlines")
+        self.chk_show_outlines.setChecked(True)
         self.chk_show_ids = QCheckBox("Cell ID numbers")
         self.chk_show_ids.setChecked(True)
-        self.body.addWidget(self.chk_show_ids)
-        self.chk_color_confidence = QCheckBox("Colour outlines by AI confidence")
-        self.chk_color_confidence.setToolTip(
-            "Cellpose cells only: red = uncertain, amber = borderline, green = confident."
+        row.addWidget(self.chk_show_outlines)
+        row.addWidget(self.chk_show_ids)
+        row.addStretch()
+        self.body.addLayout(row)
+
+        row = QHBoxLayout()
+        self.lbl_color_by = QLabel("Colour outlines by:")
+        self.combo_color_by = BioComboBox()
+        self.combo_color_by.setToolTip(
+            "AI confidence: red = uncertain, amber = borderline, green = confident. "
+            "A measurement: dark purple = lowest, yellow = highest (viridis)."
         )
-        self.body.addWidget(self.chk_color_confidence)
+        row.addWidget(self.lbl_color_by)
+        row.addWidget(self.combo_color_by, 1)
+        self.body.addLayout(row)
+        self.lbl_color_legend = BioCaptionLabel("")
+        self.body.addWidget(self.lbl_color_legend)
         self.chk_probability_map = QCheckBox("Cellpose cell-probability map")
         self.chk_probability_map.setToolTip("Where the model thinks cells are, from the last run.")
         self.body.addWidget(self.chk_probability_map)
@@ -56,8 +70,9 @@ class ReviewStep(StepPage):
 
     def apply_theme(self) -> None:
         for widget in (
+            self.chk_show_outlines,
             self.chk_show_ids,
-            self.chk_color_confidence,
+            self.lbl_color_by,
             self.chk_probability_map,
             self.lbl_uncertain,
         ):

@@ -30,6 +30,8 @@ The Cellpose-SAM model (about 1.3 GB) is downloaded on demand, not bundled. You 
 
 Only the first time point and z-plane of a stack are used for now.
 
+Untick a channel to hide it. Select a channel to set its **display contrast** (the values shown as black and white, in the image's own units), or click **Auto** to stretch from the 0.1st to the 99.9th percentile. Contrast changes only what you see: detection and measurements always use the full data.
+
 ## Calibrate
 
 CytoMetrics reports sizes in micrometres once it knows the image scale.

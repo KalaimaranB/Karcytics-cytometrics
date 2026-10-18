@@ -51,7 +51,7 @@ Click **✨ Run Segmentation**; the scanning bar shows progress. Detected cells 
 
 Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probability inside the outline. In the **Review** step:
 
-- **Colour outlines by AI confidence**: red = uncertain, amber = borderline, green = confident.
+- **Colour outlines by**: *AI confidence* (red = uncertain, amber = borderline, green = confident) or any measurement (viridis: dark purple = lowest, yellow = highest; the range is shown underneath). **Outlines** and **Cell ID numbers** can be hidden.
 - **Show Cellpose cell-probability map**: a cyan overlay of where the model thinks cells are. Useful to see dim cells it nearly found (lower the Detection Threshold to include them).
 - **Uncertain below** + **Next uncertain ▸**: steps through cells under the threshold, least confident first, and centres each one so you can delete or keep it.
 

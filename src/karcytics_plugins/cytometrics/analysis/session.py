@@ -116,7 +116,16 @@ class AnalysisSession:
     # ── Images ───────────────────────────────────────────────────────────────
 
     def channels_metadata(self) -> list[dict]:
-        return [{"name": c.name, "path": c.path, "color": c.color} for c in self.image_set.channels]
+        return [
+            {
+                "name": c.name,
+                "path": c.path,
+                "color": c.color,
+                "visible": c.visible,
+                "display_range": list(c.display_range) if c.display_range else None,
+            }
+            for c in self.image_set.channels
+        ]
 
     def reload_images(self, channels_meta: list[dict]) -> list[str]:
         """Reload the saved image files and reapply channel names and colours.
@@ -142,6 +151,9 @@ class AnalysisSession:
         for channel, meta in zip(self.image_set.channels, channels_meta, strict=False):
             channel.name = meta.get("name", channel.name)
             channel.color = meta.get("color", channel.color)
+            channel.visible = meta.get("visible", True)
+            saved_range = meta.get("display_range")
+            channel.display_range = tuple(saved_range) if saved_range else None  # type: ignore[assignment]
         return missing
 
     # ── Reporting ────────────────────────────────────────────────────────────

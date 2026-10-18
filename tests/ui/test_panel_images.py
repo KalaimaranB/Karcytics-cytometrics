@@ -338,7 +338,7 @@ def test_review_tools_are_off_without_confidence(panel, tmp_path):
     panel.channel_manager.ingest_path(str(_png(tmp_path)))
     _deliver(panel, [_square(1, 0)])
 
-    assert not panel.chk_color_confidence.isEnabled()
+    assert panel.combo_color_by.findData("__confidence__") == -1
     assert not panel.btn_next_uncertain.isEnabled()
     assert not panel.chk_probability_map.isEnabled()
     assert panel.table.item(0, 1).text() == ""
@@ -348,7 +348,7 @@ def test_outlines_coloured_by_confidence(panel, tmp_path):
     panel.channel_manager.ingest_path(str(_png(tmp_path)))
     _deliver(panel, [_square(1, 0, 0.99), _square(2, 20, 0.30)])
 
-    panel.chk_color_confidence.setChecked(True)
+    panel.combo_color_by.setCurrentIndex(panel.combo_color_by.findData("__confidence__"))
 
     confident, unsure = panel.canvas._cell_items
     assert confident.color.green() > confident.color.red()
@@ -461,4 +461,61 @@ def test_nucleus_and_texture_options_add_columns_and_survive_a_reload(panel, qtb
     assert other.combo_nucleus.currentData() == "dapi.png"
     assert other.chk_texture.isChecked()
     qtbot.waitUntil(lambda: "Nucleus_Area" in other.measurements.columns, timeout=5000)
+    other.cleanup()
+
+
+def test_outlines_coloured_by_a_measurement_with_a_legend(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    small = _square(1, 0)
+    big = {"id": 2, "label": 2, "points": [[30, 30], [60, 30], [60, 60], [30, 60]]}
+    _deliver(panel, [small, big])
+
+    panel.combo_color_by.setCurrentIndex(panel.combo_color_by.findData("AreaShape_Area"))
+
+    first, second = panel.canvas._cell_items
+    assert (first.color.red(), first.color.green(), first.color.blue()) == (68, 1, 84)
+    assert (second.color.red(), second.color.green(), second.color.blue()) == (253, 231, 37)
+    assert panel.review_step.lbl_color_legend.text().startswith("Purple = 121")
+
+
+def test_outlines_layer_can_be_hidden(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0)])
+
+    panel.review_step.chk_show_outlines.setChecked(False)
+
+    assert not panel.canvas.layer("cells").isVisible()
+
+
+def test_display_contrast_changes_the_view_not_the_data(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_ome(tmp_path)))
+    channel = panel.image_set.channels[0]
+    data_before = channel.data.copy()
+    cm = panel.channel_manager
+    cm.table.selectRow(0)
+    assert cm.spin_low.isEnabled()
+
+    cm.spin_high.setValue(1000)
+
+    assert channel.display_range == (cm.spin_low.value(), 1000)
+    np.testing.assert_array_equal(channel.data, data_before)
+    cm.btn_auto.click()
+    assert channel.display_range is None
+
+
+def test_hidden_channel_and_contrast_survive_a_reload(panel, qtbot, tmp_path):
+    panel.channel_manager.ingest_path(str(_ome(tmp_path)))
+    channel = panel.image_set.channels[0]
+    channel.display_range = (10.0, 2000.0)
+    panel.channel_manager.table.item(0, 0).setCheckState(main_panel.Qt.CheckState.Unchecked)
+    assert not channel.visible
+
+    other = main_panel.CytoMetricsPanel()
+    qtbot.addWidget(other)
+    other.load_state(panel.export_state())
+
+    restored = other.image_set.channels[0]
+    assert restored.display_range == (10.0, 2000.0)
+    assert not restored.visible
+    assert other.channel_manager.table.item(0, 0).checkState() == main_panel.Qt.CheckState.Unchecked
     other.cleanup()

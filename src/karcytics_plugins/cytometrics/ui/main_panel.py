@@ -50,7 +50,7 @@ from ..analysis.state import CytoMetricsState
 from ..analysis.units import is_calibrated
 from ..report import methods_markdown, write_methods_sidecars
 from .dialogs.model_manager import ModelManagerDialog, _check_ai_model_installed
-from .image_canvas import MultiChannelCanvas, confidence_color
+from .image_canvas import MultiChannelCanvas, confidence_color, value_color
 from .mode_picker import ModePicker
 from .stepper import Stepper
 from .steps import CalibrateStep, DetectStep, LoadStep, MeasureStep, ReportStep, ReviewStep
@@ -269,7 +269,7 @@ class CytoMetricsPanel(PluginBase):
         self.btn_run_pipeline, self.hw_monitor = d.btn_run, d.hw_monitor
         self._citation_labels = d.citation_labels
         r = self.review_step
-        self.chk_show_ids, self.chk_color_confidence = r.chk_show_ids, r.chk_color_confidence
+        self.chk_show_ids, self.combo_color_by = r.chk_show_ids, r.combo_color_by
         self.chk_probability_map, self.spin_uncertain = r.chk_probability_map, r.spin_uncertain
         self.btn_next_uncertain, self.btn_draw = r.btn_next_uncertain, r.btn_draw
         m = self.measure_step
@@ -317,7 +317,8 @@ class CytoMetricsPanel(PluginBase):
         self.btn_run_pipeline.clicked.connect(self._on_run_pipeline)
 
         self.chk_show_ids.toggled.connect(self.canvas.set_show_ids)
-        self.chk_color_confidence.toggled.connect(self._redraw_cells)
+        self.review_step.chk_show_outlines.toggled.connect(self.canvas.set_outlines_visible)
+        self.combo_color_by.currentIndexChanged.connect(self._redraw_cells)
         self.chk_probability_map.toggled.connect(self._update_probability_map)
         self.spin_uncertain.valueChanged.connect(self._update_review_controls)
         self.btn_next_uncertain.clicked.connect(self._on_next_uncertain)
@@ -789,16 +790,31 @@ class CytoMetricsPanel(PluginBase):
         self._on_cells_edited()
 
     def _redraw_cells(self, *_args) -> None:
-        """Outline the cells, coloured by confidence if that's switched on."""
+        """Outline the cells in one colour, by AI confidence, or by any measurement."""
+        mode = self.combo_color_by.currentData()
         colors = None
-        if self.chk_color_confidence.isChecked():
+        legend = ""
+        if mode == _COLOR_BY_CONFIDENCE:
             colors = {
                 c["id"]: confidence_color(c["confidence"])
                 for c in self.state.cells
                 if c.get("confidence") is not None
             }
+            legend = "Red ≤ 0.5 · amber · green = 1.0"
+        elif mode and mode in self.measurements.columns:
+            values = self.measurements.set_index("ObjectNumber")[mode].dropna()
+            if len(values):
+                lo, hi = float(values.min()), float(values.max())
+                span = hi - lo or 1.0
+                colors = {int(i): value_color((v - lo) / span) for i, v in values.items()}
+                unit = unit_label(
+                    self.measurements.attrs.get("units", {}).get(mode, ""), self.state.scale
+                )
+                legend = f"Purple = {lo:.4g} → yellow = {hi:.4g} {unit}".rstrip()
+        self.review_step.lbl_color_legend.setText(legend)
         self.canvas.draw_cells_from_state(self.state.cells, colors)
         self.canvas.set_show_ids(self.chk_show_ids.isChecked())
+        self.canvas.set_outlines_visible(self.review_step.chk_show_outlines.isChecked())
 
     def _update_probability_map(self, *_args) -> None:
         probability = self.session.probability
@@ -812,7 +828,6 @@ class CytoMetricsPanel(PluginBase):
 
     def _update_review_controls(self, *_args) -> None:
         has_confidence = self.session.has_confidence()
-        self.chk_color_confidence.setEnabled(has_confidence)
         for widget in (
             self.review_step.lbl_uncertain,
             self.spin_uncertain,
@@ -862,6 +877,7 @@ class CytoMetricsPanel(PluginBase):
         self.combo_hist_metric.setCurrentIndex(max(self.combo_hist_metric.findData(current), 0))
         self.combo_hist_metric.blockSignals(False)
 
+        self._update_color_by_options(numeric)
         metric = self.combo_hist_metric.currentData()
         lines = [f"Total Cells: {len(self.state.cells)}"]
         if metric and len(df):
@@ -877,6 +893,24 @@ class CytoMetricsPanel(PluginBase):
         self.lbl_stats.setText("\n".join(lines))
         self._update_review_controls()
         self._update_probability_map()
+        if self.combo_color_by.currentData() is not None:
+            self._redraw_cells()  # colours follow the latest values
+
+    def _update_color_by_options(self, numeric_columns: list[str]) -> None:
+        current = self.combo_color_by.currentData()
+        self.combo_color_by.blockSignals(True)
+        self.combo_color_by.clear()
+        self.combo_color_by.addItem("One colour", None)
+        if self.session.has_confidence():
+            self.combo_color_by.addItem("AI confidence", _COLOR_BY_CONFIDENCE)
+        for name in numeric_columns:
+            if name != "Confidence":
+                self.combo_color_by.addItem(_short_name(name), name)
+        index = self.combo_color_by.findData(current)
+        self.combo_color_by.setCurrentIndex(max(index, 0))
+        self.combo_color_by.blockSignals(False)
+        if index < 0 and current is not None:
+            self._redraw_cells()
 
     def _needs_measuring(self) -> bool:
         return bool(self.image_set.channels) and self.session.needs_measuring()
@@ -1076,6 +1110,9 @@ class CytoMetricsPanel(PluginBase):
             self.load_state(pm.load_workflow_payload(filename))
         except Exception as e:
             show_error(self, "Load Error", f"Could not load workflow:\n{e}")
+
+
+_COLOR_BY_CONFIDENCE = "__confidence__"
 
 
 def _short_name(column: str) -> str:

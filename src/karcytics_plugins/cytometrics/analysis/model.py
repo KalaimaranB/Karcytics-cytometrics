@@ -37,6 +37,7 @@ _NAME_COLORS = [
 _COLOR_CYCLE = ["green", "magenta", "blue", "red", "cyan", "yellow"]
 _RGB_CHANNELS = 3
 _ALPHA = "alpha"
+AUTO_PERCENTILES = (0.1, 99.9)
 
 
 def color_for_name(name: str) -> str | None:
@@ -57,6 +58,31 @@ class Channel:
     color: str = "gray"
     path: str = ""
     visible: bool = True
+    # Display contrast (low, high) in native units; None = automatic. Display only:
+    # segmentation and measurements always use the full data.
+    display_range: tuple[float, float] | None = None
+
+    def auto_range(self) -> tuple[float, float]:
+        """The 0.1–99.9th percentile of the data: robust to a few hot pixels."""
+        lo, hi = np.percentile(self.data, AUTO_PERCENTILES)
+        if hi <= lo:
+            lo, hi = float(self.data.min()), float(self.data.max())
+        return float(lo), float(hi)
+
+    def full_range(self) -> tuple[float, float]:
+        """What the dtype can hold (0–255, 0–65535, …), or the data's range for floats."""
+        if np.issubdtype(self.data.dtype, np.integer):
+            info = np.iinfo(self.data.dtype)
+            return float(info.min), float(info.max)
+        return float(self.data.min()), float(self.data.max())
+
+    def display_uint8(self) -> np.ndarray:
+        """The plane scaled to 0–255 through its display range (for the canvas only)."""
+        lo, hi = self.display_range or self.auto_range()
+        if hi <= lo:
+            return np.zeros(self.data.shape, dtype=np.uint8)
+        plane = (self.data.astype(np.float32) - lo) * (255.0 / (hi - lo))
+        return np.clip(np.rint(plane), 0, 255).astype(np.uint8)
 
     def as_uint8(self) -> np.ndarray:
         """The plane scaled to 0–255: unchanged for 8-bit data, min–max otherwise."""
@@ -125,7 +151,7 @@ class ImageSet:
         return added
 
     def composite(self) -> np.ndarray | None:
-        """Additive RGB blend of the visible channels, as uint8 (H, W, 3)."""
+        """Additive RGB blend of the visible channels through their display ranges, uint8 (H, W, 3)."""
         if not self.channels:
             return None
         h, w = self.channels[0].data.shape
@@ -134,7 +160,7 @@ class ImageSet:
             if not ch.visible:
                 continue
             tint = np.asarray(COLOR_MAPS.get(ch.color, COLOR_MAPS["gray"]), dtype=np.float32)
-            out += ch.as_uint8()[..., np.newaxis].astype(np.float32) * tint
+            out += ch.display_uint8()[..., np.newaxis].astype(np.float32) * tint
         return np.clip(out, 0, 255).astype(np.uint8)
 
 

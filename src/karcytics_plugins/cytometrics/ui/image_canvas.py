@@ -173,6 +173,9 @@ class MultiChannelCanvas(ImageView):
             return
         super().mouseReleaseEvent(event)
 
+    def set_outlines_visible(self, visible: bool) -> None:
+        self.set_layer_visible(_CELLS_LAYER, visible)
+
     def set_show_ids(self, show: bool):
         """Toggles the visibility of all cell ID numbers on the canvas."""
         for item in self._cell_items:
@@ -189,6 +192,19 @@ class MultiChannelCanvas(ImageView):
         self._drawing_points.clear()
         self._drawing_item = None
         super().cleanup()
+
+
+# Viridis (van der Walt & Smith, matplotlib's default colormap; CC0), 5 stops.
+_VIRIDIS = [(68, 1, 84), (59, 82, 139), (33, 145, 140), (94, 201, 98), (253, 231, 37)]
+
+
+def value_color(t: float) -> QColor:
+    """Viridis colour for `t` in 0–1 (dark purple → yellow), readable on dark images."""
+    t = min(1.0, max(0.0, t)) * (len(_VIRIDIS) - 1)
+    i = min(int(t), len(_VIRIDIS) - 2)
+    f = t - i
+    a, b = _VIRIDIS[i], _VIRIDIS[i + 1]
+    return QColor(*(int(round(x + (y - x) * f)) for x, y in zip(a, b, strict=True)))
 
 
 def confidence_color(confidence: float) -> QColor:
