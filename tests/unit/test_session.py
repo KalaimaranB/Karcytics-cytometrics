@@ -134,3 +134,24 @@ class TestMigration:
         data = CytoMetricsState(scale=0.3).to_dict()
 
         assert migrate(data) is data
+
+
+def test_gates_get_unique_names_and_colours_and_reach_the_methods(session):
+    from karcytics_plugins.cytometrics.analysis.gating import Gate
+
+    confident = Gate("Sure", "threshold", x="Confidence", params={"value": 0.5}, color="")
+    first = session.add_gate(confident)
+    second = session.add_gate(Gate("Sure", "threshold", x="Confidence", params={"value": 0.8}))
+    assert (first.name, second.name) == ("Sure", "Sure 2")
+    assert first.color != second.color
+    assert session.gate_stats()["Count"].tolist() == [3, 2, 1]
+    assert session.export_table()["Gate_Sure"].tolist() == [True, False, True]
+
+    session.last_run = LastRun(OtsuSegmenter(), {"target_channel": "cells.png"})
+    assert "manual gating" in session.methods_steps()[-1].description
+
+    session.rename_gate("Sure", "Confident")
+    session.remove_gate("Sure 2")
+    assert [g.name for g in session.gates] == ["Confident"]
+    with pytest.raises(ValueError):
+        session.set_gates([Gate("Loop", "not", params={"of": ["Loop"]})])

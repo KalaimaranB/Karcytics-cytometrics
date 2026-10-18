@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from karcytics_sdk.plugin import BioComboBox, BioTableWidget
 from karcytics_sdk.plugin.theme_fallback import Colors
-from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QLabel, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from .widgets.histogram import SimpleHistogram
+from .widgets.histogram import Histogram
 from .widgets.inspector import CellInspector
 from .widgets.scatter import ScatterPlot
 
@@ -21,10 +29,17 @@ class ResultsDock(QTabWidget):
 
         page = QWidget()
         layout = QVBoxLayout(page)
+        row = QHBoxLayout()
         self.combo_hist_metric = BioComboBox()
-        layout.addWidget(self.combo_hist_metric)
-        self.histogram = SimpleHistogram()
+        self.chk_hist_log = QCheckBox("log")
+        row.addWidget(self.combo_hist_metric, 1)
+        row.addWidget(self.chk_hist_log)
+        layout.addLayout(row)
+        self.lbl_hist_population = QLabel("")
+        layout.addWidget(self.lbl_hist_population)
+        self.histogram = Histogram()
         layout.addWidget(self.histogram, 1)
+        self.histogram_page = page
         self.addTab(page, "Histogram")
 
         page = QWidget()
@@ -32,11 +47,22 @@ class ResultsDock(QTabWidget):
         row = QHBoxLayout()
         self.lbl_x, self.lbl_y = QLabel("X:"), QLabel("Y:")
         self.combo_x, self.combo_y = BioComboBox(), BioComboBox()
-        for w in (self.lbl_x, self.combo_x, self.lbl_y, self.combo_y):
+        self.chk_x_log, self.chk_y_log = QCheckBox("log"), QCheckBox("log")
+        for w in (
+            self.lbl_x,
+            self.combo_x,
+            self.chk_x_log,
+            self.lbl_y,
+            self.combo_y,
+            self.chk_y_log,
+        ):
             row.addWidget(w, 1 if isinstance(w, BioComboBox) else 0)
         layout.addLayout(row)
+        self.lbl_scatter_population = QLabel("")
+        layout.addWidget(self.lbl_scatter_population)
         self.scatter = ScatterPlot()
         layout.addWidget(self.scatter, 1)
+        self.scatter_page = page
         self.addTab(page, "Scatter")
 
         self.inspector = CellInspector()
@@ -54,6 +80,9 @@ class ResultsDock(QTabWidget):
             f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; "
             f"gridline-color: {Colors.BORDER}; border: none;"
         )
-        for label in (self.lbl_x, self.lbl_y):
+        for label in (self.lbl_x, self.lbl_y, self.chk_hist_log, self.chk_x_log, self.chk_y_log):
             label.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
+        for label in (self.lbl_hist_population, self.lbl_scatter_population):
+            label.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 11px;")
         self.scatter.update()
+        self.histogram.update()

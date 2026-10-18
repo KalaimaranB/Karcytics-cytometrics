@@ -108,6 +108,20 @@ def _measurement_step(n_cells: int, channels: tuple[str, ...], background: str) 
     return MethodStep(text, ("skimage2014", "cellprofiler4"))
 
 
+def gating_step(stats: Any) -> MethodStep:
+    """Populations defined by manual gating, with their sizes (``gating.stats`` rows)."""
+    parts = []
+    for row in stats.iloc[1:].to_dict("records"):  # row 0 is all cells
+        within = "" if row["Parent"] == "All cells" else f" within '{row['Parent']}'"
+        parts.append(
+            f"'{row['Population']}' ({row['Definition']}{within}; n = {row['Count']}, "
+            f"{row['PctParent']:.1f}% of parent)"
+        )
+    return MethodStep(
+        "Populations were defined by manual gating on the measurements: " + "; ".join(parts)
+    )
+
+
 def methods_markdown(steps: list[MethodStep]) -> str:
     text = methods_text(SOFTWARE, f"{__version__} ({SOFTWARE_URL})", steps)
     paragraph, _, references = text.partition("\n\nReferences\n")

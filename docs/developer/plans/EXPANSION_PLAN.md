@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phases 0, 2, 3, 4 and 5 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 6. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0, 2–6 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Working on 7 and 8; pause before Phase 9 for the user's review. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -163,10 +163,10 @@ karcytics_plugins/cytometrics
 - [x] 5.11 UI tests for each view (offscreen): steps/picker (`test_steps.py`), editing/undo/dock (`test_editing.py`), images/calibration/measurements (`test_panel_images.py`), params form, canvas, Model Center, plus the Qt-free session/edit/measure units. 192 tests.
 
 ### Phase 6: image cytometry (cytometrics)
-- [ ] 6.1 Scatter of any two measurements, **linked both ways** with the canvas.
-- [ ] 6.2 Local gates: threshold, rectangle, polygon, boolean combinations; % positive; gate set saved with the workflow.
-- [ ] 6.3 Population colouring on the canvas.
-- [ ] 6.4 FCS 3.1 export of the object table (flow can open it, with no code shared).
+- [x] 6.1 Scatter of any two measurements, **linked both ways** with the canvas. **Done:** linking came in 5.8; 6.1 added log axes (shared `ui/widgets/plot_axis.py`), population colours and gate overlays. The histogram was rewritten the same way (numpy bins, log axis, gate markers).
+- [x] 6.2 Local gates: threshold, rectangle, polygon, boolean combinations; % positive; gate set saved with the workflow. **Done:** `analysis/gating.py` (Qt-free; also range and NOT; gates nest through `parent`; shape gates are tested in the log/linear space they were drawn in) and the **Gate** step (`ui/steps/gate.py`) driven by `ui/gating.py`: tools draw on the histogram/scatter, a population tree with counts, % parent and % total, exact cut-off editing, rename/colour/delete (dependants go too), Combine… dialog. Gates live in `CytoMetricsState.gates` (saved, undoable) and are described in the methods text (`report.gating_step`).
+- [x] 6.3 Population colouring on the canvas. **Done:** "Population" colour-by (deepest population wins; ungated grey), switched on from the Gate step; Okabe–Ito palette.
+- [x] 6.4 FCS 3.1 export of the object table (flow can open it, with no code shared). **Done:** `analysis/fcs.py` written from the standard (float32, `$PnN` = column, `$PnS` = label with unit, gates as 0/1 parameters); tests read it back with FlowIO (dev-only, BSD-3), the reader behind flow's FlowKit loader. fcsparser was not added: it pins numpy < 2. Also a population-statistics CSV and `Gate_<name>` columns in the cell CSV. Citation `fcs31` (Crossref-checked).
 
 ### Phase 7: batch and conditions (cytometrics)
 - [ ] 7.1 Folder and plate-layout import; filename → well/condition parsing; metadata editor.

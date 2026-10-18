@@ -55,6 +55,7 @@ def test_choosing_an_assay_shows_its_steps(panel):
         "detect",
         "review",
         "measure",
+        "gate",
         "report",
     ]
     assert panel.btn_assay.text() == "🔬 Cells ▾"
@@ -72,7 +73,7 @@ def test_back_next_and_free_navigation(panel):
     stepper.go_to("report")
     assert not stepper.btn_next.isEnabled()
     stepper.btn_back.click()
-    assert stepper.current_id == "measure"
+    assert stepper.current_id == "gate"
 
 
 def test_nuclei_assay_segments_the_nuclear_stain_and_measures_texture(panel, tmp_path):

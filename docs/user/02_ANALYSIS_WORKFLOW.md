@@ -74,11 +74,27 @@ Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probabil
 Under the steps, the results panel has four tabs:
 
 - **Table**: every cell and measurement; sort by any column; select rows to select cells.
-- **Histogram**: the distribution of any measurement.
-- **Scatter**: any two measurements against each other. Click a point to select its cell on the canvas (Shift+click for more); cells you select on the canvas are highlighted in the plot.
+- **Histogram**: the distribution of any measurement; tick **log** for a log axis.
+- **Scatter**: any two measurements against each other, each axis linear or **log**. Click a point to select its cell on the canvas (Shift+click for more); cells you select on the canvas are highlighted in the plot. Once you have gates, points take their population's colour (grey: in no gate).
 - **Cell**: the selected cell close up: a thumbnail, every measurement, its source and AI confidence, and **🚩 Flag** to mark it for later (flags are saved and exported in the `Flagged` column, and flagged cells have a dashed outline).
 
-## 6. Results and export
+## 6. Gate populations (Gate step)
+
+Gating sorts cells into populations by their measurements, the way flow cytometry does, for questions such as "what % of cells are GFP-positive?" or "how many large, bright cells?".
+
+1. In the Gate step, pick a tool:
+   - **📏 Threshold**: click on the histogram where the cut-off goes. Cells above it are in the gate (switch to *below* under **Selected gate**).
+   - **↔ Range**: drag across the histogram over the values to keep.
+   - **▭ Rectangle**: drag a box on the scatter plot.
+   - **⬠ Polygon**: click around a cluster on the scatter plot; double-click (or click the first corner) to close it. **Esc** or right-click cancels.
+2. The **Populations** tree shows each population's cell count, % of its parent and % of all cells.
+3. To gate **inside** a population (e.g. bright cells among the large ones), select it in the tree, then pick a tool: the plots switch to that population's cells and the new gate goes inside it.
+4. **∩ Combine…** makes a population from two others: *both* (AND), *either* (OR), or *not* (every cell outside one).
+5. Select a gate to see it highlighted on the plots, type an exact cut-off, **✏️ Rename**, **🎨 Colour** or **🗑 Delete** it (deleting also removes the gates that depend on it).
+
+With **Colour cells on the image by population** on, each cell's outline takes the colour of the deepest population it belongs to; cells in no gate are grey. Gates are measured on whatever axis scale they were drawn on (log or linear), are saved with the analysis, follow undo/redo, and are described in the methods text.
+
+## 7. Results and export
 
 Every cell is measured from its mask, the same way whether it was detected, drawn by hand, edited or reloaded. The results table shows every measurement; hover over a column header for its definition. In the **Measure** step:
 
@@ -106,9 +122,14 @@ Every cell is measured from its mask, the same way whether it was detected, draw
 | `Intensity_Mean/Median/Min/Max/Std/IntegratedIntensity_<channel> [a.u.]` | Pixel statistics inside the cell, per channel |
 | `Intensity_Background_<channel>`, `Intensity_Corrected…_<channel>` | With a background choice: the background level and the corrected mean and integrated intensity |
 
+With gates, the CSV has one `Gate_<population>` column per gate (True/False).
+
+- **📈 Export FCS 3.1**: one event per cell and one parameter per measurement (plus a 0/1 `Gate_<population>` parameter per gate), as 32-bit floats. Open it in the Karcytics flow plugin, FlowJo or FCS Express to gate image data with flow tools. Parameter names (`$PnN`) are the CSV column names; the labels (`$PnS`) carry the units. Format: Spidlen et al., *Cytometry A* 77A:97–100 (2010).
+- **📊 Export population statistics**: count, % of parent and % of all cells for every population.
+
 Two more exports take your cells, as they are after your edits, to other tools:
 
 - **🔷 Export ImageJ / Fiji ROIs**: a `.zip` of outlines named "Cell <ID>". In Fiji: *Analyze › Tools › ROI Manager › More › Open*. QuPath can import it too.
 - **🧬 Export for Cellpose (_seg.npy)**: the masks in Cellpose's own format. Save it next to the image and open the image in the Cellpose GUI to keep editing; Cellpose can also train on it.
 
-Every CSV export also writes a methods paragraph and BibTeX file listing the settings you used. When you publish results, cite the methods you used: see [How to Cite](03_HOW_TO_CITE.md).
+Every CSV and FCS export also writes a methods paragraph and BibTeX file listing the settings you used. When you publish results, cite the methods you used: see [How to Cite](03_HOW_TO_CITE.md).

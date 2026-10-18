@@ -66,6 +66,7 @@ class CytoMetricsState(PluginState):
         channels_metadata:  List of channel information (name, path, color).
         ui_params:          ``{"pipeline": segmenter id, "values": Detect settings,
                             "measure": measurement options}``.
+        gates:              Gates on the measurements (``analysis.gating.Gate`` dicts).
         version:            Format version; older saves are migrated by ``from_dict``.
     """
 
@@ -76,6 +77,7 @@ class CytoMetricsState(PluginState):
     cell_counter: int = 0
     channels_metadata: list[dict] = field(default_factory=list)
     ui_params: dict = field(default_factory=dict)
+    gates: list[dict] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CytoMetricsState:

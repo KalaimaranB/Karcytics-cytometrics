@@ -14,8 +14,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..report import Measured, build_steps
-from . import edit
+from ..report import Measured, build_steps, gating_step
+from . import edit, gating
+from .gating import Gate
 from .measure import MeasureOptions, measure_cells, rescale
 from .model import ImageSet
 from .state import CytoMetricsState
@@ -192,6 +193,55 @@ class AnalysisSession:
     def has_confidence(self) -> bool:
         return any(c.get("confidence") is not None for c in self.state.cells)
 
+    # ── Gates and populations ────────────────────────────────────────────────
+
+    @property
+    def gates(self) -> list[Gate]:
+        return [Gate.from_dict(g) for g in self.state.gates]
+
+    def set_gates(self, gates: list[Gate]) -> None:
+        gating.evaluate(gates, self.measurements)  # raises on cycles or missing gates
+        self.state.gates = [g.to_dict() for g in gates]
+
+    def add_gate(self, gate: Gate) -> Gate:
+        """Add `gate` under a unique name and the next free colour; returns it."""
+        gates = self.gates
+        gate.name = gating.unique_name(gates, gate.name)
+        if not gate.color or gate.color in {g.color for g in gates}:
+            gate.color = gating.next_color(gates)
+        self.set_gates([*gates, gate])
+        return gate
+
+    def update_gate(self, name: str, **changes) -> None:
+        self.set_gates(
+            [
+                Gate.from_dict({**g.to_dict(), **changes}) if g.name == name else g
+                for g in self.gates
+            ]
+        )
+
+    def rename_gate(self, old: str, new: str) -> str:
+        new = gating.unique_name([g for g in self.gates if g.name != old], new.strip() or old)
+        self.set_gates(gating.rename(self.gates, old, new))
+        return new
+
+    def remove_gate(self, name: str) -> None:
+        self.set_gates(gating.remove(self.gates, name))
+
+    def population(self, name: str | None) -> pd.DataFrame:
+        """The measurement rows of population `name` (all cells for None)."""
+        return gating.population(self.gates, self.measurements, name)
+
+    def gate_stats(self) -> pd.DataFrame:
+        return gating.stats(self.gates, self.measurements)
+
+    def population_colors(self) -> dict[int, str]:
+        return gating.colors_by_population(self.gates, self.measurements)
+
+    def export_table(self) -> pd.DataFrame:
+        """The measurements plus one ``Gate_<name>`` column per gate."""
+        return gating.with_gate_columns(self.gates, self.measurements)
+
     # ── Images ───────────────────────────────────────────────────────────────
 
     def channels_metadata(self) -> list[dict]:
@@ -242,7 +292,7 @@ class AnalysisSession:
         if self.last_run is None:
             return None
         n_manual = sum(1 for c in self.state.cells if c.get("source") == "manual")
-        return build_steps(
+        steps = build_steps(
             self.last_run.segmenter,
             self.last_run.params,
             self.scale,
@@ -256,6 +306,9 @@ class AnalysisSession:
                 self.measure_options.nucleus_channel,
             ),
         )
+        if self.state.gates and len(self.measurements):
+            steps.append(gating_step(self.gate_stats()))
+        return steps
 
     def export_stem(self) -> str:
         """The first image's file name without extension, for default export names."""

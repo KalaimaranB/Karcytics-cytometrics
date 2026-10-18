@@ -168,7 +168,7 @@ def test_scatter_plots_cells_and_links_selection_both_ways(panel):
     scatter = panel.results.scatter
     panel.results.setCurrentIndex(2)
     scatter.resize(400, 300)
-    panel._update_scatter()
+    panel.gating.refresh_plots()
     assert scatter.point_count == 3
 
     panel._on_scatter_clicked(2, False)

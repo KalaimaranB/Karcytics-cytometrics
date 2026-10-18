@@ -1,6 +1,5 @@
 """CytoMetrics Entry Point."""
 
-import math
 import sys
 from functools import partial
 from pathlib import Path
@@ -29,7 +28,7 @@ from karcytics_sdk.plugin.dialogs import SaveWorkflowDialog
 from karcytics_sdk.plugin.io import PluginConfig
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -45,6 +44,9 @@ from ..analysis.assays import DEFAULT as DEFAULT_ASSAY
 from ..analysis.assays import REGISTRY as ASSAYS
 from ..analysis.assays import STEP_LABELS, Assay
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
+from ..analysis.fcs import numeric_columns as fcs_columns
+from ..analysis.fcs import write_fcs
+from ..analysis.gating import UNGATED_COLOR
 from ..analysis.measure import MeasureOptions, unit_label, write_csv
 from ..analysis.model import ImageSet
 from ..analysis.models import MODELS
@@ -53,11 +55,21 @@ from ..analysis.state import CytoMetricsState
 from ..analysis.units import is_calibrated
 from ..report import methods_markdown, write_methods_sidecars
 from .dialogs.model_center import ModelCenterDialog
+from .gating import GatingController
 from .image_canvas import MultiChannelCanvas, confidence_color, value_color
+from .labels import column_label, fmt, numeric_columns, short_name
 from .mode_picker import ModePicker
 from .results_dock import ResultsDock
 from .stepper import Stepper
-from .steps import CalibrateStep, DetectStep, LoadStep, MeasureStep, ReportStep, ReviewStep
+from .steps import (
+    CalibrateStep,
+    DetectStep,
+    GateStep,
+    LoadStep,
+    MeasureStep,
+    ReportStep,
+    ReviewStep,
+)
 from .steps.detect import PREVIEW_TEXT
 from .steps.review import TOOLS
 from .widgets.status_bar import SystemStatusBar
@@ -244,6 +256,7 @@ class CytoMetricsPanel(PluginBase):
         self.detect_step = DetectStep()
         self.review_step = ReviewStep()
         self.measure_step = MeasureStep()
+        self.gate_step = GateStep()
         self.report_step = ReportStep()
         self.step_pages = {
             "load": self.load_step,
@@ -251,6 +264,7 @@ class CytoMetricsPanel(PluginBase):
             "detect": self.detect_step,
             "review": self.review_step,
             "measure": self.measure_step,
+            "gate": self.gate_step,
             "report": self.report_step,
         }
         self.stepper = Stepper()
@@ -321,6 +335,7 @@ class CytoMetricsPanel(PluginBase):
             rp.btn_export_rois,
             rp.btn_export_seg,
         )
+        self.gating = GatingController(self.session, self.gate_step, self.results, self)
         self._review_index = -1
         self._assay: Assay | None = None
         self._wire()
@@ -377,16 +392,19 @@ class CytoMetricsPanel(PluginBase):
         self.combo_background.currentIndexChanged.connect(self._on_measure_options_changed)
         self.combo_nucleus.currentIndexChanged.connect(self._on_measure_options_changed)
         self.chk_texture.toggled.connect(self._on_measure_options_changed)
-        self.combo_hist_metric.currentIndexChanged.connect(self._update_results_tab)
+        self.combo_hist_metric.currentIndexChanged.connect(self._update_stats)
+        self.gating.gates_changed.connect(self._on_gates_changed)
+        self.gating.population_colors_changed.connect(self._on_population_colors_changed)
+        self.combo_color_by.currentIndexChanged.connect(self._sync_population_checkbox)
 
         self.btn_export.clicked.connect(self._on_export_csv)
         self.btn_export_rois.clicked.connect(self._on_export_rois)
+        self.report_step.btn_export_fcs.clicked.connect(self._on_export_fcs)
+        self.report_step.btn_export_stats.clicked.connect(self._on_export_stats)
         self.btn_export_seg.clicked.connect(self._on_export_seg)
         self.report_step.btn_copy_methods.clicked.connect(self._copy_methods)
 
         self.table.itemSelectionChanged.connect(self._on_table_selection)
-        self.results.combo_x.currentIndexChanged.connect(self._update_scatter)
-        self.results.combo_y.currentIndexChanged.connect(self._update_scatter)
         self.results.scatter.point_clicked.connect(self._on_scatter_clicked)
         self.results.inspector.flag_toggled.connect(self._on_flag_toggled)
 
@@ -462,8 +480,13 @@ class CytoMetricsPanel(PluginBase):
                 self.set_assay(remembered)
 
     def _on_step_changed(self, step_id: str) -> None:
+        if step_id != "gate":
+            self.gating.set_tool(None)
         if step_id == "detect":
             self._update_dropdowns()
+        elif step_id == "gate":
+            self.gating.refresh()
+            self._on_population_colors_changed()
         elif step_id == "report":
             self._refresh_methods_preview()
 
@@ -764,7 +787,7 @@ class CytoMetricsPanel(PluginBase):
         headers = ["ID"]
         for name in columns:
             unit = unit_label(units.get(name, ""), self.state.scale)
-            headers.append(f"{_short_name(name)} ({unit})" if unit else _short_name(name))
+            headers.append(f"{short_name(name)} ({unit})" if unit else short_name(name))
         self.table.setHorizontalHeaderLabels(headers)
         for i, name in enumerate(columns, start=1):
             header = self.table.horizontalHeaderItem(i)
@@ -778,7 +801,7 @@ class CytoMetricsPanel(PluginBase):
                 value = record[name]
                 if name == "Flagged":
                     value = "🚩" if record["ObjectNumber"] in flagged else ""
-                self.table.setItem(row, i, NumericTableItem(_format(value)))
+                self.table.setItem(row, i, NumericTableItem(fmt(value)))
         self.table.setSortingEnabled(True)
         self._update_results_tab()
 
@@ -880,8 +903,8 @@ class CytoMetricsPanel(PluginBase):
             unit = unit_label(units.get(name, ""), self.state.scale)
             rows.append(
                 (
-                    f"{_short_name(name)} ({unit})" if unit else _short_name(name),
-                    _format(record[name]),
+                    f"{short_name(name)} ({unit})" if unit else short_name(name),
+                    fmt(record[name]),
                 )
             )
         return rows
@@ -914,27 +937,6 @@ class CytoMetricsPanel(PluginBase):
         self._redraw_cells()
         self._refresh_table()
         self.push_state("Flag cell" if flagged else "Unflag cell")
-
-    def _update_scatter(self, *_args) -> None:
-        df = self.measurements
-        x_col, y_col = self.results.combo_x.currentData(), self.results.combo_y.currentData()
-        if not len(df) or x_col not in df or y_col not in df:
-            self.results.scatter.set_data([], [], [], "", "")
-            return
-        units = df.attrs.get("units", {})
-
-        def label(col: str) -> str:
-            unit = unit_label(units.get(col, ""), self.state.scale)
-            return f"{_short_name(col)} ({unit})" if unit else _short_name(col)
-
-        self.results.scatter.set_data(
-            df[x_col].to_numpy(),
-            df[y_col].to_numpy(),
-            df["ObjectNumber"].tolist(),
-            label(x_col),
-            label(y_col),
-        )
-        self.results.scatter.set_selected(self.canvas.selection)
 
     def _on_merge_selected(self) -> None:
         ids = set(self.canvas.selection)
@@ -1087,7 +1089,14 @@ class CytoMetricsPanel(PluginBase):
         mode = self.combo_color_by.currentData()
         colors = None
         legend = ""
-        if mode == _COLOR_BY_CONFIDENCE:
+        if mode == _COLOR_BY_POPULATION:
+            gated = self.session.population_colors()
+            colors = {c["id"]: QColor(gated.get(c["id"], UNGATED_COLOR)) for c in self.state.cells}
+            legend = "  ".join(
+                f'<span style="color:{g.color}">■</span> {g.name}' for g in self.session.gates
+            )
+            legend += f'  <span style="color:{UNGATED_COLOR}">■</span> not in any gate'
+        elif mode == _COLOR_BY_CONFIDENCE:
             colors = {
                 c["id"]: confidence_color(c["confidence"])
                 for c in self.state.cells
@@ -1154,71 +1163,64 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.center_on_cell(cell_id)
 
     def _update_results_tab(self, *_args):
-        """Refresh the metric picker, histogram and summary when cells change."""
-        df = self.measurements
-        numeric = [
-            c
-            for c in df.columns
-            if c
-            not in ("ObjectNumber", "Source", "Flagged", "Location_Center_X", "Location_Center_Y")
-            and pd.api.types.is_numeric_dtype(df[c])
-        ]
-        current = self.combo_hist_metric.currentData() or "AreaShape_Area"
-        self.combo_hist_metric.blockSignals(True)
-        self.combo_hist_metric.clear()
-        for name in numeric:
-            self.combo_hist_metric.addItem(_short_name(name), name)
-        self.combo_hist_metric.setCurrentIndex(max(self.combo_hist_metric.findData(current), 0))
-        self.combo_hist_metric.blockSignals(False)
-
-        self._update_color_by_options(numeric)
-        self._update_scatter_options(numeric)
-        metric = self.combo_hist_metric.currentData()
-        lines = [f"Total Cells: {len(self.state.cells)}"]
-        if metric and len(df):
-            values = df[metric].dropna()
-            unit = unit_label(df.attrs.get("units", {}).get(metric, ""), self.state.scale)
-            if len(values):
-                lines.append(f"Mean {_short_name(metric)}: {values.mean():.4g} {unit}".rstrip())
-            self.histogram.update_data(values.tolist())
-        else:
-            self.histogram.update_data([])
-        if "Confidence" in df and df["Confidence"].notna().any():
-            lines.append(f"Mean AI confidence: {df['Confidence'].mean():.2f}")
-        self.lbl_stats.setText("\n".join(lines))
+        """Refresh the plots, pickers, colours and summary when cells or values change."""
+        self.gating.refresh()
+        self._update_color_by_options(numeric_columns(self.measurements))
+        self._update_stats()
         self._update_review_controls()
         self._update_probability_map()
         if self.combo_color_by.currentData() is not None:
             self._redraw_cells()  # colours follow the latest values
 
-    def _update_scatter_options(self, numeric_columns: list[str]) -> None:
-        defaults = (
-            "AreaShape_Area",
-            next((c for c in numeric_columns if c.startswith("Intensity_Mean")), None),
-        )
-        for combo, default in zip(
-            (self.results.combo_x, self.results.combo_y), defaults, strict=True
-        ):
-            current = combo.currentData() or default
-            combo.blockSignals(True)
-            combo.clear()
-            for name in numeric_columns:
-                combo.addItem(_short_name(name), name)
-            index = combo.findData(current)
-            combo.setCurrentIndex(index if index >= 0 else min(1, combo.count() - 1))
-            combo.blockSignals(False)
-        self._update_scatter()
+    def _update_stats(self, *_args) -> None:
+        df = self.measurements
+        metric = self.combo_hist_metric.currentData()
+        lines = [f"Total Cells: {len(self.state.cells)}"]
+        if metric and metric in df and len(df):
+            values = df[metric].dropna()
+            unit = unit_label(df.attrs.get("units", {}).get(metric, ""), self.state.scale)
+            if len(values):
+                lines.append(f"Mean {short_name(metric)}: {values.mean():.4g} {unit}".rstrip())
+        if "Confidence" in df and df["Confidence"].notna().any():
+            lines.append(f"Mean AI confidence: {df['Confidence'].mean():.2f}")
+        self.lbl_stats.setText("\n".join(lines))
+
+    # ── Gating ───────────────────────────────────────────────────────────
+
+    def _on_gates_changed(self, label: str) -> None:
+        self._refresh_methods_preview()
+        self.push_state(label)
+        self.state_changed.emit()
+
+    def _on_population_colors_changed(self) -> None:
+        """Follow the Gate step's "colour cells by population" switch."""
+        want = self.gating.colors_cells
+        self._update_color_by_options(numeric_columns(self.measurements))
+        index = self.combo_color_by.findData(_COLOR_BY_POPULATION)
+        if want and index >= 0:
+            self.combo_color_by.setCurrentIndex(index)
+        elif not want and self.combo_color_by.currentData() == _COLOR_BY_POPULATION:
+            self.combo_color_by.setCurrentIndex(0)
+        self._redraw_cells()
+
+    def _sync_population_checkbox(self, *_args) -> None:
+        box = self.gate_step.chk_color_cells
+        box.blockSignals(True)
+        box.setChecked(self.combo_color_by.currentData() == _COLOR_BY_POPULATION)
+        box.blockSignals(False)
 
     def _update_color_by_options(self, numeric_columns: list[str]) -> None:
         current = self.combo_color_by.currentData()
         self.combo_color_by.blockSignals(True)
         self.combo_color_by.clear()
         self.combo_color_by.addItem("One colour", None)
+        if self.state.gates:
+            self.combo_color_by.addItem("Population (Gate step)", _COLOR_BY_POPULATION)
         if self.session.has_confidence():
             self.combo_color_by.addItem("AI confidence", _COLOR_BY_CONFIDENCE)
         for name in numeric_columns:
             if name != "Confidence":
-                self.combo_color_by.addItem(_short_name(name), name)
+                self.combo_color_by.addItem(short_name(name), name)
         index = self.combo_color_by.findData(current)
         self.combo_color_by.setCurrentIndex(max(index, 0))
         self.combo_color_by.blockSignals(False)
@@ -1297,7 +1299,7 @@ class CytoMetricsPanel(PluginBase):
         )
         if path:
             try:
-                write_csv(self.measurements, path)
+                write_csv(self.session.export_table(), path)
                 sidecars = self._write_methods(path)
                 show_info(
                     self,
@@ -1311,6 +1313,52 @@ class CytoMetricsPanel(PluginBase):
                 )
             except Exception as e:
                 show_error(self, "Export Error", f"Could not save file:\n{str(e)}")
+
+    def _on_export_fcs(self) -> None:
+        if not len(self.measurements):
+            show_info(self, "No Data", "There are no measured cells to export.")
+            return
+        path = get_save_path(
+            self, "Export FCS", f"{self._export_stem()}_cells.fcs", "FCS Files (*.fcs)"
+        )
+        if not path:
+            return
+        table = self.session.export_table()
+        columns = fcs_columns(table, exclude=("Flagged",))
+        labels = {c: column_label(table, c, self.state.scale) for c in columns}
+        source = self.image_set.channels[0].path if self.image_set.channels else ""
+        try:
+            written = write_fcs(path, table, columns, labels, {"$SRC": Path(source).name})
+            self._write_methods(path)
+            show_info(
+                self,
+                "Exported",
+                f"{len(table)} cells × {len(columns)} parameters written to:\n{written}\n\n"
+                "Gates are 0/1 parameters named Gate_<population>.",
+            )
+        except Exception as e:
+            show_error(self, "Export Error", f"Could not write the FCS file:\n{e}")
+
+    def _on_export_stats(self) -> None:
+        if not len(self.measurements):
+            show_info(self, "No Data", "There are no measured cells to export.")
+            return
+        path = get_save_path(
+            self,
+            "Export Population Statistics",
+            f"{self._export_stem()}_populations.csv",
+            "CSV Files (*.csv)",
+        )
+        if not path:
+            return
+        try:
+            self.session.gate_stats().rename(
+                columns={"PctParent": "Percent of parent", "PctTotal": "Percent of all cells"}
+            ).to_csv(path, index=False, float_format="%.4g")
+            self._write_methods(path)
+            show_info(self, "Exported", f"Population statistics written to:\n{path}")
+        except Exception as e:
+            show_error(self, "Export Error", f"Could not save file:\n{e}")
 
     def _export_stem(self) -> str:
         return self.session.export_stem()
@@ -1428,16 +1476,5 @@ class CytoMetricsPanel(PluginBase):
 
 
 _COLOR_BY_CONFIDENCE = "__confidence__"
+_COLOR_BY_POPULATION = "__population__"
 _THUMB_MARGIN_PX = 6
-
-
-def _short_name(column: str) -> str:
-    """A column name without its family prefix: 'AreaShape_Area' → 'Area'."""
-    family, _, rest = column.partition("_")
-    return rest if family in ("AreaShape", "Intensity", "Location", "Texture") and rest else column
-
-
-def _format(value) -> str:
-    if isinstance(value, float):
-        return "" if math.isnan(value) else f"{value:.4g}"
-    return str(value)
