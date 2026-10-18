@@ -47,17 +47,19 @@ from ..analysis.assays import STEP_LABELS, Assay
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
 from ..analysis.measure import MeasureOptions, unit_label, write_csv
 from ..analysis.model import ImageSet
+from ..analysis.models import MODELS
 from ..analysis.session import AnalysisSession, LastRun
 from ..analysis.state import CytoMetricsState
 from ..analysis.units import is_calibrated
 from ..report import methods_markdown, write_methods_sidecars
-from .dialogs.model_manager import ModelManagerDialog, _check_ai_model_installed
+from .dialogs.model_center import ModelCenterDialog
 from .image_canvas import MultiChannelCanvas, confidence_color, value_color
 from .mode_picker import ModePicker
 from .results_dock import ResultsDock
 from .stepper import Stepper
 from .steps import CalibrateStep, DetectStep, LoadStep, MeasureStep, ReportStep, ReviewStep
 from .steps.review import TOOLS
+from .widgets.status_bar import SystemStatusBar
 from .widgets.table_items import NumericTableItem
 from .workers import (
     CytoPipelineWorker,
@@ -136,8 +138,8 @@ class CytoMetricsPanel(PluginBase):
         logger.info("Cleaning up CytoMetrics panel...")
 
         # 1. Stop UI timers and child widgets
-        if hasattr(self, "hw_monitor"):
-            self.hw_monitor.stop()
+        if hasattr(self, "status_bar"):
+            self.status_bar.stop()
 
         if hasattr(self, "progress_bar"):
             self.progress_bar.setVisible(False)
@@ -256,6 +258,8 @@ class CytoMetricsPanel(PluginBase):
         self.left_stack.addWidget(self.mode_picker)
         self.left_stack.addWidget(self.stepper)
         control_layout.addWidget(self.left_stack, 1)
+        self.status_bar = SystemStatusBar()
+        control_layout.addWidget(self.status_bar)
         splitter.addWidget(controls)
 
         self.results = ResultsDock()
@@ -293,7 +297,7 @@ class CytoMetricsPanel(PluginBase):
             d.params_form,
             d.progress_bar,
         )
-        self.btn_run_pipeline, self.hw_monitor = d.btn_run, d.hw_monitor
+        self.btn_run_pipeline = d.btn_run
         self._citation_labels = d.citation_labels
         r = self.review_step
         self.chk_show_ids, self.combo_color_by = r.chk_show_ids, r.combo_color_by
@@ -485,6 +489,7 @@ class CytoMetricsPanel(PluginBase):
         for page in self.step_pages.values():
             page.apply_theme()
         self.stepper.apply_theme()
+        self.status_bar.apply_theme()
         self.results.apply_theme()
         # lbl_ai_status's colour depends on the load state as well as the theme.
         if self.pipelines:
@@ -521,18 +526,19 @@ class CytoMetricsPanel(PluginBase):
         self.btn_calibrate.setToolTip("" if has_channels else "Add an image channel first.")
 
     def _open_model_manager(self):
-        ModelManagerDialog(self).exec()
+        ModelCenterDialog(self).exec()
         self._refresh_ai_status_label()
 
     def _refresh_ai_status_label(self):
-        installed, size_mb = _check_ai_model_installed()
+        size_mb = MODELS[0].installed_size_mb()
+        installed = size_mb is not None
         if installed:
             self.lbl_ai_status.setText(f"✅ AI engine ready ({size_mb:.1f} MB)")
             self.lbl_ai_status.setStyleSheet(
                 f"color: {Colors.ACCENT_SUCCESS}; font-size: 12px; font-weight: bold;"
             )
         else:
-            self.lbl_ai_status.setText("⚠️ AI model not installed — click Manage AI to install")
+            self.lbl_ai_status.setText("⚠️ Cellpose-SAM isn't installed yet: open 🧠 Models")
             self.lbl_ai_status.setStyleSheet(
                 f"color: {Colors.ACCENT_WARNING}; font-size: 12px; font-weight: bold;"
             )

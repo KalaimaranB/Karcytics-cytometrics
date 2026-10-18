@@ -15,11 +15,14 @@ The choice sets the steps (**Load › Calibrate › Detect › Review › Measur
 
 ## Install the AI model (optional)
 
-The Cellpose-SAM model (about 1.3 GB) is downloaded on demand, not bundled. You only need it for the **AI Smart Detect (Cellpose)** algorithm; Otsu and Watershed work without it.
+The Cellpose-SAM model (about 1.2 GB) is downloaded on demand, not bundled. You only need it for **AI Smart Detect (Cellpose)**; Otsu and Watershed work without it.
 
-1. Go to the **Detect** step.
-2. Choose **AI Smart Detect (Cellpose)** as the algorithm and click **⚙️ Manage AI**.
-3. Click **⬇️ Download Model**. The status turns green when the model is ready.
+1. In the **Detect** step, click **🧠 Models** to open the Model Center.
+2. Click **⬇️ Download**. The card turns green when the model is installed.
+
+The Model Center lists each model's size, the licences of its code and its weights, and the papers to cite. **🗑️ Delete** removes only that model's file. It also lists models that were considered but not included, with the reason (CytoMetrics only ships models whose code *and* weights have a compatible licence).
+
+The line under the steps shows CytoMetrics' CPU use, memory and, once a model is loaded, GPU memory.
 
 ## Load images
 

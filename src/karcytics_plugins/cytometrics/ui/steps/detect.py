@@ -11,7 +11,6 @@ from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from ..params_form import ParamsForm
-from ..widgets.hardware_monitor import HardwareMonitor
 from ..widgets.scanning_indicator import ScanningIndicator
 from .base import StepPage
 
@@ -28,7 +27,8 @@ class DetectStep(StepPage):
         row = QHBoxLayout()
         self.combo_pipeline = BioComboBox()
         self.combo_pipeline.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.btn_manage_ai = SecondaryButton("⚙️ Manage AI")
+        self.btn_manage_ai = SecondaryButton("🧠 Models")
+        self.btn_manage_ai.setToolTip("Download, delete and cite the AI models.")
         row.addWidget(self.combo_pipeline)
         row.addWidget(self.btn_manage_ai)
         self.body.addLayout(row)
@@ -66,8 +66,6 @@ class DetectStep(StepPage):
         row.addWidget(self.btn_run)
         self.body.addLayout(row)
 
-        self.hw_monitor = HardwareMonitor()
-        self.body.addWidget(self.hw_monitor)
         self.finish()
         self.apply_theme()
 

@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phases 0, 2, 3 and 4 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 5. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0, 2, 3, 4 and 5 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Paused for the user's review before Phase 6. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -158,9 +158,9 @@ karcytics_plugins/cytometrics
 - [x] 5.6 "Preview region": run the segmenter on the visible viewport only. **Done:** 👁 Preview on visible area draws dashed outlines on a separate layer; nothing is kept, a full run clears them.
 - [x] 5.7 Inspector: selected object's thumbnail, every measurement, confidence, flag. **Done:** the Cell tab of the results dock (`widgets/inspector.py`): thumbnail cut from the displayed composite with the outline, all measurements with units, source and confidence, 🚩 Flag (saved in the cell, `Flagged` column, dashed outline, undoable). Selection highlight is now white so it stands out over any colour-by.
 - [x] 5.8 Results dock: Table / Histogram (any metric) / Scatter / Plate / Methods & citations. **Done** (`ui/results_dock.py`): Table · Histogram (any metric) · Scatter (any two measurements; click a point to select its cell, canvas selection highlights points: the two-way link from 6.1) · Cell. **Plate** comes with plate layouts in Phase 7; **Methods & citations** live in the Report step rather than twice.
-- [ ] 5.9 Model Center (replaces Manage AI): per model, size, license, citation, download/delete, installed fine-tuned models.
-- [ ] 5.10 Hardware monitor collapses into a status bar.
-- [ ] 5.11 UI tests for each view (offscreen).
+- [x] 5.9 Model Center (replaces Manage AI): per model, size, license, citation, download/delete, installed fine-tuned models. **Done:** `analysis/models.py` (model registry with code/weights licences, source, citations; the excluded models and why, from §7) and `ui/dialogs/model_center.py`. Delete now removes only that model's file (the old dialog emptied the whole shared `~/.cellpose/models` cache). "Your models" is an empty section until Phase 9.
+- [x] 5.10 Hardware monitor collapses into a status bar. **Done:** `widgets/status_bar.py`, one line under the steps (app/system CPU, RAM, GPU memory once torch is loaded; never imports torch).
+- [x] 5.11 UI tests for each view (offscreen): steps/picker (`test_steps.py`), editing/undo/dock (`test_editing.py`), images/calibration/measurements (`test_panel_images.py`), params form, canvas, Model Center, plus the Qt-free session/edit/measure units. 192 tests.
 
 ### Phase 6: image cytometry (cytometrics)
 - [ ] 6.1 Scatter of any two measurements, **linked both ways** with the canvas.

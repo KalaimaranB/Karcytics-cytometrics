@@ -41,7 +41,7 @@ CytoMetrics asks **What are you analysing?** when it opens: **Cells** or **Nucle
 
 - **Load**: add one image per stain or a multi-channel file (TIFF, OME-TIFF, ND2, PNG, JPG), or drop files on the canvas. Full bit depth is kept.
 - **Calibrate**: files that store their pixel size are calibrated automatically; otherwise drag along a scale bar. You can also work in pixels.
-- **Detect**: pick **AI Smart Detect (Cellpose-SAM)**, **Watershed** or **Otsu**; the settings below change with it (hover for help). The Cellpose model (~1.3 GB) is installed from **⚙️ Manage AI**.
+- **Detect**: pick **AI Smart Detect (Cellpose-SAM)**, **Watershed** or **Otsu**; the settings below change with it (hover for help). The Cellpose-SAM model (~1.2 GB) is installed from the **🧠 Models** center, which also shows each model's licences and citations.
 - **Review**: colour outlines by AI confidence, step through uncertain cells, delete or draw cells.
 - **Measure**: size, shape and per-channel intensity for every cell, with optional background subtraction, nucleus/cytoplasm ratios and texture.
 - **Report**: export CSV (with a methods paragraph and BibTeX), ImageJ/Fiji ROIs or Cellpose `_seg.npy`; copy the methods text.
