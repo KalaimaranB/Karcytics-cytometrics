@@ -30,6 +30,10 @@ class ParamsForm(QWidget):
         self._widgets: dict[str, QWidget] = {}
         self._labels: dict[str, QLabel] = {}
         self._memory: dict[str, Any] = {}
+        # The default of the parameter each remembered value was set on: a value only carries
+        # over to a parameter with the same default (another segmenter's "Max Area" of 1e6 px²
+        # for colonies is not the cells' 5000 px²). Values set explicitly carry over anywhere.
+        self._memory_defaults: dict[str, Any] = {}
         self._channels: list[str] = []
         self._scale = 0.0
 
@@ -52,6 +56,7 @@ class ParamsForm(QWidget):
     def set_params(self, params: list[Param]) -> None:
         """Rebuild the controls for `params`, keeping values the user already set."""
         self._memory.update(self.display_values())
+        self._memory_defaults.update({p.key: p.default for p in self._params})
         for w in [*self._widgets.values(), *self._labels.values()]:
             w.setParent(None)
             w.deleteLater()
@@ -109,6 +114,8 @@ class ParamsForm(QWidget):
 
     def set_display_values(self, values: dict[str, Any]) -> None:
         self._memory.update(values)
+        for key in values:
+            self._memory_defaults.pop(key, None)
         for p in self._params:
             if p.key in values:
                 self._write(p, values[p.key])
@@ -146,7 +153,11 @@ class ParamsForm(QWidget):
     # ── Internals ────────────────────────────────────────────────────────────
 
     def _make_widget(self, p: Param) -> QWidget:
-        remembered = self._memory.get(p.key, p.default)
+        remembered = (
+            self._memory[p.key]
+            if p.key in self._memory and self._memory_defaults.get(p.key, p.default) == p.default
+            else p.default
+        )
         if p.kind == "bool":
             box = QCheckBox(p.label)
             box.setChecked(bool(remembered))

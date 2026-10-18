@@ -113,3 +113,21 @@ def test_transfection_control_button(qtbot, monkeypatch, tmp_path):
     assert [g.name for g in p.session.gates] == ["Positive"]
     assert "control cells" in p.results_step.lbl_action.text()
     p.cleanup()
+
+
+def test_scratch_wound_start_and_closure(qtbot, monkeypatch, tmp_path):
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("wound")
+    assert p.combo_pipeline.currentData() == "texture"
+    _load(p, tmp_path, "phase.png", img.scratch_photo())
+    params = p.params_form.values()
+    assert params["detect"] == "gap"
+    _segment(p, qtbot, "texture", {**params, "target_channel": "phase.png"})
+    assert len(p.state.cells) == 1
+    assert p.state.extras["wound"]["direction"] == "vertical"
+
+    p.results_step.action_clicked.emit("set_start")
+    assert p.session.assay_settings["start_area_px"] > 0
+    values = {c.lbl_name.text(): c.lbl_value.text() for c in p.results_step._cards}
+    assert values["Closure"] == "0 %"
+    p.cleanup()

@@ -7,6 +7,7 @@ from . import (  # noqa: F401  (registration side effect)
     bacteria,
     cells,
     colonies,
+    confluence,
     hemocytometer,
     nuclei,
     transfection,

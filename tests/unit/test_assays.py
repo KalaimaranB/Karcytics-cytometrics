@@ -230,3 +230,64 @@ def test_viability_counts_inside_the_area_and_converts_to_cells_per_ml():
     assert "calibrate" in uncalibrated["LivePerML"].warning
     box = analysis.run_action("box:counting_area", derived, settings, context, box=(90, 80, 10, 5))
     assert box.settings["counting_area"] == [10, 5, 90, 80]
+
+
+# ── Confluence and scratch wound ─────────────────────────────────────────────
+
+
+def _texture(plane, detect):
+    from fixtures import images as img
+
+    from karcytics_plugins.cytometrics.analysis.segment import run_segmentation
+    from karcytics_plugins.cytometrics.analysis.segment.texture import TextureSegmenter
+
+    segmenter = TextureSegmenter()
+    params = {p.key: p.default for p in segmenter.parameters()}
+    params.update(target_channel="phase", detect=detect)
+    return run_segmentation(segmenter, img.stack(("phase", plane)), params)
+
+
+def _table(result, plane, scale=0.0):
+    from fixtures import images as img
+
+    from karcytics_plugins.cytometrics.analysis.measure import MeasureOptions, measure_cells
+
+    cells = [{**c, "id": c["label"]} for c in result.cells]
+    return measure_cells(
+        cells, img.stack(("phase", plane)), scale, MeasureOptions(background="none")
+    )
+
+
+def test_confluence_is_the_covered_fraction():
+    from fixtures import images as img
+
+    result = _texture(img.scratch_photo(width=100), "covered")
+    context = AssayContext(0.0, (300, 400), result.extras)
+    values = {
+        r.key: r.value
+        for r in REGISTRY["confluence"].analysis.results(pd.DataFrame(), [], {}, context)
+    }
+    assert values["Confluence"] == pytest.approx(75, abs=4)  # 300 of 400 columns have cells
+
+
+def test_wound_width_and_closure():
+    from fixtures import images as img
+
+    analysis = REGISTRY["wound"].analysis
+    start = _texture(img.scratch_photo(width=100), "gap")
+    start_df = _table(start, img.scratch_photo(width=100), scale=2.0)
+    context = AssayContext(2.0, (300, 400), start.extras)
+    action = analysis.run_action("set_start", start_df, {}, context)
+    first = {r.key: r.value for r in analysis.results(start_df, [], action.settings, context)}
+    assert first["MeanWidth"] == pytest.approx(200, rel=0.1)  # 100 px at 2 µm/px
+    assert first["Closure"] == pytest.approx(0, abs=0.5)
+
+    later = _texture(img.scratch_photo(width=50, bridge=True, seed=1), "gap")
+    later_df = _table(later, img.scratch_photo(width=50, bridge=True, seed=1), scale=2.0)
+    context = AssayContext(2.0, (300, 400), later.extras)
+    values = {r.key: r.value for r in analysis.results(later_df, [], action.settings, context)}
+    assert values["Closure"] == pytest.approx(100 * (1 - 50 * 280 / (100 * 300)), abs=6)
+    assert values["MinWidth"] == 0  # cells have bridged it
+    assert "nan" in str(
+        next(r for r in analysis.results(later_df, [], {}, context) if r.key == "Closure").value
+    )

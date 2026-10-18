@@ -137,6 +137,18 @@ def otsu_mask(plane_u8: np.ndarray, blur: int = 5) -> tuple[np.ndarray, float]:
     return mask > 0, float(threshold)
 
 
+def otsu_level(values: np.ndarray) -> float:
+    """Otsu's threshold of float values (on a 256-bin histogram of their range)."""
+    if not values.size:
+        return 0.0
+    lo, hi = float(values.min()), float(values.max())
+    if hi <= lo:
+        return hi
+    scaled = ((values - lo) / (hi - lo) * 255).astype(np.uint8)
+    level, _ = cv2.threshold(scaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return lo + float(level) / 255 * (hi - lo)
+
+
 def label_components(mask: np.ndarray) -> np.ndarray:
     """8-connected objects of a binary mask, holes filled, as int32 labels."""
     filled = ndimage.binary_fill_holes(mask)

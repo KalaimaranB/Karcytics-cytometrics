@@ -27,6 +27,7 @@ from .base import (
     Param,
     Progress,
     SegmentationResult,
+    otsu_level,
     register,
     require_channel,
 )
@@ -186,7 +187,7 @@ class ColonySegmenter:
         report(45)
 
         values = signal[inside]
-        level = _otsu_level(values)
+        level = otsu_level(values)
         level *= 1 - float(params.get("sensitivity", 0.0))
         mask = (signal > level) & inside
         mask = cv2.morphologyEx(
@@ -246,15 +247,3 @@ def split_touching(mask: np.ndarray, separation: float) -> np.ndarray:
         extra, _ = ndimage.label(unseeded)
         labels = np.where(extra > 0, extra + labels.max(), labels)
     return labels
-
-
-def _otsu_level(values: np.ndarray) -> float:
-    """Otsu's threshold of float values (on a 256-bin histogram of their range)."""
-    if not values.size:
-        return 0.0
-    lo, hi = float(values.min()), float(values.max())
-    if hi <= lo:
-        return hi
-    scaled = ((values - lo) / (hi - lo) * 255).astype(np.uint8)
-    level, _ = cv2.threshold(scaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return lo + float(level) / 255 * (hi - lo)

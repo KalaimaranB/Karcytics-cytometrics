@@ -91,3 +91,19 @@ def plate_photo(lighter=True, seed=0):
         cv2.circle(image, (x, y), 7, 200.0 if lighter else 40.0, -1)
     image += rng.normal(0, 3, image.shape)
     return np.clip(image, 0, 255).astype(np.uint8), len(centres) + len(pairs)
+
+
+def scratch_photo(width=100, bridge=False, seed=0):
+    """A 300×400 phase-contrast-like field: textured cells with a smooth vertical scratch
+    `width` px wide at x = 150 (bridged by cells at rows 100–120 when `bridge`).
+    """
+    rng = np.random.default_rng(seed)
+    h, w = 300, 400
+    cells = cv2.GaussianBlur(rng.normal(0, 25, (h, w)), (0, 0), 1.5) * 3
+    image = 120 + cells
+    open_ = np.zeros((h, w), bool)
+    open_[:, 150 : 150 + width] = True
+    if bridge:
+        open_[100:120] = False
+    image[open_] = 120 + rng.normal(0, 2, int(open_.sum()))
+    return np.clip(image, 0, 255).astype(np.uint8)
