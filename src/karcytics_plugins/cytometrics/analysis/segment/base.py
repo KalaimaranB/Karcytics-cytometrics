@@ -163,55 +163,47 @@ def relabel(labels: np.ndarray) -> np.ndarray:
 
 def cells_from_labels(
     labels: np.ndarray,
-    scale: float,
     min_area_px: float = 0.0,
     max_area_px: float = math.inf,
     probability: np.ndarray | None = None,
     progress: Progress | None = None,
 ) -> tuple[np.ndarray, list[dict]]:
-    """Outline and measure every object; drop those outside the area range.
+    """Outline every object; drop those whose pixel area is outside the range.
 
     Each object is processed inside its own bounding box
     (``ndimage.find_objects``), so the cost grows with the objects' total
     area, not with objects × image size.
 
     Returns the filtered, renumbered label mask and one dict per object
-    (``label``, ``points``, ``area``, ``perim``, ``circ`` and, with a
-    probability map, ``confidence``), in label order. Areas and perimeters
-    come from the outline polygon, in µm (µm²) for ``scale`` µm/px.
+    (``label``, ``points`` and, with a probability map, ``confidence``), in
+    label order. Measurements are made from the outlines afterwards
+    (``analysis.measure``).
     """
     labels = labels.astype(np.int32, copy=True)
+    areas = np.bincount(labels.ravel())
+    keep = (areas >= min_area_px) & (areas <= max_area_px)
+    keep[0] = False
+    labels[~keep[labels]] = 0
+    labels = relabel(labels)
+
+    cells = []
     slices = ndimage.find_objects(labels)
     n = len(slices)
     for i, sl in enumerate(slices, start=1):
         if sl is None:
             continue
         outline = _outline(labels, i, sl)
-        area_px = cv2.contourArea(outline) if outline is not None else 0.0
-        if outline is None or not (min_area_px <= area_px <= max_area_px):
-            labels[sl][labels[sl] == i] = 0
-        if progress and n:
-            progress(int(100 * i / n))
-
-    labels = relabel(labels)
-    cells = []
-    for i, sl in enumerate(ndimage.find_objects(labels), start=1):
-        if sl is None:
+        if outline is None:
             continue
-        outline = _outline(labels, i, sl)
-        assert outline is not None
-        perim = cv2.arcLength(outline, True) * scale
-        area = cv2.contourArea(outline) * scale**2
-        cell = {
+        cell: dict[str, Any] = {
             "label": i,
             "points": [[int(x), int(y)] for x, y in outline[:, 0, :]],
-            "area": float(area),
-            "perim": float(perim),
-            "circ": float(4 * math.pi * area / perim**2) if perim > 0 else 0.0,
         }
         if probability is not None:
             cell["confidence"] = float(probability[sl][labels[sl] == i].mean())
         cells.append(cell)
+        if progress and n:
+            progress(int(100 * i / n))
     return labels, cells
 
 

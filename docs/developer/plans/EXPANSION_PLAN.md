@@ -142,11 +142,11 @@ karcytics_plugins/cytometrics
 - [x] 3.9 Each segmenter shows its citations ("Powered by …") in the Detect step.
 
 ### Phase 4: measurements (cytometrics)
-- [ ] 4.1 `ObjectTable` on pandas (add `pandas`) and the `Measurer` protocol + registry. Shape: area, perimeter, circularity, solidity, eccentricity, major/minor axis, Feret max/min, equivalent diameter.
-- [ ] 4.2 Intensity per channel: mean, median, min, max, std, integrated; local-annulus or global background subtraction.
+- [x] 4.1 `ObjectTable` on pandas (add `pandas`) and the `Measurer` protocol + registry. Shape: area, perimeter, circularity, solidity, eccentricity, major/minor axis, Feret max/min, equivalent diameter. **Done** in `analysis/measure/` (`base.py` Column/Measurer/ObjectView/MeasureOptions, `shape.py`, `intensity.py`, `table.py` `measure_cells`/`rescale`/`write_csv`). Cells are rasterised from their outlines and measured per bounding box (1,585 cells on a 2048² image in 0.6 s). The worker measures after segmenting; edits, background changes and reloads re-measure in a background task (newest result wins). Recalibration rescales lengths/areas without re-measuring. The area filter now uses the same pixel area that is reported. Min Feret uses rotating calipers on the hull of pixel corners (exact for rectangles).
+- [x] 4.2 Intensity per channel: mean, median, min, max, std, integrated; local-annulus or global background subtraction.
 - [ ] 4.3 Texture (GLCM / Haralick, via scikit-image) and nucleus/cytoplasm ratio when a seed channel exists.
-- [ ] 4.4 CellProfiler-style column names; units in headers.
-- [ ] 4.5 Manual cells: polygon → mask → same measurers. Delete the shoelace copy.
+- [x] 4.4 CellProfiler-style column names; units in headers (`AreaShape_Area [um2]` in the CSV, `Area (µm²)` in the table; tooltips carry the definitions).
+- [x] 4.5 Manual cells: polygon → mask → same measurers. Delete the shoelace copy.
 - [ ] 4.6 Measurement families carry citations (Haralick 1973; CellProfiler naming).
 
 ### Phase 5: UI overhaul (cytometrics, may grow as we go)

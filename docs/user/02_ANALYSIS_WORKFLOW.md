@@ -57,15 +57,29 @@ Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probabil
 
 ## 6. Results and export
 
-**3. Results** shows the cell count, average area and an area histogram. **💾 Export to CSV** writes one row per cell (units are µm, or px if the image isn't calibrated):
+Every cell is measured from its mask, the same way whether it was detected, drawn by hand, edited or reloaded. The results table shows every measurement; hover over a column header for its definition. In **3. Results**:
+
+- **Intensity background**: *None* reports raw intensities. *Global* subtracts the median of all pixels outside the cells. *Local ring* subtracts the median of a 5-pixel ring 2 pixels outside each cell, skipping neighbouring cells. Either adds Background and Corrected… columns.
+- **Distribution**: pick any measurement for the histogram and its mean.
+
+**💾 Export to CSV** writes one row per cell. Column names follow [CellProfiler](https://cellprofiler-manual.s3.amazonaws.com/CellProfiler-4.2.6/modules/measurement.html), with the unit in brackets (µm when calibrated, px when not; intensities in the image's native units, "a.u."):
 
 | Column | Meaning |
 |---|---|
-| `Cell_ID` | ID shown on the canvas |
-| `Area_um2` | Area in µm² |
-| `Perimeter_um` | Outline length in µm |
-| `Circularity` | 4π·area / perimeter² (1 = perfect circle) |
-| `Diameter_um` | Diameter of a circle with the same area |
+| `ObjectNumber` | ID shown on the canvas |
+| `Source` | `auto` (detected) or `manual` (drawn) |
+| `Confidence` | Cellpose's mean cell probability (empty for other algorithms) |
+| `AreaShape_Area [um2]` | Pixel count × pixel area |
+| `AreaShape_Perimeter [um]` | Outline length |
+| `AreaShape_FormFactor` | Circularity, 4π·area / perimeter² |
+| `AreaShape_Solidity` | Area / convex-hull area (1 = convex) |
+| `AreaShape_Eccentricity` | 0 = circle, towards 1 = elongated |
+| `AreaShape_MajorAxisLength`, `MinorAxisLength` | Axes of the ellipse with the same moments |
+| `AreaShape_MaxFeretDiameter`, `MinFeretDiameter` | Longest and narrowest caliper width |
+| `AreaShape_EquivalentDiameter` | Diameter of a circle with the same area |
+| `Location_Center_X`, `_Y [px]` | Centroid, in image pixels |
+| `Intensity_Mean/Median/Min/Max/Std/IntegratedIntensity_<channel> [a.u.]` | Pixel statistics inside the cell, per channel |
+| `Intensity_Background_<channel>`, `Intensity_Corrected…_<channel>` | With a background choice: the background level and the corrected mean and integrated intensity |
 
 Two more exports take your cells, as they are after your edits, to other tools:
 

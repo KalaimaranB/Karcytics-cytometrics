@@ -35,8 +35,9 @@ def test_worker_segments_measures_and_scales():
     result = _run(fake, stack, scale=0.5)
 
     assert fake.calls == [(stack, PARAMS)]
-    assert [c["label"] for c in result["result_cells"]] == [1, 2]
-    assert result["result_cells"][0]["area"] == pytest.approx(9 * 9 * 0.25)
+    assert [c["id"] for c in result["result_cells"]] == [1, 2]
+    table = result["measurements"]
+    assert table["AreaShape_Area"].tolist() == pytest.approx([100 * 0.25, 144 * 0.25])
     assert result["labels"].max() == 2
 
 
@@ -48,7 +49,7 @@ def test_worker_reports_progress_up_to_100():
 
     worker.run()
 
-    assert seen[0] == 45 and seen[-1] == 100
+    assert seen[0] == 36 and seen[-1] == 100  # 45% of segmenting = 36% overall
     assert seen == sorted(seen)
 
 

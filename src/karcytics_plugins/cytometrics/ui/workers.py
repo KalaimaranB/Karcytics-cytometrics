@@ -2,47 +2,66 @@ from typing import Any
 
 from karcytics_sdk.plugin import AnalysisBase, PluginState, get_logger
 
+from ..analysis.measure import MeasureOptions, measure_cells
 from ..analysis.segment import run_segmentation
 
 logger = get_logger(__name__, "cytometrics")
 
 
 class CytoPipelineWorker(AnalysisBase):
-    """Runs one segmenter over the image set on a background thread."""
+    """Segments the image set and measures every cell, on a background thread."""
 
     def __init__(self, plugin_id: str = "cytometrics") -> None:
         super().__init__(plugin_id)
         self.pipeline: Any = None
         self.image_set: Any = None
         self.params: dict[str, Any] = {}
-        self.scale = 1.0
+        self.scale = 0.0
+        self.measure_options = MeasureOptions()
 
-    def configure(self, pipeline, image_set, params, scale):
+    def configure(self, pipeline, image_set, params, scale, measure_options=None):
+        """`scale` is µm/px, or 0 when uncalibrated (everything is then in pixels)."""
         self.pipeline = pipeline
         self.image_set = image_set
         self.params = params
         self.scale = scale
+        self.measure_options = measure_options or MeasureOptions()
 
     def run(self, state: PluginState | None = None) -> dict:
-        """Returns ``{"result_cells", "labels", "probability"}``, or ``{"error"}``."""
+        """``{"result_cells", "measurements", "labels", "probability"}``, or ``{"error"}``.
+
+        Progress: 0–80 segmenting, 80–100 measuring.
+        """
         if not self.pipeline:
             return {"error": "No pipeline configured"}
+        emit = self.signals.analysis_progress.emit
         try:
             result = run_segmentation(
-                self.pipeline,
+                self.pipeline, self.image_set, self.params, lambda v: emit(int(v * 0.8))
+            )
+            for cell in result.cells:
+                cell["id"] = cell["label"]
+            table = measure_cells(
+                result.cells,
                 self.image_set,
-                self.params,
                 self.scale,
-                self.signals.analysis_progress.emit,
+                self.measure_options,
+                lambda v: emit(80 + v // 5),
             )
             return {
                 "result_cells": result.cells,
+                "measurements": table,
                 "labels": result.labels,
                 "probability": result.probability,
             }
         except Exception as e:
             logger.exception("CytoMetrics segmentation error")
             return {"error": str(e)}
+
+
+def measure_func(cells, image_set, scale, options, progress_callback=None) -> dict:
+    """Background task: re-measure `cells` (after an edit, recalibration or reload)."""
+    return {"measurements": measure_cells(cells, image_set, scale, options, progress_callback)}
 
 
 # ── Functional Task Logic (Utilities) ─────────────────────────────────

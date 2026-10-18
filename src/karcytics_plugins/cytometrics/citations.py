@@ -105,6 +105,23 @@ CITATIONS = (
         pages="e453",
         doi="10.7717/peerj.453",
     ),
+    Citation(
+        key="cellprofiler4",
+        authors=(
+            "Stirling, D. R.",
+            "Swain-Bowden, M. J.",
+            "Lucas, A. M.",
+            "Carpenter, A. E.",
+            "Cimini, B. A.",
+            "Goodman, A.",
+        ),
+        title="CellProfiler 4: improvements in speed, utility and usability",
+        year=2021,
+        venue="BMC Bioinformatics",
+        volume="22",
+        pages="433",
+        doi="10.1186/s12859-021-04344-9",
+    ),
 )
 
 register(*CITATIONS)

@@ -38,12 +38,14 @@ def test_pipeline_exception_is_reported_as_an_error_not_as_no_cells(panel, monke
     assert shown == [("error", "Pipeline Error", "An error occurred:\nCUDA out of memory")]
 
 
-def test_pipeline_cells_are_added_with_ids(panel):
-    cells = [{"points": [[0, 0], [2, 0], [2, 2]], "area": 2.0, "perim": 6.8, "circ": 0.5}]
+def test_pipeline_cells_replace_the_old_ones_and_set_the_counter(panel):
+    panel.state.cells = [{"id": 9, "points": [[0, 0], [2, 0], [2, 2]]}]
+    cells = [{"id": i, "points": [[0, 0], [2, 0], [2, 2]]} for i in (1, 2)]
 
     panel._on_pipeline_result({"result_cells": cells})
 
-    assert [c["id"] for c in panel.state.cells] == [1]
+    assert [c["id"] for c in panel.state.cells] == [1, 2]
+    assert panel.state.cell_counter == 2
 
 
 def test_detect_step_credits_the_selected_algorithm(panel, qtbot):
@@ -66,13 +68,7 @@ def test_csv_export_writes_methods_and_bibtex(panel, qtbot, tmp_path, monkeypatc
     monkeypatch.setattr(main_panel, "show_error", lambda *a, **k: pytest.fail(a[-1]))
     panel.state.scale = 0.5
     panel._last_run = (panel.pipelines["otsu"], params)
-    panel._on_pipeline_result(
-        {
-            "result_cells": [
-                {"points": [[0, 0], [2, 0], [2, 2]], "area": 2.0, "perim": 6.8, "circ": 0.5}
-            ]
-        }
-    )
+    panel._on_pipeline_result({"result_cells": [{"id": 1, "points": [[0, 0], [2, 0], [2, 2]]}]})
 
     panel._on_export_csv()
 

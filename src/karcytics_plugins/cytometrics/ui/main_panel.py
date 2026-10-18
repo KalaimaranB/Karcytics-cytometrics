@@ -1,14 +1,15 @@
 """CytoMetrics Entry Point."""
 
 import collections
-import csv
 import math
 import os
 import sys
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import psutil
 from karcytics_sdk.plugin import (
     BioComboBox,
@@ -52,10 +53,11 @@ from PySide6.QtWidgets import (
 )
 
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
+from ..analysis.measure import MeasureOptions, measure_cells, rescale, unit_label, write_csv
 from ..analysis.model import ImageSet
 from ..analysis.state import CytoMetricsState
-from ..analysis.units import area_unit, ascii_unit, effective_scale, is_calibrated, length_unit
-from ..report import build_steps, write_methods_sidecars
+from ..analysis.units import is_calibrated
+from ..report import Measured, build_steps, write_methods_sidecars
 from .channel_manager import ChannelManagerWidget
 from .image_canvas import MultiChannelCanvas, confidence_color
 from .params_form import ParamsForm
@@ -63,6 +65,7 @@ from .workers import (
     CytoPipelineWorker,
     download_model_func,
     load_libraries_func,
+    measure_func,
 )
 
 logger = get_logger(__name__, "cytometrics")
@@ -466,8 +469,8 @@ class SimpleHistogram(QWidget):
             f"background: {Colors.BG_DARKEST}; border: 1px solid {Colors.BORDER}; border-radius: 4px;"
         )
 
-    def update_data(self, areas):
-        self.data = areas
+    def update_data(self, values):
+        self.data = [v for v in values if not math.isnan(v)]
         self.update()
 
     def paintEvent(self, event):
@@ -516,9 +519,9 @@ class SimpleHistogram(QWidget):
         painter.drawText(5, m_top + h, "0")
 
         # X-Axis (Min and Max Areas)
-        painter.drawText(m_left, m_top + h + 18, f"{min_val:.0f}")
+        painter.drawText(m_left, m_top + h + 18, f"{min_val:.3g}")
 
-        max_str = f"{max_val:.0f}"
+        max_str = f"{max_val:.3g}"
         text_width = painter.fontMetrics().horizontalAdvance(max_str)
         painter.drawText(m_left + w - text_width, m_top + h + 18, max_str)
 
@@ -591,6 +594,10 @@ class CytoMetricsPanel(PluginBase):
         # Last run's label mask and (Cellpose only) cell-probability map; not saved.
         self._labels: np.ndarray | None = None
         self._probability: np.ndarray | None = None
+        # One row per cell (see analysis/measure); recomputed, never saved.
+        self.measure_options = MeasureOptions()
+        self.measurements: pd.DataFrame = measure_cells([], ImageSet(), 0.0)
+        self._measure_generation = 0
 
         self.image_set = ImageSet()
         self.canvas = MultiChannelCanvas()
@@ -871,7 +878,17 @@ class CytoMetricsPanel(PluginBase):
         # --- TAB 3: RESULTS & EXPORT ---
         # ==========================================
         tab_results = QWidget()
-        results_layout = QVBoxLayout(tab_results)
+        results_tab_layout = QVBoxLayout(tab_results)
+        results_tab_layout.setContentsMargins(0, 0, 0, 0)
+        results_scroll = BioScrollArea()
+        results_scroll.setWidgetResizable(True)
+        results_scroll.setFrameShape(BioScrollArea.Shape.NoFrame)
+        results_scroll.setStyleSheet("background: transparent;")
+        results_widget = QWidget()
+        results_layout = QVBoxLayout(results_widget)
+        results_layout.setContentsMargins(10, 10, 10, 10)
+        results_scroll.setWidget(results_widget)
+        results_tab_layout.addWidget(results_scroll)
         results_layout.setSpacing(15)
 
         results_layout.addWidget(create_header("Canvas View"))
@@ -912,8 +929,31 @@ class CytoMetricsPanel(PluginBase):
         results_layout.addLayout(review_row)
         self._review_index = -1
 
-        results_layout.addWidget(create_header("Area Distribution"))
-        self.lbl_stats = QLabel("Total Cells: 0\nAvg Area: 0.0 µm²")
+        results_layout.addWidget(create_header("Measurements"))
+        background_row = QHBoxLayout()
+        self.lbl_background = QLabel("Intensity background:")
+        self.combo_background = BioComboBox()
+        for text, mode in (
+            ("None (raw intensities)", "none"),
+            ("Global (median outside cells)", "global"),
+            ("Local ring around each cell", "local"),
+        ):
+            self.combo_background.addItem(text, mode)
+        self.combo_background.setToolTip(
+            "Subtract a background level from each cell's intensities. Global: the median of all "
+            "pixels outside the cells. Local: the median of a 5 px ring, 2 px away from the cell, "
+            "avoiding other cells."
+        )
+        self.combo_background.currentIndexChanged.connect(self._on_measure_options_changed)
+        background_row.addWidget(self.lbl_background)
+        background_row.addWidget(self.combo_background, 1)
+        results_layout.addLayout(background_row)
+
+        results_layout.addWidget(create_header("Distribution"))
+        self.combo_hist_metric = BioComboBox()
+        self.combo_hist_metric.currentIndexChanged.connect(self._update_results_tab)
+        results_layout.addWidget(self.combo_hist_metric)
+        self.lbl_stats = QLabel("Total Cells: 0")
         self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
         results_layout.addWidget(self.lbl_stats)
 
@@ -964,8 +1004,8 @@ class CytoMetricsPanel(PluginBase):
 
         splitter.addWidget(controls_widget)
 
-        self.table = BioTableWidget(0, 6)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table = BioTableWidget(0, 0)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.setStyleSheet(
             f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER}; border: none;"
         )
@@ -1026,7 +1066,12 @@ class CytoMetricsPanel(PluginBase):
         self.combo_pipeline.setStyleSheet(input_style)
         self.params_form.apply_theme()
         self.chk_show_ids.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
-        for widget in (self.chk_color_confidence, self.chk_probability_map, self.lbl_uncertain):
+        for widget in (
+            self.chk_color_confidence,
+            self.chk_probability_map,
+            self.lbl_uncertain,
+            self.lbl_background,
+        ):
             widget.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
         self.lbl_units_note.setStyleSheet(
@@ -1048,7 +1093,6 @@ class CytoMetricsPanel(PluginBase):
     def _update_units(self):
         """Label every size control and readout in µm, or px when uncalibrated."""
         scale = self.state.scale
-        length, area = length_unit(scale), area_unit(scale)
         if is_calibrated(scale):
             origin = (
                 " (from image metadata)" if self.state.scale_source.startswith("metadata") else ""
@@ -1059,21 +1103,14 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.set_scale(scale)
         self.lbl_units_note.setVisible(not is_calibrated(scale))
         self.params_form.set_scale(scale)
-        self.table.setHorizontalHeaderLabels(
-            ["ID", f"Area ({area})", f"Perim ({length})", "Circ.", f"Diam. ({length})", "Conf."]
-        )
-        self._update_results_tab()
+        self._refresh_table()
 
     def _set_scale(self, scale: float, source: str) -> None:
         """Change the calibration; measured cells are converted to the new units."""
-        ratio = effective_scale(scale) / effective_scale(self.state.scale)
-        for cell in self.state.cells:
-            cell["area"] = cell.get("area", 0.0) * ratio**2
-            cell["perim"] = cell.get("perim", 0.0) * ratio
+        self.measurements = rescale(self.measurements, scale)
         self.state.scale = scale
         self.state.scale_source = source if is_calibrated(scale) else ""
         self._update_units()
-        self._refresh_table()
         self.state_changed.emit()
 
     def _update_calibrate_button_state(self):
@@ -1178,7 +1215,7 @@ class CytoMetricsPanel(PluginBase):
         self.state.cell_counter = 0
 
         analyzer = CytoPipelineWorker()
-        analyzer.configure(pipeline, self.image_set, params, effective_scale(self.state.scale))
+        analyzer.configure(pipeline, self.image_set, params, self.state.scale, self.measure_options)
         self._last_run = (pipeline, params)  # for the methods text on export
 
         submit_task(
@@ -1197,6 +1234,7 @@ class CytoMetricsPanel(PluginBase):
         else:
             self._labels = results.get("labels")  # label mask of the last run
             self._probability = results.get("probability")  # Cellpose only
+            self.measurements = results.get("measurements", self.measurements)
             self._on_pipeline_finished(results.get("result_cells", []))
 
     def _on_pipeline_finished(self, new_cells):
@@ -1208,10 +1246,8 @@ class CytoMetricsPanel(PluginBase):
             show_info(self, "No Cells", "No cells found with current parameters.")
             return
 
-        for cell_data in new_cells:
-            self.state.cell_counter += 1
-            cell_data["id"] = self.state.cell_counter
-            self.state.cells.append(cell_data)
+        self.state.cells = list(new_cells)  # ids were assigned by the worker (1..n)
+        self.state.cell_counter = max(c["id"] for c in new_cells)
 
         self.set_state(self.state)
         self.state_changed.emit()
@@ -1230,6 +1266,7 @@ class CytoMetricsPanel(PluginBase):
         self.state.ui_params = {
             "pipeline": self.combo_pipeline.currentData() or self._pending_pipeline,
             "values": self.params_form.display_values() or self._pending_values,
+            "measure": {"background": self.measure_options.background},
         }
 
         # Sync channels metadata
@@ -1260,6 +1297,8 @@ class CytoMetricsPanel(PluginBase):
 
         # 3. Restore data & canvas
         self._update_units()
+        if self._needs_measuring():
+            self._remeasure()
 
         self._redraw_cells()
         self._refresh_table()
@@ -1309,23 +1348,31 @@ class CytoMetricsPanel(PluginBase):
         self._update_calibrate_button_state()
 
     def _refresh_table(self) -> None:
-        """Sync the results table with the current state."""
+        """Show every measured column, one row per cell, with units in the headers."""
+        df = self.measurements
+        units = df.attrs.get("units", {})
+        helps = df.attrs.get("help", {})
+        columns = [c for c in df.columns if c not in ("ObjectNumber", "Source")]
         self.table.setSortingEnabled(False)
+        self.table.clear()
+        self.table.setColumnCount(len(columns) + 1)
         self.table.setRowCount(0)
-        for cell in self.state.cells:
+        headers = ["ID"]
+        for name in columns:
+            unit = unit_label(units.get(name, ""), self.state.scale)
+            headers.append(f"{_short_name(name)} ({unit})" if unit else _short_name(name))
+        self.table.setHorizontalHeaderLabels(headers)
+        for i, name in enumerate(columns, start=1):
+            header = self.table.horizontalHeaderItem(i)
+            if header is not None:
+                header.setToolTip(f"{name}\n{helps.get(name, '')}".strip())
+        for record in df.to_dict("records"):
             row = self.table.rowCount()
             self.table.insertRow(row)
-            area = cell.get("area", 0)
-            diam = 2 * math.sqrt(area / math.pi) if area > 0 else 0
-            self.table.setItem(row, 0, NumericTableItem(f"Cell {cell.get('id', 0)}"))
-            self.table.setItem(row, 1, NumericTableItem(f"{area:.1f}"))
-            self.table.setItem(row, 2, NumericTableItem(f"{cell.get('perim', 0):.1f}"))
-            self.table.setItem(row, 3, NumericTableItem(f"{cell.get('circ', 0):.2f}"))
-            self.table.setItem(row, 4, NumericTableItem(f"{diam:.1f}"))
-            conf = cell.get("confidence")
-            self.table.setItem(row, 5, NumericTableItem("" if conf is None else f"{conf:.2f}"))
+            self.table.setItem(row, 0, NumericTableItem(f"Cell {record['ObjectNumber']}"))
+            for i, name in enumerate(columns, start=1):
+                self.table.setItem(row, i, NumericTableItem(_format(record[name])))
         self.table.setSortingEnabled(True)
-        self.table.scrollToBottom()
         self._update_results_tab()
 
     def _apply_ui_params(self, ui: dict) -> None:
@@ -1333,6 +1380,11 @@ class CytoMetricsPanel(PluginBase):
         if not ui:
             return
         pipeline, values = _ui_params_v2(ui)
+        background = ui.get("measure", {}).get("background", "none")
+        self.combo_background.blockSignals(True)
+        self.combo_background.setCurrentIndex(max(self.combo_background.findData(background), 0))
+        self.combo_background.blockSignals(False)
+        self.measure_options = MeasureOptions(background=background)
         self._pending_pipeline, self._pending_values = pipeline, values
         index = self.combo_pipeline.findData(pipeline)
         if index >= 0:
@@ -1378,29 +1430,11 @@ class CytoMetricsPanel(PluginBase):
             self.btn_draw._apply_theme_styles()
 
     def _on_cell_drawn(self, points: list):
-        area_px, perim_px = 0.0, 0.0
-        n = len(points)
-        for i in range(n):
-            j = (i + 1) % n
-            area_px += points[i][0] * points[j][1] - points[j][0] * points[i][1]
-            perim_px += math.hypot(points[j][0] - points[i][0], points[j][1] - points[i][1])
-        area_px = abs(area_px) / 2.0
-        scale = effective_scale(self.state.scale)
-        area_um2, perim_um = area_px * (scale**2), perim_px * scale
-        circularity = (4 * math.pi * area_um2) / (perim_um**2) if perim_um > 0 else 0.0
         self.state.cell_counter += 1
         self.state.cells.append(
-            {
-                "id": self.state.cell_counter,
-                "points": points,
-                "area": area_um2,
-                "perim": perim_um,
-                "circ": circularity,
-                "source": "manual",
-            }
+            {"id": self.state.cell_counter, "points": points, "source": "manual"}
         )
-        self.set_state(self.state)
-        self.state_changed.emit()
+        self._on_cells_edited()
 
     def _update_dropdowns(self):
         """Offer the current channel names in the Detect settings."""
@@ -1414,8 +1448,10 @@ class CytoMetricsPanel(PluginBase):
     def _on_cell_deleted(self, cell_id):
         """Removes a cell by ID and triggers a state refresh for Undo/Redo."""
         self.state.cells = [c for c in self.state.cells if c["id"] != cell_id]
-        self.set_state(self.state)
-        self.state_changed.emit()
+        kept = self.measurements[self.measurements["ObjectNumber"] != cell_id].copy()
+        kept.attrs = self.measurements.attrs
+        self.measurements = kept
+        self._on_cells_edited()
 
     def _redraw_cells(self, *_args) -> None:
         """Outline the cells, coloured by confidence if that's switched on."""
@@ -1473,23 +1509,78 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.highlight_cell(cell_id)
         self.canvas.center_on_cell(cell_id)
 
-    def _update_results_tab(self):
-        """Refreshes the histogram and stats when cells change."""
-        cells = self.state.cells
-        num = len(cells)
-        avg_area = sum(c["area"] for c in cells) / num if num else 0.0
-        self.lbl_stats.setText(
-            f"Total Cells: {num}\nAvg Area: {avg_area:.1f} {area_unit(self.state.scale)}"
-        )
-        self.histogram.update_data([c["area"] for c in cells])
-        confidences = [c["confidence"] for c in cells if c.get("confidence") is not None]
-        if confidences:
-            self.lbl_stats.setText(
-                self.lbl_stats.text()
-                + f"\nMean AI confidence: {sum(confidences) / len(confidences):.2f}"
-            )
+    def _update_results_tab(self, *_args):
+        """Refresh the metric picker, histogram and summary when cells change."""
+        df = self.measurements
+        numeric = [
+            c
+            for c in df.columns
+            if c not in ("ObjectNumber", "Source", "Location_Center_X", "Location_Center_Y")
+            and pd.api.types.is_numeric_dtype(df[c])
+        ]
+        current = self.combo_hist_metric.currentData() or "AreaShape_Area"
+        self.combo_hist_metric.blockSignals(True)
+        self.combo_hist_metric.clear()
+        for name in numeric:
+            self.combo_hist_metric.addItem(_short_name(name), name)
+        self.combo_hist_metric.setCurrentIndex(max(self.combo_hist_metric.findData(current), 0))
+        self.combo_hist_metric.blockSignals(False)
+
+        metric = self.combo_hist_metric.currentData()
+        lines = [f"Total Cells: {len(self.state.cells)}"]
+        if metric and len(df):
+            values = df[metric].dropna()
+            unit = unit_label(df.attrs.get("units", {}).get(metric, ""), self.state.scale)
+            if len(values):
+                lines.append(f"Mean {_short_name(metric)}: {values.mean():.4g} {unit}".rstrip())
+            self.histogram.update_data(values.tolist())
+        else:
+            self.histogram.update_data([])
+        if "Confidence" in df and df["Confidence"].notna().any():
+            lines.append(f"Mean AI confidence: {df['Confidence'].mean():.2f}")
+        self.lbl_stats.setText("\n".join(lines))
         self._update_review_controls()
         self._update_probability_map()
+
+    def _needs_measuring(self) -> bool:
+        measured = set(self.measurements["ObjectNumber"]) if len(self.measurements) else set()
+        return bool(self.state.cells) and measured != {c["id"] for c in self.state.cells}
+
+    def _on_cells_edited(self) -> None:
+        """A cell was drawn or deleted: redraw now, re-measure in the background."""
+        self._redraw_cells()
+        self._refresh_table()
+        self._remeasure()
+        self.state_changed.emit()
+
+    def _on_measure_options_changed(self, *_args) -> None:
+        self.measure_options = MeasureOptions(background=self.combo_background.currentData())
+        self._remeasure()
+
+    def _remeasure(self) -> None:
+        """Measure every cell again on a background thread; only the newest result is kept."""
+        if not self.image_set.channels:
+            return
+        self._measure_generation += 1
+        generation = self._measure_generation
+        cells = [dict(c) for c in self.state.cells]
+        task = FunctionalTask(
+            partial(measure_func, cells, self.image_set, self.state.scale, self.measure_options),
+            self.plugin_id,
+            "Measure cells",
+        )
+        submit_task(
+            task,
+            self.state,
+            on_finished=lambda results: self._on_measured(generation, results),
+            on_error=lambda message: logger.error("Measuring failed: %s", message),
+        )
+
+    def _on_measured(self, generation: int, results: dict) -> None:
+        if generation != self._measure_generation:
+            return  # a newer measurement is on its way
+        self.measurements = results["measurements"]
+        self._refresh_table()
 
     def _on_export_csv(self):
         """Saves the data table to a CSV file."""
@@ -1497,36 +1588,12 @@ class CytoMetricsPanel(PluginBase):
             show_info(self, "No Data", "There are no cells to export.")
             return
 
-        path = get_save_path(self, "Export Results", "cytometrics_results.csv", "CSV Files (*.csv)")
+        path = get_save_path(
+            self, "Export Results", f"{self._export_stem()}_cells.csv", "CSV Files (*.csv)"
+        )
         if path:
             try:
-                with open(path, "w", newline="") as f:
-                    writer = csv.writer(f)
-                    # Add Diameter to the header
-                    length = ascii_unit(length_unit(self.state.scale))
-                    area = ascii_unit(area_unit(self.state.scale))
-                    writer.writerow(
-                        [
-                            "Cell_ID",
-                            f"Area_{area}",
-                            f"Perimeter_{length}",
-                            "Circularity",
-                            f"Diameter_{length}",
-                        ]
-                    )
-
-                    for c in self.state.cells:
-                        diam = 2 * math.sqrt(c["area"] / math.pi)
-                        writer.writerow(
-                            [
-                                c["id"],
-                                f"{c['area']:.2f}",
-                                f"{c['perim']:.2f}",
-                                f"{c['circ']:.3f}",
-                                f"{diam:.2f}",
-                            ]
-                        )
-
+                write_csv(self.measurements, path)
                 sidecars = self._write_methods(path)
                 show_info(
                     self,
@@ -1609,8 +1676,11 @@ class CytoMetricsPanel(PluginBase):
             params,
             self.state.scale,
             len(self.state.cells),
-            n_manual,
-            self.state.scale_source,
+            n_manual=n_manual,
+            scale_source=self.state.scale_source,
+            measured=Measured(
+                tuple(c.name for c in self.image_set.channels), self.measure_options.background
+            ),
         )
         return write_methods_sidecars(export_path, steps)
 
@@ -1699,3 +1769,15 @@ def _ui_params_v2(ui: dict) -> tuple[str | None, dict]:
     pipeline = str(ui.get("pipeline", ""))
     values = {new: ui[old] for old, new in _V1_KEYS.items() if old in ui}
     return _V1_PIPELINES.get(pipeline, pipeline or None), values
+
+
+def _short_name(column: str) -> str:
+    """A column name without its family prefix: 'AreaShape_Area' → 'Area'."""
+    family, _, rest = column.partition("_")
+    return rest if family in ("AreaShape", "Intensity", "Location", "Texture") and rest else column
+
+
+def _format(value) -> str:
+    if isinstance(value, float):
+        return "" if math.isnan(value) else f"{value:.4g}"
+    return str(value)

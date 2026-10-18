@@ -8,6 +8,7 @@ from karcytics_plugins.cytometrics.analysis.segment.cellpose import CellposeSegm
 from karcytics_plugins.cytometrics.analysis.segment.otsu import OtsuSegmenter
 from karcytics_plugins.cytometrics.analysis.segment.watershed import WatershedSegmenter
 from karcytics_plugins.cytometrics.report import (
+    Measured,
     build_steps,
     methods_markdown,
     write_methods_sidecars,
@@ -16,6 +17,7 @@ from karcytics_plugins.cytometrics.report import (
 pytestmark = pytest.mark.unit
 
 SCALE = 0.5
+MEASURE_REFS = ["van der Walt, S.", "Stirling, D. R."]  # every run's measurement step
 PARAMS = {
     "target_channel": "GFP",
     "seed_channel": "DAPI",
@@ -31,14 +33,18 @@ PARAMS = {
 @pytest.mark.parametrize(
     ("segmenter", "expected_refs"),
     [
-        (OtsuSegmenter(), ["Otsu, N. (1979)", "Bradski, G. (2000)"]),
-        (WatershedSegmenter(), ["Meyer, F. (1992)", "Otsu, N. (1979)", "van der Walt, S."]),
+        (OtsuSegmenter(), ["Otsu, N. (1979)", "Bradski, G. (2000)", *MEASURE_REFS]),
+        (
+            WatershedSegmenter(),
+            ["Meyer, F. (1992)", "Otsu, N. (1979)", "van der Walt, S.", "Stirling, D. R."],
+        ),
         (
             CellposeSegmenter(),
             [
                 "Pachitariu, M., Rariden, M. & Stringer, C. (2025)",
                 "Stringer, C.",
                 "Paszke, A. et al. (2019)",
+                *MEASURE_REFS,
             ],
         ),
     ],
@@ -59,7 +65,7 @@ def test_cellpose_methods_report_settings_in_microns():
     assert "Cellpose-SAM generalist model (cpsam), with the 'DAPI' channel as a second input" in md
     assert "cell diameter = 30 µm" in md
     assert "size filter = 10–1000 µm²" in md
-    assert "for 12 cell(s)" in md
+    assert "For 12 cell(s), area, perimeter" in md
 
 
 def test_watershed_names_its_seed_source():
@@ -89,7 +95,7 @@ def test_sidecars_are_written_next_to_the_export(tmp_path):
     )
     bib_text = bib.read_text(encoding="utf-8")
     assert bib.name == "results_citations.bib"
-    assert bib_text.count("@") == 3
+    assert bib_text.count("@") == 3 + len(MEASURE_REFS)
     assert "doi = {10.1038/s41592-020-01018-x}" in bib_text
 
 
@@ -109,3 +115,19 @@ def test_scale_origin_is_stated():
 
     assert "Pixel size was 0.5 µm (measured against a scale bar in the image)." in manual
     assert "Pixel size was 0.5 µm (read from the image metadata)." in meta
+
+
+def test_measurements_cite_scikit_image_and_cellprofiler_and_name_the_background():
+    steps = build_steps(
+        OtsuSegmenter(),
+        PARAMS,
+        SCALE,
+        3,
+        measured=Measured(("GFP", "DAPI"), "local"),
+    )
+    md = methods_markdown(steps)
+
+    assert "intensity of each cell in 'GFP', 'DAPI' in native image units" in md
+    assert "5-pixel-wide ring" in md
+    refs = md.split("## References")[1]
+    assert "van der Walt, S." in refs and "Stirling, D. R." in refs

@@ -19,6 +19,7 @@ dependencies = [
     "scipy>=1.11",
     "scikit-image>=0.26",
     "roifile>=2024.1",
+    "pandas>=2.1",
 ]
 
 [project.optional-dependencies]
@@ -112,6 +113,8 @@ module = [
     "PIL.*",
     "scipy.*",
     "skimage.*",
+    "pandas.*",
+    "roifile.*",
 ]
 ignore_missing_imports = true
 

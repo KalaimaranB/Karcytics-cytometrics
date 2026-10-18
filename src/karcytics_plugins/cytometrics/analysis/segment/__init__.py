@@ -37,13 +37,11 @@ class Segmentation:
     probability: np.ndarray | None = None
 
 
-def run_segmentation(
-    segmenter, image_set, params: dict, scale: float, progress=None
-) -> Segmentation:
-    """Segment, drop edge cells if asked, filter by area and measure.
+def run_segmentation(segmenter, image_set, params: dict, progress=None) -> Segmentation:
+    """Segment, drop edge cells if asked, filter by pixel area and outline each cell.
 
     See ``cells_from_labels`` for the cell dicts. Progress runs 0–90 for the
-    segmenter and 90–100 for measuring.
+    segmenter and 90–100 for outlining.
     """
     report = progress or (lambda _value: None)
     result = segmenter.segment(image_set, params, lambda v: report(int(v * 0.9)))
@@ -52,7 +50,6 @@ def run_segmentation(
         labels = clear_border(labels)
     labels, cells = cells_from_labels(
         labels,
-        scale,
         params.get("min_area_px", 0.0),
         params.get("max_area_px", float("inf")),
         result.probability,

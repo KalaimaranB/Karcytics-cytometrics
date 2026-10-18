@@ -10,6 +10,7 @@ import tifffile
 from fixtures import images as img
 from PIL import Image
 
+from karcytics_plugins.cytometrics.analysis.measure import measure_cells
 from karcytics_plugins.cytometrics.analysis.state import CytoMetricsState
 from karcytics_plugins.cytometrics.ui import main_panel
 
@@ -54,7 +55,7 @@ def test_uncalibrated_panel_labels_sizes_in_pixels_and_can_run(panel, qtbot):
     assert form.widget("min_area_px").suffix() == " px²"
     assert form.widget("diameter").suffix() == " px"
     assert not panel.lbl_units_note.isHidden()
-    assert panel.table.horizontalHeaderItem(1).text() == "Area (px²)"
+    assert _headers(panel)[:3] == ["ID", "Confidence", "Area (px²)"]
 
 
 def test_adding_an_image_shows_it_on_the_canvas(panel, tmp_path):
@@ -102,16 +103,19 @@ def test_metadata_does_not_override_a_manual_scale(panel, tmp_path):
     assert panel.state.scale_source == "manual"
 
 
-def test_calibrating_after_a_pixel_run_converts_measured_cells(panel):
-    panel.state.cells = [{"id": 1, "points": [], "area": 400.0, "perim": 80.0, "circ": 0.7}]
+def test_calibrating_after_a_pixel_run_converts_measured_cells(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0)])
+    before = panel.measurements.iloc[0]
 
     panel._set_scale(0.5, "manual")
 
-    cell = panel.state.cells[0]
-    assert cell["area"] == pytest.approx(100.0)
-    assert cell["perim"] == pytest.approx(40.0)
-    assert cell["circ"] == pytest.approx(0.7)
-    assert panel.table.item(0, 1).text() == "100.0"
+    after = panel.measurements.iloc[0]
+    assert after["AreaShape_Area"] == pytest.approx(before["AreaShape_Area"] / 4)
+    assert after["AreaShape_Perimeter"] == pytest.approx(before["AreaShape_Perimeter"] / 2)
+    assert after["AreaShape_FormFactor"] == pytest.approx(before["AreaShape_FormFactor"])
+    area_col = _headers(panel).index("Area (µm²)")
+    assert panel.table.item(0, area_col).text() == f"{after['AreaShape_Area']:.4g}"
     assert "µm²" in panel.lbl_stats.text()
 
 
@@ -119,13 +123,20 @@ def test_csv_headers_follow_the_units(panel, tmp_path, monkeypatch):
     export = tmp_path / "px.csv"
     monkeypatch.setattr(main_panel, "get_save_path", lambda *a, **k: str(export))
     monkeypatch.setattr(main_panel, "show_info", lambda *a, **k: None)
-    panel.state.cells = [{"id": 1, "points": [], "area": 4.0, "perim": 8.0, "circ": 0.7}]
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0)])
 
     panel._on_export_csv()
 
-    assert export.read_text().splitlines()[0] == (
-        "Cell_ID,Area_px2,Perimeter_px,Circularity,Diameter_px"
-    )
+    header = export.read_text().splitlines()[0].split(",")
+    assert header[:5] == [
+        "ObjectNumber",
+        "Source",
+        "Confidence",
+        "AreaShape_Area [px2]",
+        "AreaShape_Perimeter [px]",
+    ]
+    assert "Intensity_MeanIntensity_cells_png [a.u.]" in header
 
 
 def test_state_round_trip_reloads_images_names_and_colours(panel, qtbot, tmp_path):
@@ -278,25 +289,35 @@ def test_version_1_saved_settings_still_restore(panel, qtbot):
 
 
 def _square(cell_id, x, conf=None):
-    cell = {"points": [[x, 10], [x + 10, 10], [x + 10, 20], [x, 20]], "area": 100.0}
-    cell.update({"perim": 40.0, "circ": 0.78, "label": cell_id})
+    cell = {"id": cell_id, "label": cell_id}
+    cell["points"] = [[x + 2, 10], [x + 12, 10], [x + 12, 20], [x + 2, 20]]
     if conf is not None:
         cell["confidence"] = conf
     return cell
 
 
 def _deliver(panel, cells, probability=None):
+    """Hand the panel a finished run, measured the way the worker measures it."""
     panel._on_pipeline_result(
-        {"result_cells": cells, "labels": np.zeros((64, 64), np.int32), "probability": probability}
+        {
+            "result_cells": cells,
+            "measurements": measure_cells(cells, panel.image_set, panel.state.scale),
+            "labels": np.zeros((64, 64), np.int32),
+            "probability": probability,
+        }
     )
+
+
+def _headers(panel):
+    return [panel.table.horizontalHeaderItem(i).text() for i in range(panel.table.columnCount())]
 
 
 def test_confidence_column_stats_and_review_order(panel, tmp_path):
     panel.channel_manager.ingest_path(str(_png(tmp_path)))
     _deliver(panel, [_square(1, 0, 0.95), _square(2, 20, 0.40), _square(3, 40, 0.70)])
 
-    assert panel.table.horizontalHeaderItem(5).text() == "Conf."
-    assert panel.table.item(1, 5).text() == "0.40"
+    assert _headers(panel)[1] == "Confidence"
+    assert panel.table.item(1, 1).text() == "0.4"
     assert "Mean AI confidence: 0.68" in panel.lbl_stats.text()
     assert panel.btn_next_uncertain.text() == "Next uncertain (2) ▸"
 
@@ -314,7 +335,7 @@ def test_review_tools_are_off_without_confidence(panel, tmp_path):
     assert not panel.chk_color_confidence.isEnabled()
     assert not panel.btn_next_uncertain.isEnabled()
     assert not panel.chk_probability_map.isEnabled()
-    assert panel.table.item(0, 5).text() == ""
+    assert panel.table.item(0, 1).text() == ""
 
 
 def test_outlines_coloured_by_confidence(panel, tmp_path):
@@ -359,3 +380,55 @@ def test_roi_and_cellpose_exports_use_the_image_name(panel, tmp_path, monkeypatc
     assert (tmp_path / "cells_rois.zip").exists()
     data = np.load(tmp_path / "cells_seg.npy", allow_pickle=True).item()
     assert data["ismanual"].tolist() == [False, True]
+
+
+def test_drawn_and_deleted_cells_are_remeasured(panel, qtbot, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0), _square(2, 30)])
+
+    panel._on_cell_drawn([(40, 40), (50, 40), (50, 50), (40, 50)])
+    qtbot.waitUntil(lambda: len(panel.measurements) == 3, timeout=5000)
+    assert panel.measurements["Source"].tolist() == ["auto", "auto", "manual"]
+    assert panel.measurements["AreaShape_Area"].iloc[2] == 121
+
+    panel._on_cell_deleted(1)
+    assert panel.measurements["ObjectNumber"].tolist() == [2, 3]
+    assert panel.table.rowCount() == 2
+
+
+def test_background_choice_adds_corrected_columns(panel, qtbot, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0)])
+
+    panel.combo_background.setCurrentIndex(panel.combo_background.findData("global"))
+
+    qtbot.waitUntil(
+        lambda: "Intensity_Background_cells_png" in panel.measurements.columns, timeout=5000
+    )
+    assert any("CorrectedMeanIntensity" in h for h in _headers(panel))
+
+
+def test_histogram_metric_can_be_any_column(panel, tmp_path):
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    _deliver(panel, [_square(1, 0), _square(2, 30)])
+
+    panel.combo_hist_metric.setCurrentIndex(panel.combo_hist_metric.findData("AreaShape_Solidity"))
+
+    assert "Mean Solidity: 1" in panel.lbl_stats.text()
+    assert panel.histogram.data == [1.0, 1.0]
+
+
+def test_reloaded_session_is_measured_again(panel, qtbot, tmp_path):
+    panel.channel_manager.ingest_path(str(_ome(tmp_path, 0.5)))
+    _deliver(panel, [_square(1, 0), _square(2, 30)])
+    saved = panel.export_state()
+
+    other = main_panel.CytoMetricsPanel()
+    qtbot.addWidget(other)
+    other.load_state(saved)
+
+    qtbot.waitUntil(lambda: len(other.measurements) == 2, timeout=5000)
+    assert other.measurements["AreaShape_Area"].tolist() == pytest.approx(
+        panel.measurements["AreaShape_Area"].tolist()
+    )
+    other.cleanup()

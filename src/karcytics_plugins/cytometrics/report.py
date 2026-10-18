@@ -8,6 +8,7 @@ work. `write_methods_sidecars` writes ``<export>_methods.md`` and
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,13 +30,23 @@ def _scale_origin(scale_source: str) -> str:
     return ""
 
 
+@dataclass(frozen=True)
+class Measured:
+    """What was measured, for the methods text."""
+
+    channels: tuple[str, ...] = ()
+    background: str = "none"
+
+
 def build_steps(
     pipeline: Any,
     params: dict,
     scale: float,
     n_cells: int,
+    *,
     n_manual: int = 0,
     scale_source: str = "",
+    measured: Measured = Measured(),  # noqa: B008  (frozen, so a shared default is safe)
 ) -> list[MethodStep]:
     """The methods steps for one segmentation run, in reading order."""
     steps = [
@@ -47,13 +58,33 @@ def build_steps(
     steps.append(MethodStep(description, tuple(pipeline.citations), parameters))
     if n_manual:
         steps.append(MethodStep(f"{n_manual} cell(s) were outlined manually"))
-    steps.append(
-        MethodStep(
-            f"Area, perimeter, circularity (4π·area/perimeter²) and equivalent diameter were measured "
-            f"for {n_cells} cell(s) from their outlines"
-        )
-    )
+    steps.append(_measurement_step(n_cells, measured.channels, measured.background))
     return steps
+
+
+_BACKGROUND_TEXT = {
+    "global": "after subtracting the median of all pixels outside the cells",
+    "local": "after subtracting the median of a 5-pixel-wide ring 2 pixels outside each cell, "
+    "excluding neighbouring cells",
+}
+
+
+def _measurement_step(n_cells: int, channels: tuple[str, ...], background: str) -> MethodStep:
+    text = (
+        f"For {n_cells} cell(s), area, perimeter, form factor (4π·area/perimeter²), solidity, "
+        "eccentricity, ellipse axis lengths, minimum and maximum Feret diameters and equivalent "
+        "diameter were measured from each cell's mask with scikit-image"
+    )
+    if channels:
+        names = ", ".join(f"'{c}'" for c in channels)
+        text += (
+            f", and the mean, median, minimum, maximum, standard deviation and integrated pixel "
+            f"intensity of each cell in {names} in native image units"
+        )
+        if background in _BACKGROUND_TEXT:
+            text += f", also {_BACKGROUND_TEXT[background]}"
+    text += "; measurement names follow CellProfiler"
+    return MethodStep(text, ("skimage2014", "cellprofiler4"))
 
 
 def methods_markdown(steps: list[MethodStep]) -> str:
