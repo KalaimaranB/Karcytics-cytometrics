@@ -13,7 +13,7 @@ from typing import Any
 
 from .model import color_for_name
 
-ALL_STEPS = ("load", "calibrate", "detect", "review", "measure", "gate", "report")
+ALL_STEPS = ("load", "calibrate", "detect", "review", "measure", "gate", "report", "batch")
 STEP_LABELS = {
     "load": "Load",
     "calibrate": "Calibrate",
@@ -22,6 +22,7 @@ STEP_LABELS = {
     "measure": "Measure",
     "gate": "Gate",
     "report": "Report",
+    "batch": "Batch",
 }
 
 

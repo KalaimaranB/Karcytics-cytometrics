@@ -133,3 +133,21 @@ Two more exports take your cells, as they are after your edits, to other tools:
 - **🧬 Export for Cellpose (_seg.npy)**: the masks in Cellpose's own format. Save it next to the image and open the image in the Cellpose GUI to keep editing; Cellpose can also train on it.
 
 Every CSV and FCS export also writes a methods paragraph and BibTeX file listing the settings you used. When you publish results, cite the methods you used: see [How to Cite](03_HOW_TO_CITE.md).
+
+## 8. Batch: many images, conditions and plates (Batch step)
+
+Set the analysis up on one typical image first (Detect, Measure and, if you like, Gate). The Batch step repeats exactly that on every image: same algorithm and settings, same measurements, same gates, same calibration.
+
+1. **Add images**: **📁 Add folder…** (every image directly in the folder) or **➕ Add files…**. If your typical image was loaded as one file per stain (e.g. `A01_DAPI.tif` + `A01_GFP.tif`), files are grouped the same way: what differs between the stain files' names ("DAPI", "GFP") tells them apart.
+2. **Say what each image is**. Wells such as `A01` or `B3` in file names are found automatically. To read more from names, type how they are built in **File names**, using `{well}`, `{condition}`, `{replicate}` or any `{field}`: e.g. `{well}_{condition}_r{replicate}` reads `B03_LPS_r2.tif` as well B03, condition LPS, replicate 2. A **🧾 Plate layout** CSV gives each well its condition, either as a list (a `Well` column plus `Condition`, `Replicate`, `Dose`, …) or as a plate grid (row letters down, column numbers across). You can also type into the list, or select rows and **🏷 Set condition…**.
+3. **▶ Run batch**. Each image's results are saved as soon as it's done (in the project's `CytoMetrics batches` folder), so **⏹ Stop** at any time and run again to continue. Images that can't be read are marked ⚠️ (hover for why) and the rest carry on. If you change the analysis after some images are done, you're asked whether to redo them.
+4. **Check any image**: **🔍 Open in editor** (or double-click a finished image) loads it with its cells into the steps above. Fix cells in Review, then **💾 Save changes to batch**.
+
+Results are in the **Batch** tab under the steps:
+
+- **Images**: one row per image: its metadata, cell count, % in each population and the mean of every measurement.
+- **Conditions**: any of those per condition (or any other field): a bar for the mean with **SEM** or **SD** error bars, and a dot per replicate. With a `Replicate` field, images in the same replicate are averaged first and n counts replicates (biological replicates are the unit); otherwise n counts images.
+- **Plate**: a heat-map of any value by well; hover for the number, click a well to find its image.
+
+**💾 Export batch results…** writes a folder with `cells.csv` (every cell, with its image's metadata), `images.csv`, `conditions.csv` (per-condition statistics for every value), `fcs/` (one FCS 3.1 file per image, with the metadata as keywords, for flow software) and the methods text and BibTeX.
+

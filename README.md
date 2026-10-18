@@ -37,7 +37,7 @@ The plugin is installed via the Karcytics Hub's plugin manager.
 CytoMetrics asks **What are you analysing?** when it opens: **Cells** or **Nuclei**. The choice sets the steps, the starting algorithm and the measurements, and is remembered for the project. Change it any time from the button next to the title.
 
 ### 3. Work through the steps
-**Load › Calibrate › Detect › Review › Measure › Gate › Report**. Use Back/Next or click any step.
+**Load › Calibrate › Detect › Review › Measure › Gate › Report › Batch**. Use Back/Next or click any step.
 
 - **Load**: add one image per stain or a multi-channel file (TIFF, OME-TIFF, ND2, PNG, JPG), or drop files on the canvas. Full bit depth is kept.
 - **Calibrate**: files that store their pixel size are calibrated automatically; otherwise drag along a scale bar. You can also work in pixels.
@@ -45,6 +45,7 @@ CytoMetrics asks **What are you analysing?** when it opens: **Cells** or **Nucle
 - **Review**: colour outlines by AI confidence, step through uncertain cells, delete or draw cells.
 - **Measure**: size, shape and per-channel intensity for every cell, with optional background subtraction, nucleus/cytoplasm ratios and texture.
 - **Gate**: sort cells into populations with threshold, range, rectangle, polygon and combined gates on the histogram and scatter plot, as in flow cytometry; cells on the image take their population's colour.
+- **Batch**: repeat the analysis on a folder or plate; conditions from file names or a plate layout; stop and resume; per-image, per-condition (replicate-aware) and plate heat-map results; one-click export.
 - **Report**: export CSV, FCS 3.1 (for flow software), population statistics (with a methods paragraph and BibTeX), ImageJ/Fiji ROIs or Cellpose `_seg.npy`; copy the methods text.
 
 See the [user guide](docs/user/01_GETTING_STARTED.md) for details.

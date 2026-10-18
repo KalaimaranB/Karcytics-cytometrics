@@ -67,6 +67,7 @@ class CytoMetricsState(PluginState):
         ui_params:          ``{"pipeline": segmenter id, "values": Detect settings,
                             "measure": measurement options}``.
         gates:              Gates on the measurements (``analysis.gating.Gate`` dicts).
+        batch_manifest:     Path of the batch run's ``batch.json`` (empty if none).
         version:            Format version; older saves are migrated by ``from_dict``.
     """
 
@@ -78,6 +79,7 @@ class CytoMetricsState(PluginState):
     channels_metadata: list[dict] = field(default_factory=list)
     ui_params: dict = field(default_factory=dict)
     gates: list[dict] = field(default_factory=list)
+    batch_manifest: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CytoMetricsState:

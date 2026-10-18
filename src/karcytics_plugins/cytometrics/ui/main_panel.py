@@ -1,6 +1,7 @@
 """CytoMetrics Entry Point."""
 
 import sys
+from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,7 @@ from PySide6.QtWidgets import (
 from ..analysis.assays import DEFAULT as DEFAULT_ASSAY
 from ..analysis.assays import REGISTRY as ASSAYS
 from ..analysis.assays import STEP_LABELS, Assay
+from ..analysis.batch import Recipe, channel_tokens
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
 from ..analysis.fcs import numeric_columns as fcs_columns
 from ..analysis.fcs import write_fcs
@@ -53,7 +55,8 @@ from ..analysis.models import MODELS
 from ..analysis.session import AnalysisSession, LastRun
 from ..analysis.state import CytoMetricsState
 from ..analysis.units import is_calibrated
-from ..report import methods_markdown, write_methods_sidecars
+from ..report import batch_methods, methods_markdown, write_methods_sidecars
+from .batch import BatchController
 from .dialogs.model_center import ModelCenterDialog
 from .gating import GatingController
 from .image_canvas import MultiChannelCanvas, confidence_color, value_color
@@ -62,6 +65,7 @@ from .mode_picker import ModePicker
 from .results_dock import ResultsDock
 from .stepper import Stepper
 from .steps import (
+    BatchStep,
     CalibrateStep,
     DetectStep,
     GateStep,
@@ -137,6 +141,10 @@ class CytoMetricsPanel(PluginBase):
     def measure_options(self) -> MeasureOptions:
         return self.session.measure_options
 
+    def track_task(self, handle):
+        """Keep a running task's handle so ``cleanup`` can detach it (for helpers like batch)."""
+        return self._track(handle)
+
     def _track(self, handle):
         """Keep a running task's handle so ``cleanup`` can detach it."""
         self._tasks = [h for h in getattr(self, "_tasks", []) if not h.done]
@@ -168,7 +176,9 @@ class CytoMetricsPanel(PluginBase):
         if hasattr(self, "image_set") and self.image_set:
             self.image_set.clear()
 
-        # 4. Stop listening to background tasks
+        # 4. Stop a batch run between images, and stop listening to background tasks
+        if hasattr(self, "batch"):
+            self.batch.stop()
         if hasattr(self, "_loader_task"):
             self._loader_task.detach()
         # Results of runs still in flight must not reach a closed panel.
@@ -258,6 +268,7 @@ class CytoMetricsPanel(PluginBase):
         self.measure_step = MeasureStep()
         self.gate_step = GateStep()
         self.report_step = ReportStep()
+        self.batch_step = BatchStep()
         self.step_pages = {
             "load": self.load_step,
             "calibrate": self.calibrate_step,
@@ -266,6 +277,7 @@ class CytoMetricsPanel(PluginBase):
             "measure": self.measure_step,
             "gate": self.gate_step,
             "report": self.report_step,
+            "batch": self.batch_step,
         }
         self.stepper = Stepper()
         self.mode_picker = ModePicker(list(ASSAYS.values()))
@@ -336,6 +348,7 @@ class CytoMetricsPanel(PluginBase):
             rp.btn_export_seg,
         )
         self.gating = GatingController(self.session, self.gate_step, self.results, self)
+        self.batch = BatchController(self, self.batch_step, self.results.batch, self)
         self._review_index = -1
         self._assay: Assay | None = None
         self._wire()
@@ -489,6 +502,8 @@ class CytoMetricsPanel(PluginBase):
             self._on_population_colors_changed()
         elif step_id == "report":
             self._refresh_methods_preview()
+        elif step_id == "batch":
+            self.batch.refresh()
 
     def _refresh_methods_preview(self) -> None:
         steps = self.session.methods_steps()
@@ -669,6 +684,7 @@ class CytoMetricsPanel(PluginBase):
             self._on_pipeline_finished(results)
 
     def _on_pipeline_finished(self, results: dict):
+        self.batch.editing_ended()
         self.btn_run_pipeline.setEnabled(True)
         self.detect_step.btn_preview.setEnabled(True)
         self.btn_run_pipeline.setText("✨ Run Segmentation")
@@ -710,6 +726,7 @@ class CytoMetricsPanel(PluginBase):
         }
 
         self.state.channels_metadata = self.session.channels_metadata()
+        self.state.batch_manifest = self.batch.manifest or self.state.batch_manifest
 
         return self.state
 
@@ -741,6 +758,7 @@ class CytoMetricsPanel(PluginBase):
         self._redraw_cells()
         self._refresh_table()
         self._update_results_tab()
+        self.batch.attach(state.batch_manifest)
 
     def export_state(self) -> dict:
         """Legacy export_state for backward compatibility."""
@@ -1184,6 +1202,58 @@ class CytoMetricsPanel(PluginBase):
         if "Confidence" in df and df["Confidence"].notna().any():
             lines.append(f"Mean AI confidence: {df['Confidence'].mean():.2f}")
         self.lbl_stats.setText("\n".join(lines))
+
+    # ── Batch host (see ui/batch.py) ─────────────────────────────────────
+
+    def build_recipe(self) -> Recipe:
+        """The current analysis, to repeat on every image of a batch."""
+        if not self.image_set.channels:
+            raise ValueError(
+                "Load one typical image and set up its analysis first (Detect, Measure, Gate): "
+                "the batch repeats it on every image."
+            )
+        segmenter = self.combo_pipeline.currentData()
+        if not segmenter:
+            raise ValueError("The segmentation algorithms are still loading.")
+        files = list(dict.fromkeys(c.path for c in self.image_set.channels))
+        tokens = channel_tokens([Path(f).name for f in files]) if len(files) > 1 else []
+        return Recipe(
+            segmenter=segmenter,
+            params=self.params_form.values(),
+            channel_names=[c.name for c in self.image_set.channels],
+            channel_colors=[c.color for c in self.image_set.channels],
+            channel_tokens=tokens,
+            measure=asdict(self.measure_options),
+            gates=list(self.state.gates),
+            scale=self.state.scale,
+            scale_source=self.state.scale_source,
+            assay=self._assay.id if self._assay else "",
+        )
+
+    def project_dir(self) -> str | None:
+        return self._project_key()
+
+    def open_batch_item(self, image_set: ImageSet, cells: list[dict], title: str) -> None:
+        """Show one batch image and its cells in the steps, to check or fix them."""
+        self.image_set.clear()
+        self.image_set.channels.extend(image_set.channels)
+        self.image_set.pixel_size = image_set.pixel_size
+        self.session.replace_cells(cells)
+        self.session.measurements = self.session.measurements.iloc[0:0]
+        self.channel_manager.refresh()
+        self._render_composite()
+        self._update_calibrate_button_state()
+        self.canvas.set_preview(None)
+        self._redraw_cells()
+        self._refresh_table()
+        self._remeasure()
+        self.push_state(f"Open {title}")
+        self.stepper.go_to("review")
+        self.status_message.emit(f"Opened {title} from the batch.")
+
+    def batch_methods(self, batch) -> list | None:
+        pipeline = self.pipelines.get(batch.recipe.segmenter)
+        return batch_methods(batch, pipeline) if pipeline is not None else None
 
     # ── Gating ───────────────────────────────────────────────────────────
 

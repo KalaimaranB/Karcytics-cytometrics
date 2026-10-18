@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phases 0, 2–6 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Working on 7 and 8; pause before Phase 9 for the user's review. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0, 2–7 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Working on 8; pause before Phase 9 for the user's review. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -169,10 +169,10 @@ karcytics_plugins/cytometrics
 - [x] 6.4 FCS 3.1 export of the object table (flow can open it, with no code shared). **Done:** `analysis/fcs.py` written from the standard (float32, `$PnN` = column, `$PnS` = label with unit, gates as 0/1 parameters); tests read it back with FlowIO (dev-only, BSD-3), the reader behind flow's FlowKit loader. fcsparser was not added: it pins numpy < 2. Also a population-statistics CSV and `Gate_<name>` columns in the cell CSV. Citation `fcs31` (Crossref-checked).
 
 ### Phase 7: batch and conditions (cytometrics)
-- [ ] 7.1 Folder and plate-layout import; filename → well/condition parsing; metadata editor.
-- [ ] 7.2 Batch runs (Cellpose list input), cancellable, resumable.
-- [ ] 7.3 Per-image / per-condition stats with replicates; plate heat-map; comparison plots.
-- [ ] 7.4 Batch export (combined CSV/FCS + methods report).
+- [x] 7.1 Folder and plate-layout import; filename → well/condition parsing; metadata editor. **Done:** `analysis/batch.py` (Qt-free): `find_images`, `parse_well`, `{field}` file-name templates, plate layouts as a Well list or a plate grid, per-channel files grouped by the token that tells the typical image's channel files apart. The **Batch** step (`ui/steps/batch.py`, `ui/batch.py`) lists images with editable metadata and "Set condition…".
+- [x] 7.2 Batch runs, cancellable, resumable. **Done:** a `Recipe` (segmenter, params, channels, measurements, gates, scale) is taken from the current analysis; `BatchWorker` runs items one by one, writing each item's cells and table and the `batch.json` manifest after every item, so Stop + Run resumes. Changed settings ask before redoing finished items. "Open in editor" / "Save changes to batch" fixes one image. The batch reattaches with the saved session (`CytoMetricsState.batch_manifest`). **Departure:** Cellpose's list input isn't used: images go through one loaded model one at a time, which keeps per-image saving, progress and resume (list input would batch only the network, and hold every image in memory).
+- [x] 7.3 Per-image / per-condition stats with replicates; plate heat-map; comparison plots. **Done:** `image_summary` (count, count and % per population, mean of every measurement), `condition_summary` (images averaged within a replicate first; n = replicates, else images; SD and SEM), `plate_matrix`/`plate_shape` (6- to 384-well). Results dock **Batch** tab: Images table, Conditions (bar ± SEM/SD with replicate dots, beside the table), Plate heat-map (viridis, hover values, click a well).
+- [x] 7.4 Batch export (combined CSV/FCS + methods report). **Done:** `cells.csv`, `images.csv`, `conditions.csv` (every metric, long format), one FCS per image (metadata as `CYTOMETRICS_*` keywords) and methods/BibTeX (`report.batch_methods`: settings, gating, how conditions were summarised).
 
 ### Phase 8: assay framework and new assays (cytometrics)
 An **assay** is a preset for one kind of experiment: which segmenter and settings to use, which steps to show, what to measure, what extra result to compute (CFU/mL, % viable, % positive, …) and what goes in the report and its citations. Each one is a card in the "What are you analysing?" picker. Cells and Nuclei (Phase 5) are the first two.

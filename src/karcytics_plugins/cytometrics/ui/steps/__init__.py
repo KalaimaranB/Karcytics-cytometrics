@@ -1,5 +1,6 @@
-"""The workflow's step pages: Load › Calibrate › Detect › Review › Measure › Gate › Report."""
+"""The workflow's step pages: Load › Calibrate › Detect › Review › Measure › Gate › Report › Batch."""
 
+from .batch import BatchStep
 from .calibrate import CalibrateStep
 from .detect import DetectStep
 from .gate import GateStep
@@ -16,10 +17,12 @@ PAGES = {
     "measure": MeasureStep,
     "gate": GateStep,
     "report": ReportStep,
+    "batch": BatchStep,
 }
 
 __all__ = [
     "PAGES",
+    "BatchStep",
     "CalibrateStep",
     "DetectStep",
     "GateStep",

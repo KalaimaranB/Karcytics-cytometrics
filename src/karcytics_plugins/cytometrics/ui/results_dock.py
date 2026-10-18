@@ -1,4 +1,4 @@
-"""Results under the controls: Table · Histogram · Scatter · Cell."""
+"""Results under the controls: Table · Histogram · Scatter · Cell · Batch."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .batch_results import BatchResults
 from .widgets.histogram import Histogram
 from .widgets.inspector import CellInspector
 from .widgets.scatter import ScatterPlot
@@ -67,6 +68,8 @@ class ResultsDock(QTabWidget):
 
         self.inspector = CellInspector()
         self.addTab(self.inspector, "Cell")
+        self.batch = BatchResults()
+        self.addTab(self.batch, "Batch")
         self.apply_theme()
 
     def apply_theme(self) -> None:
@@ -86,3 +89,4 @@ class ResultsDock(QTabWidget):
             label.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 11px;")
         self.scatter.update()
         self.histogram.update()
+        self.batch.apply_theme()

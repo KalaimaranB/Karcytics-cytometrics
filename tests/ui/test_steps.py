@@ -57,6 +57,7 @@ def test_choosing_an_assay_shows_its_steps(panel):
         "measure",
         "gate",
         "report",
+        "batch",
     ]
     assert panel.btn_assay.text() == "🔬 Cells ▾"
     assert panel.combo_pipeline.currentData() == "cellpose"
@@ -70,10 +71,10 @@ def test_back_next_and_free_navigation(panel):
     assert not stepper.btn_back.isEnabled()
     stepper.btn_next.click()
     assert stepper.current_id == "calibrate"
-    stepper.go_to("report")
+    stepper.go_to("batch")
     assert not stepper.btn_next.isEnabled()
     stepper.btn_back.click()
-    assert stepper.current_id == "gate"
+    assert stepper.current_id == "report"
 
 
 def test_nuclei_assay_segments_the_nuclear_stain_and_measures_texture(panel, tmp_path):

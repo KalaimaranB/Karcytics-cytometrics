@@ -16,6 +16,8 @@ from karcytics_sdk.plugin.citations import MethodStep, methods_text, to_bibtex
 
 from . import __version__
 from . import citations as _registered  # noqa: F401  (registers CytoMetrics' entries)
+from .analysis import batch as bt
+from .analysis.gating import Gate, stats
 from .analysis.units import is_calibrated
 
 SOFTWARE = "Karcytics CytoMetrics"
@@ -120,6 +122,54 @@ def gating_step(stats: Any) -> MethodStep:
     return MethodStep(
         "Populations were defined by manual gating on the measurements: " + "; ".join(parts)
     )
+
+
+def batch_methods(batch: Any, pipeline: Any) -> list[MethodStep]:
+    """The methods text for a batch run, from its recipe and results."""
+    recipe = batch.recipe
+    m = recipe.measure
+    n_cells = sum(i.n_cells for i in batch.items if i.status == bt.DONE)
+    steps = build_steps(
+        pipeline,
+        recipe.params,
+        recipe.scale,
+        n_cells,
+        scale_source=recipe.scale_source,
+        measured=Measured(
+            tuple(recipe.channel_names),
+            m.get("background", "none"),
+            bool(m.get("texture", False)),
+            m.get("nucleus_channel"),
+        ),
+    )
+    if recipe.gates:
+        gates = [Gate.from_dict(g) for g in recipe.gates]
+        steps.append(gating_step(stats(gates, bt.combined_cells(batch))))
+    replicated = any(str(i.metadata.get("Replicate", "")).strip() for i in batch.items)
+    steps.append(
+        batch_step(len(batch.items), batch.done_count, batch.metadata_fields(), replicated)
+    )
+    return steps
+
+
+def batch_step(n_images: int, n_done: int, metadata: list[str], replicated: bool) -> MethodStep:
+    """The batch run: same analysis on every image, and how conditions were compared."""
+    text = (
+        f"The same analysis, with identical settings, was applied to {n_images} image(s) "
+        f"({n_done} analysed successfully)"
+    )
+    if metadata:
+        text += f"; each image was annotated with {', '.join(m.lower() for m in metadata)}"
+    if replicated:
+        text += (
+            "; per-condition values are the mean, standard deviation and standard error over "
+            "replicates, after averaging the images within each replicate"
+        )
+    elif "Condition" in metadata:
+        text += (
+            "; per-condition values are the mean, standard deviation and standard error over images"
+        )
+    return MethodStep(text)
 
 
 def methods_markdown(steps: list[MethodStep]) -> str:

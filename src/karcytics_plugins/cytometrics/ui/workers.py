@@ -2,6 +2,7 @@ from typing import Any
 
 from karcytics_sdk.plugin import AnalysisBase, PluginState, get_logger
 
+from ..analysis.batch import run_item
 from ..analysis.edit import clip_box, crop, offset_cells
 from ..analysis.measure import MeasureOptions, measure_cells
 from ..analysis.segment import run_segmentation
@@ -58,6 +59,31 @@ class CytoPipelineWorker(AnalysisBase):
         except Exception as e:
             logger.exception("CytoMetrics segmentation error")
             return {"error": str(e)}
+
+
+class BatchWorker(AnalysisBase):
+    """Runs every unfinished item of a batch, saving after each; stops between images when cancelled."""
+
+    def __init__(self, batch, segmenter, plugin_id: str = "cytometrics") -> None:
+        super().__init__(plugin_id)
+        self.batch = batch
+        self.segmenter = segmenter
+
+    def run(self, state: PluginState | None = None) -> dict:
+        todo = self.batch.todo()
+        emit = self.signals.analysis_progress.emit
+        for k, item in enumerate(todo):
+            if self.is_cancelled():
+                break
+            run_item(
+                self.batch,
+                item,
+                self.segmenter,
+                lambda v, k=k: emit(int(100 * (k + v / 100) / len(todo))),
+            )
+            self.batch.save()
+            emit(int(100 * (k + 1) / len(todo)))
+        return {"done": self.batch.done_count, "total": len(self.batch.items)}
 
 
 def resegment_func(segmenter, image_set, params, box, progress_callback=None) -> dict:
