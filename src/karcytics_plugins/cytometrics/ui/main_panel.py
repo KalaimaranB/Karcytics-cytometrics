@@ -58,6 +58,7 @@ from .mode_picker import ModePicker
 from .results_dock import ResultsDock
 from .stepper import Stepper
 from .steps import CalibrateStep, DetectStep, LoadStep, MeasureStep, ReportStep, ReviewStep
+from .steps.detect import PREVIEW_TEXT
 from .steps.review import TOOLS
 from .widgets.status_bar import SystemStatusBar
 from .widgets.table_items import NumericTableItem
@@ -606,7 +607,8 @@ class CytoMetricsPanel(PluginBase):
             return
 
         self.btn_run_pipeline.setEnabled(False)
-        self.btn_run_pipeline.setText("⏳ Initializing...")
+        self.btn_run_pipeline.setText("⏳ Starting…")
+        self.detect_step.btn_preview.setEnabled(False)
 
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
@@ -625,9 +627,15 @@ class CytoMetricsPanel(PluginBase):
                 self.state,
                 on_finished=self._on_pipeline_result,
                 on_error=self._on_pipeline_error,
-                on_progress=self.progress_bar.setValue,
+                on_progress=self._on_run_progress,
             )
         )
+
+    def _on_run_progress(self, value: int) -> None:
+        """The worker reports 0–80 while detecting and 80–100 while measuring."""
+        self.progress_bar.setValue(value)
+        phase = "Measuring cells" if value >= 80 else "Detecting cells"  # noqa: PLR2004
+        self.btn_run_pipeline.setText(f"⏳ {phase}… {value}%")
 
     def _on_pipeline_result(self, results: dict) -> None:
         # CytoPipelineWorker reports a pipeline exception as {"error": ...}
@@ -639,6 +647,7 @@ class CytoMetricsPanel(PluginBase):
 
     def _on_pipeline_finished(self, results: dict):
         self.btn_run_pipeline.setEnabled(True)
+        self.detect_step.btn_preview.setEnabled(True)
         self.btn_run_pipeline.setText("✨ Run Segmentation")
         self.progress_bar.setVisible(False)
 
@@ -656,6 +665,7 @@ class CytoMetricsPanel(PluginBase):
 
     def _on_pipeline_error(self, error_msg):
         self.btn_run_pipeline.setEnabled(True)
+        self.detect_step.btn_preview.setEnabled(True)
         self.btn_run_pipeline.setText("✨ Run Segmentation")
         self.progress_bar.setVisible(False)
         show_error(self, "Pipeline Error", f"An error occurred:\n{error_msg}")
@@ -983,10 +993,11 @@ class CytoMetricsPanel(PluginBase):
 
     # ── Running on a region: box re-detect (kept) and preview (not kept) ──
 
-    def _region_task(self, box, on_done) -> None:
+    def _region_task(self, box, on_done) -> bool:
+        """Segment inside `box` in the background; False if there's nothing to run."""
         segmenter = self.pipelines.get(self.combo_pipeline.currentData())
         if segmenter is None or not self.image_set.channels:
-            return
+            return False
         task = FunctionalTask(
             partial(resegment_func, segmenter, self.image_set, self.params_form.values(), box),
             self.plugin_id,
@@ -1003,9 +1014,11 @@ class CytoMetricsPanel(PluginBase):
                 on_progress=self.progress_bar.setValue,
             )
         )
+        return True
 
     def _on_region_error(self, message: str) -> None:
         self.progress_bar.setVisible(False)
+        self._end_preview()
         show_error(self, "Segmentation Error", message)
 
     def _on_box_drawn(self, box) -> None:
@@ -1022,17 +1035,28 @@ class CytoMetricsPanel(PluginBase):
         self.status_message.emit(f"Re-detected the region: {len(ids)} cell(s).")
 
     def _on_preview(self) -> None:
-        self._region_task(self.canvas.visible_region(), self._on_preview_done)
+        if self._region_task(self.canvas.visible_region(), self._on_preview_done):
+            self.detect_step.btn_preview.setEnabled(False)
+            self.detect_step.btn_preview.setText("⏳ Previewing…")
+
+    def _end_preview(self) -> None:
+        self.detect_step.btn_preview.setEnabled(True)
+        self.detect_step.btn_preview.setText(PREVIEW_TEXT)
 
     def _on_preview_done(self, results: dict) -> None:
         self.progress_bar.setVisible(False)
+        self._end_preview()
         if "error" in results:
             self._on_region_error(results["error"])
             return
         self.canvas.set_preview(results["cells"])
-        self.detect_step.lbl_ai_status.setText(
-            f"👁 Preview: {len(results['cells'])} cell(s) in view (dashed, not kept)"
+        message = (
+            f"👁 Preview: {len(results['cells'])} cell(s) found in the area on screen, "
+            "drawn dashed. Nothing is kept: adjust the settings and preview again, "
+            "or Run Segmentation for the whole image."
         )
+        self.detect_step.lbl_ai_status.setText(message)
+        self.status_message.emit(message)
 
     def _on_cell_drawn(self, points: list):
         self.session.add_manual_cell(points)

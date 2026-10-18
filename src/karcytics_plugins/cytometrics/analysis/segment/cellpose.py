@@ -7,6 +7,8 @@ cellpose are imported on first use, so registering this segmenter is cheap.
 
 from __future__ import annotations
 
+import math
+import threading
 from typing import Any
 
 import numpy as np
@@ -27,6 +29,8 @@ from .base import (
 )
 
 MODEL_NAME = "cpsam"
+TILE_PX = 256  # Cellpose-SAM's tile size (its default `bsize`)
+TILE_OVERLAP = 0.1  # Cellpose's default `tile_overlap`
 
 DIAMETER = Param(
     "diameter",
@@ -240,7 +244,12 @@ class CellposeSegmenter:
         report(5)
         self._ensure_model()
         report(15)
-        masks, flows, _styles = self.model.eval(image, **eval_kwargs(params, image.ndim))
+        kwargs = eval_kwargs(params, image.ndim)
+        total = expected_batches(target.shape, kwargs)
+        with _BatchCounter(
+            self.model.net, lambda done: report(15 + 65 * min(done, total) // total)
+        ):
+            masks, flows, _styles = self.model.eval(image, **kwargs)
         report(85)
         # flows[2] is the cell-probability logit map.
         probability = 1.0 / (1.0 + np.exp(-np.asarray(flows[2], dtype=np.float32)))
@@ -268,3 +277,53 @@ def eval_kwargs(params: dict, ndim: int) -> dict:
         "max_size_fraction": params.get("max_size_fraction", MAX_SIZE_FRACTION.default),
         "batch_size": int(params.get("batch_size", BATCH_SIZE.default)),
     }
+
+
+def expected_batches(shape: tuple[int, int], kwargs: dict) -> int:
+    """How many network batches ``eval`` runs on a 2D image of `shape`.
+
+    Mirrors Cellpose's tiling (``core.run_net``): pad to a multiple of 16
+    plus a 16 px border, then overlapping 256 px tiles, or a denser grid of
+    flipped tiles with ``augment``. Only used for the progress bar, so an
+    off-by-a-few after a Cellpose update just makes the bar less smooth.
+    """
+    diameter = kwargs.get("diameter")
+    rescale = 30.0 / diameter if diameter else 1.0
+    padded = [16 * math.ceil(int(n * rescale) / 16) + 16 for n in shape]
+    if kwargs.get("augment"):
+        tiles = [max(2, math.ceil(2 * n / TILE_PX)) for n in padded]
+    else:
+        tiles = [
+            1 if n <= TILE_PX else math.ceil((1 + 2 * TILE_OVERLAP) * n / TILE_PX) for n in padded
+        ]
+    return max(1, math.ceil(tiles[0] * tiles[1] / max(1, int(kwargs.get("batch_size") or 8))))
+
+
+class _BatchCounter:
+    """Call `on_batch(n)` after each forward pass of `net` made on this thread.
+
+    Cellpose reports no progress for 2D images, and the network is ~85% of
+    the run, so counted batches make an honest progress bar. A forward hook
+    is per model (no patching Cellpose); the thread check keeps a preview
+    and a full run sharing the model from counting each other's batches.
+    """
+
+    def __init__(self, net, on_batch) -> None:
+        self._net = net
+        self._on_batch = on_batch
+        self._thread = threading.get_ident()
+        self._done = 0
+        self._handle = None
+
+    def _hook(self, *_args) -> None:
+        if threading.get_ident() == self._thread:
+            self._done += 1
+            self._on_batch(self._done)
+
+    def __enter__(self):
+        self._handle = self._net.register_forward_hook(self._hook)
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        if self._handle is not None:
+            self._handle.remove()

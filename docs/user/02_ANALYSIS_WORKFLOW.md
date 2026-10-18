@@ -41,7 +41,7 @@ Each Cellpose cell also gets a **confidence**: the model's mean cell probability
 
 ## 5. Run and review
 
-Click **✨ Run Segmentation**; the scanning bar shows progress. To try settings first, zoom to a typical area and click **👁 Preview on visible area**: the result is drawn dashed and nothing is kept. Detected cells appear as outlines with ID numbers.
+Click **✨ Run Segmentation**; the button shows what it is doing (detecting, then measuring) and how far along it is. Cellpose-SAM takes tens of seconds on a large image (longer with High Quality on), and the first run also loads the model. To try settings first, zoom in on a typical area and click **👁 Preview on screen area**: only the part on screen is detected, so it is much quicker; the result is drawn dashed and nothing is kept. Detected cells appear as outlines with ID numbers.
 
 ### Editing (Review step)
 

@@ -237,3 +237,58 @@ def test_cellpose_eval_arguments_cover_the_exposed_options():
         "tile_norm_blocksize": 100,
     }
     assert kwargs["augment"] is True and kwargs["batch_size"] == 4
+
+
+@pytest.mark.parametrize(
+    ("shape", "params", "batches"),
+    [
+        # Counted from real Cellpose 4.2 runs on a 1080x1920 image.
+        ((1080, 1920), {}, 8),
+        ((1080, 1920), {"augment": True}, 18),
+        ((1080, 1920), {"diameter": 60.0}, 2),
+        ((100, 100), {}, 1),
+    ],
+)
+def test_cellpose_batch_count_matches_its_tiling(shape, params, batches):
+    from karcytics_plugins.cytometrics.analysis.segment.cellpose import (
+        eval_kwargs,
+        expected_batches,
+    )
+
+    assert expected_batches(shape, eval_kwargs(params, 2)) == batches
+
+
+def test_batch_counter_reports_only_this_threads_passes():
+    import threading
+
+    from karcytics_plugins.cytometrics.analysis.segment.cellpose import _BatchCounter
+
+    class Net:
+        def __init__(self):
+            self.hooks = []
+
+        def register_forward_hook(self, hook):
+            self.hooks.append(hook)
+            net = self
+
+            class Handle:
+                def remove(self):
+                    net.hooks.remove(hook)
+
+            return Handle()
+
+        def forward(self):
+            for hook in list(self.hooks):
+                hook(self, (), ())
+
+    net, seen = Net(), []
+    with _BatchCounter(net, seen.append):
+        net.forward()
+        other = threading.Thread(target=net.forward)
+        other.start()
+        other.join()
+        net.forward()
+    net.forward()
+
+    assert seen == [1, 2]
+    assert net.hooks == []

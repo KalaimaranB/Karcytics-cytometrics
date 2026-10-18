@@ -84,3 +84,24 @@ def test_cellpose_sam_finds_isolated_discs():
 
     assert len(result["result_cells"]) == len(img.ISOLATED_CENTRES)
     assert all(0.5 < c["confidence"] <= 1.0 for c in result["result_cells"])
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not (CELLPOSE_MODEL_DIR / "cpsam").exists(),
+    reason="Cellpose-SAM model not cached (~1.3 GB); never downloaded in tests",
+)
+def test_cellpose_sam_reports_progress_while_the_network_runs():
+    import numpy as np
+
+    from karcytics_plugins.cytometrics.analysis.segment.cellpose import CellposeSegmenter
+
+    seen: list[int] = []
+    plane = np.tile(img.isolated_discs(), (3, 3))  # several batches of tiles
+    CellposeSegmenter().segment(
+        img.stack(("cells", plane)), {"target_channel": "cells", "batch_size": 1}, seen.append
+    )
+
+    network = [v for v in seen if 15 < v < 80]  # noqa: PLR2004
+    assert len(network) >= 2  # noqa: PLR2004
+    assert seen == sorted(seen) and seen[-1] == 85  # noqa: PLR2004

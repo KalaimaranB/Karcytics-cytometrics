@@ -14,6 +14,8 @@ from ..params_form import ParamsForm
 from ..widgets.scanning_indicator import ScanningIndicator
 from .base import StepPage
 
+PREVIEW_TEXT = "👁 Preview on screen area"
+
 
 class DetectStep(StepPage):
     title = "Detect"
@@ -55,9 +57,13 @@ class DetectStep(StepPage):
         self.progress_bar.setVisible(False)
         self.body.addWidget(self.progress_bar)
         row = QHBoxLayout()
-        self.btn_preview = SecondaryButton("👁 Preview on visible area")
+        self.btn_preview = SecondaryButton(PREVIEW_TEXT)
         self.btn_preview.setToolTip(
-            "Try the settings on the part of the image in view. Shown dashed; nothing is kept."
+            "Quick test of these settings before the full run.\n\n"
+            "Detects cells only in the part of the image on screen (zoom in on\n"
+            "a typical area first: smaller is faster) and draws them dashed.\n"
+            "Nothing is kept. Adjust the settings and preview again until the\n"
+            "outlines look right, then Run Segmentation on the whole image."
         )
         self.btn_preview.setEnabled(False)
         self.btn_run = PrimaryButton("✨ Run Segmentation")

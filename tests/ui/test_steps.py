@@ -135,3 +135,24 @@ def test_report_step_before_any_run(panel):
     panel.stepper.go_to("report")
 
     assert "Run a segmentation" in panel.report_step.methods_text.toPlainText()
+
+
+def test_run_button_says_which_phase_is_running(panel):
+    panel._on_run_progress(40)
+    assert panel.btn_run_pipeline.text() == "⏳ Detecting cells… 40%"
+    panel._on_run_progress(92)
+    assert panel.btn_run_pipeline.text() == "⏳ Measuring cells… 92%"
+
+
+def test_preview_button_is_busy_until_the_preview_returns(panel):
+    from karcytics_plugins.cytometrics.ui.steps.detect import PREVIEW_TEXT
+
+    panel._on_preview()  # no image: nothing runs, so the button isn't left busy
+    assert panel.detect_step.btn_preview.text() == PREVIEW_TEXT
+
+    panel.detect_step.btn_preview.setText("⏳ Previewing…")
+    panel.detect_step.btn_preview.setEnabled(False)
+    panel._on_preview_done({"cells": [], "box": (0, 0, 1, 1)})
+    assert panel.detect_step.btn_preview.isEnabled()
+    assert panel.detect_step.btn_preview.text() == PREVIEW_TEXT
+    assert "Nothing is kept" in panel.detect_step.lbl_ai_status.text()
