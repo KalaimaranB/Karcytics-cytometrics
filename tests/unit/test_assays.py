@@ -247,14 +247,14 @@ def _texture(plane, detect):
     return run_segmentation(segmenter, img.stack(("phase", plane)), params)
 
 
-def _table(result, plane, scale=0.0):
+def _table(result, plane, scale=0.0, channel="phase"):
     from fixtures import images as img
 
     from karcytics_plugins.cytometrics.analysis.measure import MeasureOptions, measure_cells
 
     cells = [{**c, "id": c["label"]} for c in result.cells]
     return measure_cells(
-        cells, img.stack(("phase", plane)), scale, MeasureOptions(background="none")
+        cells, img.stack((channel, plane)), scale, MeasureOptions(background="none")
     )
 
 
@@ -291,3 +291,31 @@ def test_wound_width_and_closure():
     assert "nan" in str(
         next(r for r in analysis.results(later_df, [], {}, context) if r.key == "Closure").value
     )
+
+
+# ── Spheroids ────────────────────────────────────────────────────────────────
+
+
+def test_spheroid_keeps_the_largest_and_gives_its_volume():
+    from fixtures import images as img
+
+    from karcytics_plugins.cytometrics.analysis.segment import run_segmentation
+    from karcytics_plugins.cytometrics.analysis.segment.spheroid import SpheroidSegmenter
+
+    plane = img.spheroid_photo(radius=60)
+    segmenter = SpheroidSegmenter()
+    params = {p.key: p.default for p in segmenter.parameters()}
+    params.update(target_channel="bf", min_area_px=0)
+    result = run_segmentation(segmenter, img.stack(("bf", plane)), params)
+    assert len(result.cells) == 1
+    assert result.extras["polarity"] == "darker"
+
+    df = _table(result, plane, scale=2.0, channel="bf")
+    analysis = REGISTRY["spheroids"].analysis
+    context = AssayContext(2.0, plane.shape, result.extras)
+    values = {r.key: r for r in analysis.results(analysis.derive(df, {}, context), [], {}, context)}
+    assert values["Diameter"].value == pytest.approx(240, rel=0.05)  # 120 px at 2 µm/px
+    assert values["Volume"].value == pytest.approx(np.pi * 240**3 / 6, rel=0.15)
+    assert values["Volume"].unit == "µm³"
+    assert values["Circularity"].value > 0.85
+    assert not values["Volume"].warning

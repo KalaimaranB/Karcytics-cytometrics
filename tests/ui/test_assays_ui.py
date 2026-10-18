@@ -131,3 +131,17 @@ def test_scratch_wound_start_and_closure(qtbot, monkeypatch, tmp_path):
     values = {c.lbl_name.text(): c.lbl_value.text() for c in p.results_step._cards}
     assert values["Closure"] == "0 %"
     p.cleanup()
+
+
+def test_spheroid_volume_card(qtbot, monkeypatch, tmp_path):
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("spheroids")
+    assert p.combo_pipeline.currentData() == "spheroid"
+    _load(p, tmp_path, "well.png", img.spheroid_photo())
+    params = p.params_form.values()
+    assert params["keep_largest"] == 1 and params["max_area_px"] > 1e6
+    _segment(p, qtbot, "spheroid", {**params, "target_channel": "well.png"})
+    assert len(p.state.cells) == 1
+    values = {c.lbl_name.text(): c.lbl_value.text() for c in p.results_step._cards}
+    assert values["Volume"].endswith("px³")
+    p.cleanup()

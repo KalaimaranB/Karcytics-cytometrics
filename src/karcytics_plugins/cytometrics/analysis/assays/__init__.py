@@ -10,6 +10,7 @@ from . import (  # noqa: F401  (registration side effect)
     confluence,
     hemocytometer,
     nuclei,
+    spheroids,
     transfection,
 )
 from .base import (

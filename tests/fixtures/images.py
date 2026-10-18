@@ -107,3 +107,16 @@ def scratch_photo(width=100, bridge=False, seed=0):
         open_[100:120] = False
     image[open_] = 120 + rng.normal(0, 2, int(open_.sum()))
     return np.clip(image, 0, 255).astype(np.uint8)
+
+
+def spheroid_photo(radius=60, seed=0):
+    """A 400 px bright-field well: one dark textured spheroid of `radius` at (220, 200),
+    plus small dark debris.
+    """
+    rng = np.random.default_rng(seed)
+    image = np.full((400, 400), 180.0)
+    cv2.circle(image, (220, 200), radius, 70.0, -1)
+    image += cv2.GaussianBlur(rng.normal(0, 20, image.shape), (0, 0), 1.5)
+    for x, y in ((60, 60), (340, 330), (80, 320)):
+        cv2.circle(image, (x, y), 5, 70.0, -1)
+    return np.clip(image, 0, 255).astype(np.uint8)
