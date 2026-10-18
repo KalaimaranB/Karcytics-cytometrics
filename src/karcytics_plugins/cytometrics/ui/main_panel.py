@@ -1106,6 +1106,7 @@ class CytoMetricsPanel(PluginBase):
         """Offer the current channel names in the Detect settings and the nucleus picker."""
         names = [c.name for c in self.image_set.channels]
         self.params_form.set_channels(names)
+        self._update_assay_channels(names)
         current = self.combo_nucleus.currentData()
         self.combo_nucleus.blockSignals(True)
         self.combo_nucleus.clear()
@@ -1237,6 +1238,24 @@ class CytoMetricsPanel(PluginBase):
     def _refresh_assay_view(self) -> None:
         self.results_step.show_results(self.session.assay_results())
         self.canvas.set_overlays(self.session.assay_overlays())
+
+    def _update_assay_channels(self, names: list[str]) -> None:
+        """Offer `names` in the assay's channel settings; unset ones get the assay's stain."""
+        form = self.results_step.form
+        form.set_channels(names)
+        analysis = self._assay.analysis if self._assay else None
+        if analysis is None or not names:
+            return
+        settings = self.session.assay_settings
+        unset = [
+            p.key
+            for p in analysis.parameters()
+            if p.kind == "channel" and settings.get(p.key) not in names
+        ]
+        if unset:
+            default = self._assay.default_target(names) or names[0]  # type: ignore[union-attr]
+            self.session.set_assay_settings(dict.fromkeys(unset, default))
+            form.set_display_values(self.session.assay_settings)
 
     def _on_assay_settings_changed(self) -> None:
         self.session.set_assay_settings(self.results_step.form.display_values())
