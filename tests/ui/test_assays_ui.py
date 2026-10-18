@@ -189,3 +189,28 @@ def test_photo_assays_load_one_photo_and_pick_its_colour(qtbot, monkeypatch, tmp
     assert not cm.photo_mode and cm.table.isVisibleTo(p)
     assert not p.params_form._widgets["target_channel"].isHidden()
     p.cleanup()
+
+
+def test_switching_assay_mid_analysis_keeps_the_new_photo(qtbot, monkeypatch, tmp_path):
+    """Colonies, then spheroids with a new photo: the result must not bring the plate back."""
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("colonies")
+    plane, _n = img.plate_photo()
+    _load(p, tmp_path, "plate.png", plane)
+    _segment(p, qtbot, "colonies", p.params_form.values())
+    assert p.state.cells
+
+    p._on_assay_chosen("spheroids")
+    _load(p, tmp_path, "well.png", img.spheroid_photo())
+    assert [c.name for c in p.image_set.channels] == ["well.png"]
+    _segment(p, qtbot, "spheroid", p.params_form.values())
+
+    assert p.assay.id == "spheroids"
+    assert [c.name for c in p.image_set.channels] == ["well.png"]
+    assert len(p.state.cells) == 1
+    assert p.params_form.values()["target_channel"] == "well.png"
+
+    p.undo()  # back to the spheroid photo before segmenting, not to the plate
+    assert p.assay.id == "spheroids" and not p.state.cells
+    assert [c.name for c in p.image_set.channels] == ["well.png"]
+    p.cleanup()

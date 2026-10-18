@@ -375,6 +375,7 @@ class CytoMetricsPanel(PluginBase):
         self.channel_manager.new_image_loaded.connect(self._apply_assay_target)
         self.channel_manager.analysis_channel_changed.connect(self._set_target_channel)
         self.channel_manager.image_replaced.connect(self._on_photo_replaced)
+        self.channel_manager.new_image_loaded.connect(self._on_image_loaded)
         self.canvas.load_requested.connect(self.channel_manager.prompt_add_channel)
         self.canvas.files_dropped.connect(self.channel_manager.ingest_paths)
 
@@ -456,6 +457,7 @@ class CytoMetricsPanel(PluginBase):
             return
         self.set_assay(assay_id)
         self._remember_assay(assay_id)
+        self.push_state(f"Switch to {self._assay.name}" if self._assay else "Switch analysis")
 
     def set_assay(self, assay_id: str | None, apply_defaults: bool = True) -> None:
         """Switch to `assay_id`'s steps and, unless restoring a session, its default settings."""
@@ -515,6 +517,9 @@ class CytoMetricsPanel(PluginBase):
         self._update_dropdowns()  # the new channel may not be offered yet
         self._pending_values = {**self._pending_values, "target_channel": name}
         self.params_form.set_display_values({"target_channel": name})
+
+    def _on_image_loaded(self, path: str) -> None:
+        self.push_state(f"Load {Path(path).name}")
 
     def _on_photo_replaced(self) -> None:
         """A new photo replaced the old one: its objects went with it."""
@@ -770,7 +775,9 @@ class CytoMetricsPanel(PluginBase):
             cells, results.get("measurements"), results.get("labels"), results.get("probability")
         )
         self.canvas.set_preview(None)
-        self.set_state(self.state)
+        # Not set_state: that restores the images and the assay from the saved state, which
+        # still holds the previous photo and assay if the user switched since the last save.
+        self._refresh_views()
         self.push_state("Segment")
         self.state_changed.emit()
 
@@ -826,14 +833,19 @@ class CytoMetricsPanel(PluginBase):
             self._show_assay_settings()
 
         # 3. Restore data & canvas
+        self._refresh_views()
+        self.batch.attach(state.batch_manifest)
+
+    def _refresh_views(self) -> None:
+        """Bring the canvas, table and results up to date with the cells (measuring if needed)."""
         self._update_units()
         if self._needs_measuring():
             self._remeasure()
-
         self._redraw_cells()
         self._refresh_table()
         self._update_results_tab()
-        self.batch.attach(state.batch_manifest)
+        if self._assay is not None:
+            self._refresh_assay_view()
 
     def export_state(self) -> dict:
         """Legacy export_state for backward compatibility."""
