@@ -1,9 +1,12 @@
 """Spheroids and organoids: a few large, compact objects on a plain background.
 
-A spheroid in bright field is a large dark body (lighter in some setups);
-smoothing removes its texture, Otsu's threshold separates it from the
-well, holes are filled and only the largest objects are kept, which leaves
-out debris and single cells around it. The measurements made from it (area,
+A spheroid in bright field is a large dark body (lighter in some setups).
+The well's uneven lighting (darker towards its wall) is divided out first:
+a smooth surface is fitted to the background, leaving out whatever stands
+out from it, so the spheroid doesn't bend the fit. Then smoothing removes
+the spheroid's texture, Otsu's threshold separates it from the well, holes
+are filled and only the largest objects are kept, which leaves out debris
+and single cells around it. The measurements made from it (area,
 equivalent diameter, volume, circularity) are those Zanoni et al. (2016)
 recommend for spheroid screening.
 """
@@ -120,6 +123,7 @@ class SpheroidSegmenter:
         report = progress or (lambda _v: None)
         plane = require_channel(image_set, params.get("target_channel")).data.astype(np.float32)
         sigma = float(params.get("smoothing_px", SMOOTHING.default))
+        plane = plane / illumination(plane)
         smooth = cv2.GaussianBlur(plane, (0, 0), sigma) if sigma > 0 else plane
         polarity = params.get("polarity", "auto")
         if polarity == "auto":
@@ -143,3 +147,36 @@ class SpheroidSegmenter:
             largest = np.argsort(sizes)[::-1][:keep]
             labels = np.where(np.isin(labels, largest[sizes[largest] > 0]), labels, 0)
         return SegmentationResult(labels.astype(np.int32), extras={"polarity": polarity})
+
+
+_FIT_PX = 128  # the lighting is fitted on a copy this many pixels across
+_FIT_ORDER = 4  # polynomial order of the lighting surface
+_OUTLIER = 2.5  # pixels this many robust SDs off the fit are objects, not background
+
+
+def illumination(plane: np.ndarray, iterations: int = 5) -> np.ndarray:
+    """The image's lighting: a smooth polynomial surface fitted to the background.
+
+    Fitted on a small copy; after each fit, pixels far from it (objects,
+    dark or bright) are left out of the next one.
+    """
+    h, w = plane.shape
+    small = cv2.resize(plane, (_FIT_PX, _FIT_PX), interpolation=cv2.INTER_AREA).astype(np.float64)
+    axis = np.linspace(-1, 1, _FIT_PX)
+    y, x = np.meshgrid(axis, axis, indexing="ij")
+    terms = np.stack(
+        [x**i * y**j for i in range(_FIT_ORDER + 1) for j in range(_FIT_ORDER + 1 - i)], axis=-1
+    ).reshape(-1, (_FIT_ORDER + 1) * (_FIT_ORDER + 2) // 2)
+    values = small.ravel()
+    keep = np.ones(values.size, bool)
+    fit = np.full(values.size, float(np.median(values)))
+    for _ in range(iterations):
+        coef, *_ = np.linalg.lstsq(terms[keep], values[keep], rcond=None)
+        fit = terms @ coef
+        residual = values - fit
+        spread = 1.4826 * float(np.median(np.abs(residual[keep]))) or 1e-6
+        keep = np.abs(residual) < _OUTLIER * spread
+    surface = cv2.resize(
+        fit.reshape(small.shape).astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC
+    )
+    return np.maximum(surface, max(float(np.abs(surface).max()) * 1e-3, 1e-6))

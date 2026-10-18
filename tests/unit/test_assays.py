@@ -319,3 +319,32 @@ def test_spheroid_keeps_the_largest_and_gives_its_volume():
     assert values["Volume"].unit == "µm³"
     assert values["Circularity"].value > 0.85
     assert not values["Volume"].warning
+
+
+def test_a_nearly_closed_wound_is_still_found():
+    """Few open pixels: Otsu on the raw texture would split the cells' own texture instead."""
+    from fixtures import images as img
+
+    from karcytics_plugins.cytometrics.analysis.segment.texture import covered_mask
+
+    covered = covered_mask(img.scratch_photo(width=20).astype(np.float32), 15)
+    assert 100 * (~covered).mean() == pytest.approx(100 * 20 / 400, abs=3)  # raw Otsu: 38
+
+
+def test_spheroid_in_a_darker_rimmed_well():
+    """The well's lighting falls off towards its wall: it must not become the 'spheroid'."""
+    from fixtures import images as img
+
+    from karcytics_plugins.cytometrics.analysis.segment import run_segmentation
+    from karcytics_plugins.cytometrics.analysis.segment.spheroid import SpheroidSegmenter
+
+    plane = img.spheroid_photo(radius=50).astype(np.float32)
+    yy, xx = np.mgrid[:400, :400]
+    plane *= 1 - 0.5 * ((xx - 200) ** 2 + (yy - 200) ** 2) / 200**2  # dark corners
+    segmenter = SpheroidSegmenter()
+    params = {p.key: p.default for p in segmenter.parameters()}
+    params.update(target_channel="bf")
+    result = run_segmentation(segmenter, img.stack(("bf", plane)), params)
+    assert len(result.cells) == 1
+    area = np.count_nonzero(result.labels)
+    assert area == pytest.approx(np.pi * 50**2, rel=0.15)

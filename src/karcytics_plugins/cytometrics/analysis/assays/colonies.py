@@ -126,6 +126,7 @@ COLONIES = register(
         settings={"exclude_borders": False},
         measure={"background": "none"},
         noun="Colony",
+        target_stain="blue",  # colonies stand out most in blue, on yellow or blood agar alike
         analysis=ColonyCount(),
         citations=("opencfu2013",),
     )

@@ -3,9 +3,16 @@
 In phase contrast and bright field, cells are textured (edges, granules,
 halos) and the empty dish is smooth. The local standard deviation of the
 intensity (in a window about a cell wide) is high on cells and low on the
-dish whatever the lighting, so thresholding it (Otsu's method) separates
-covered from open areas. This is the approach of the common wound-healing
-tools (e.g. the ImageJ "MRI Wound Healing Tool" uses a variance filter).
+dish whatever the lighting, so thresholding it separates covered from open
+areas. This is the approach of the common wound-healing tools (e.g. the
+ImageJ "MRI Wound Healing Tool" uses a variance filter).
+
+The threshold is Otsu's, on the logarithm of the texture: the dish's
+texture is camera noise, many times lower than the cells', and on a log
+scale the two stay well apart even when one of them is a small part of the
+image (a nearly closed wound, a sparse dish), where Otsu on the raw values
+splits the cells' own texture instead. A window over a cell's edge already
+sees its texture, so the covered area is then shrunk by half a window.
 
 Two outputs: the covered areas as objects (confluence), or the open gaps as
 objects (the wound), leaving out gaps smaller than a few cells between
@@ -34,6 +41,7 @@ from .base import (
 )
 
 COVERED, GAP = "covered", "gap"
+_NOISE_FLOOR = 1e-3  # added before the log (texture is on a 0–1 intensity scale)
 
 OUTPUT = Param(
     "detect",
@@ -172,12 +180,16 @@ def covered_mask(
     plane: np.ndarray, window: float, sensitivity: float = 0.0, min_gap: float = 0.0
 ) -> np.ndarray:
     """Where cells are: high local texture, small gaps filled in."""
-    texture = local_std(plane, window)
+    texture = np.log(local_std(plane, window) + _NOISE_FLOOR)
     values = texture[texture <= np.percentile(texture, 99.5)]  # a few bright specks skew Otsu
-    level = otsu_level(values) * (1 - sensitivity)
-    covered = texture > level
+    level = np.exp(otsu_level(values)) * (1 - sensitivity)
+    covered = (texture > np.log(level)).astype(np.uint8)
+    half = int(window) // 2  # the window reaches this far past a cell's edge
+    if half:
+        square = np.ones((2 * half + 1, 2 * half + 1), np.uint8)
+        covered = cv2.erode(covered, square, borderType=cv2.BORDER_REPLICATE)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    covered = cv2.morphologyEx(covered.astype(np.uint8), cv2.MORPH_OPEN, kernel).astype(bool)
+    covered = cv2.morphologyEx(covered, cv2.MORPH_OPEN, kernel).astype(bool)
     if min_gap > 0:
         gaps, n = ndimage.label(~covered)
         if n:
