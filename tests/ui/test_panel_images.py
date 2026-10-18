@@ -222,7 +222,7 @@ def test_run_button_finds_cells_and_fills_the_table(panel, qtbot, tmp_path, segm
     qtbot.waitUntil(lambda: panel.btn_run_pipeline.isEnabled(), timeout=10_000)
 
     assert panel.table.rowCount() == len(img.ISOLATED_CENTRES)
-    assert panel._labels.max() == len(img.ISOLATED_CENTRES)
+    assert panel.session.labels.max() == len(img.ISOLATED_CENTRES)
     assert panel.progress_bar.isHidden()
 
 
@@ -271,14 +271,18 @@ def test_detect_settings_round_trip_through_saved_state(panel, qtbot, tmp_path):
 def test_version_1_saved_settings_still_restore(panel, qtbot):
     _ready(panel, qtbot, "otsu")
 
-    panel._apply_ui_params(
+    panel.load_state(
         {
-            "pipeline": "AI Smart Detect (Cellpose)",
-            "min_area": 25.0,
-            "diameter": 12.0,
-            "flow": 0.6,
-            "use_dual": True,
-            "exclude_borders": False,
+            "scale": 0.0,
+            "cells": [{"id": 1, "points": [[0, 0], [4, 0], [4, 4]], "area": 8.0, "circ": 0.5}],
+            "ui_params": {
+                "pipeline": "AI Smart Detect (Cellpose)",
+                "min_area": 25.0,
+                "diameter": 12.0,
+                "flow": 0.6,
+                "use_dual": True,
+                "exclude_borders": False,
+            },
         }
     )
 
@@ -286,6 +290,8 @@ def test_version_1_saved_settings_still_restore(panel, qtbot):
     values = panel.params_form.display_values()
     assert (values["min_area_px"], values["diameter"], values["flow_threshold"]) == (25, 12, 0.6)
     assert values["use_dual_channel"] is True and values["exclude_borders"] is False
+    assert panel.state.version == 2
+    assert panel.state.cells == [{"id": 1, "points": [[0, 0], [4, 0], [4, 4]]}]
 
 
 def _square(cell_id, x, conf=None):

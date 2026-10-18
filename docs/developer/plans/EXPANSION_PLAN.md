@@ -150,7 +150,7 @@ karcytics_plugins/cytometrics
 - [x] 4.6 Measurement families carry citations (Haralick 1973; CellProfiler naming). Crossref-verified `skimage2014`, `cellprofiler4`, `haralick1973`; the methods text adds a sentence per family used.
 
 ### Phase 5: UI overhaul (cytometrics, may grow as we go)
-- [ ] 5.1 Split `main_panel.py`: widgets/dialogs to their own files; panel becomes wiring only. `AnalysisSession` + `CytoMetricsState` v2 with a migration from v1 saved workflows.
+- [x] 5.1 Split `main_panel.py`: widgets/dialogs to their own files; panel becomes wiring only. `AnalysisSession` + `CytoMetricsState` v2 with a migration from v1 saved workflows. **Done:** `ui/widgets/` (hardware monitor, scanning indicator, histogram, table items), `ui/dialogs/model_manager.py`; `analysis/session.py` (Qt-free: calibration, cells, delete/add, uncertainty, reload, methods, export names) with the panel delegating; `state.migrate()` turns v1 saves (display-name `ui_params`, per-cell area/perim/circ) into v2. The step pages (5.3) finish the split.
 - [ ] 5.2 Mode picker ("What are you analysing?") → Assay selection; remembered per project.
 - [ ] 5.3 Stepper (SDK `WizardPanel`/`StepIndicator`): Load › Calibrate › Detect › Review › Measure › Report; steps supplied by the assay.
 - [ ] 5.4 `CytoCanvas(ImageView)`: layers (channels, masks, outlines, IDs, confidence), per-channel display range for 16-bit, colour outlines by any measurement.

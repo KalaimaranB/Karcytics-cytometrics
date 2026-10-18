@@ -6,7 +6,6 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 from karcytics_sdk.plugin import (
     BioComboBox,
@@ -47,11 +46,12 @@ from PySide6.QtWidgets import (
 )
 
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
-from ..analysis.measure import MeasureOptions, measure_cells, rescale, unit_label, write_csv
+from ..analysis.measure import MeasureOptions, unit_label, write_csv
 from ..analysis.model import ImageSet
+from ..analysis.session import AnalysisSession, LastRun
 from ..analysis.state import CytoMetricsState
 from ..analysis.units import is_calibrated
-from ..report import Measured, build_steps, write_methods_sidecars
+from ..report import write_methods_sidecars
 from .channel_manager import ChannelManagerWidget
 from .dialogs.model_manager import ModelManagerDialog, _check_ai_model_installed
 from .image_canvas import MultiChannelCanvas, confidence_color
@@ -77,19 +77,12 @@ class CytoMetricsPanel(PluginBase):
         self.setMinimumWidth(380)
         self.setMinimumHeight(600)
 
-        self.state = CytoMetricsState()
+        self.session = AnalysisSession()
         # Detect settings restored before the segmenters finished loading.
         self._pending_pipeline: str | None = None
         self._pending_values: dict[str, Any] = {}
-        # Last run's label mask and (Cellpose only) cell-probability map; not saved.
-        self._labels: np.ndarray | None = None
-        self._probability: np.ndarray | None = None
-        # One row per cell (see analysis/measure); recomputed, never saved.
-        self.measure_options = MeasureOptions()
-        self.measurements: pd.DataFrame = measure_cells([], ImageSet(), 0.0)
         self._measure_generation = 0
 
-        self.image_set = ImageSet()
         self.canvas = MultiChannelCanvas()
 
         # All pipelines are loaded in the background — start empty
@@ -106,6 +99,28 @@ class CytoMetricsPanel(PluginBase):
             on_finished=self._on_loader_finished,
             on_error=lambda message: self._on_ai_loaded(False, {}, message),
         )
+
+    # The session owns the analysis; these keep the panel's code and the SDK's
+    # `self.state` contract readable.
+    @property
+    def state(self) -> CytoMetricsState:
+        return self.session.state
+
+    @state.setter
+    def state(self, value: CytoMetricsState) -> None:
+        self.session.state = value
+
+    @property
+    def image_set(self) -> ImageSet:
+        return self.session.image_set
+
+    @property
+    def measurements(self) -> pd.DataFrame:
+        return self.session.measurements
+
+    @property
+    def measure_options(self) -> MeasureOptions:
+        return self.session.measure_options
 
     def _on_loader_finished(self, results: dict) -> None:
         self._on_ai_loaded(results.get("success", False), results.get("pipelines", {}), "Loaded")
@@ -620,9 +635,7 @@ class CytoMetricsPanel(PluginBase):
 
     def _set_scale(self, scale: float, source: str) -> None:
         """Change the calibration; measured cells are converted to the new units."""
-        self.measurements = rescale(self.measurements, scale)
-        self.state.scale = scale
-        self.state.scale_source = source if is_calibrated(scale) else ""
+        self.session.set_scale(scale, source)
         self._update_units()
         self.state_changed.emit()
 
@@ -729,7 +742,7 @@ class CytoMetricsPanel(PluginBase):
 
         analyzer = CytoPipelineWorker()
         analyzer.configure(pipeline, self.image_set, params, self.state.scale, self.measure_options)
-        self._last_run = (pipeline, params)  # for the methods text on export
+        self.session.last_run = LastRun(pipeline, params)  # for the methods text
 
         submit_task(
             analyzer,
@@ -745,23 +758,20 @@ class CytoMetricsPanel(PluginBase):
         if "error" in results:
             self._on_pipeline_error(results["error"])
         else:
-            self._labels = results.get("labels")  # label mask of the last run
-            self._probability = results.get("probability")  # Cellpose only
-            self.measurements = results.get("measurements", self.measurements)
-            self._on_pipeline_finished(results.get("result_cells", []))
+            self._on_pipeline_finished(results)
 
-    def _on_pipeline_finished(self, new_cells):
+    def _on_pipeline_finished(self, results: dict):
         self.btn_run_pipeline.setEnabled(True)
         self.btn_run_pipeline.setText("✨ Run Segmentation")
         self.progress_bar.setVisible(False)
 
-        if not new_cells:
+        cells = results.get("result_cells", [])
+        if not cells:
             show_info(self, "No Cells", "No cells found with current parameters.")
             return
-
-        self.state.cells = list(new_cells)  # ids were assigned by the worker (1..n)
-        self.state.cell_counter = max(c["id"] for c in new_cells)
-
+        self.session.replace_cells(
+            cells, results.get("measurements"), results.get("labels"), results.get("probability")
+        )
         self.set_state(self.state)
         self.state_changed.emit()
 
@@ -786,11 +796,7 @@ class CytoMetricsPanel(PluginBase):
             },
         }
 
-        # Sync channels metadata
-        channels_meta = []
-        for c in self.image_set.channels:
-            channels_meta.append({"name": c.name, "path": c.path, "color": c.color})
-        self.state.channels_metadata = channels_meta
+        self.state.channels_metadata = self.session.channels_metadata()
 
         return self.state
 
@@ -841,25 +847,11 @@ class CytoMetricsPanel(PluginBase):
 
     def load_images_from_meta(self, channels_meta: list[dict]) -> None:
         """Reload the saved images, then reapply the saved channel names and colours."""
-        current_paths = [c.path for c in self.image_set.channels]
-        saved_paths = [ch.get("path", "") for ch in channels_meta]
-        if current_paths == saved_paths:
-            return
-
-        self.image_set.clear()
-        for path in dict.fromkeys(saved_paths):  # each file once, in order
-            if not path or not Path(path).exists():
-                logger.warning("Saved image not found: %s", path)
-                continue
-            try:
-                self.image_set.add_file(path, Path(path).name)
-            except (OSError, ValueError):
-                logger.exception("Could not reload saved image %s", path)
-
-        for channel, saved in zip(self.image_set.channels, channels_meta, strict=False):
-            channel.name = saved.get("name", channel.name)
-            channel.color = saved.get("color", channel.color)
-
+        missing = self.session.reload_images(channels_meta)
+        for path in missing:
+            logger.warning("Saved image not found or unreadable: %s", path)
+        if missing:
+            self.status_message.emit(f"{len(missing)} saved image(s) could not be found.")
         self.channel_manager.refresh()
         self._render_composite()
         self._update_calibrate_button_state()
@@ -896,7 +888,7 @@ class CytoMetricsPanel(PluginBase):
         """Restore the Detect settings from saved `ui_params` (either format)."""
         if not ui:
             return
-        pipeline, values = _ui_params_v2(ui)
+        pipeline, values = ui.get("pipeline"), dict(ui.get("values", {}))
         measure = ui.get("measure", {})
         self._update_dropdowns()  # the nucleus picker needs the channel names first
         self._set_measure_controls(
@@ -914,10 +906,9 @@ class CytoMetricsPanel(PluginBase):
 
     def _apply_metadata_calibration(self, _path: str = "") -> None:
         """Use the pixel size stored in the image file, unless a scale is already set."""
-        pixel_size = self.image_set.pixel_size
-        if pixel_size is None or is_calibrated(self.state.scale):
-            return
-        self._set_scale(pixel_size.x_um, f"metadata ({pixel_size.source})")
+        if self.session.apply_metadata_calibration():
+            self._update_units()
+            self.state_changed.emit()
 
     def _on_calibrate_clicked(self):
         if not self.image_set.channels:
@@ -951,10 +942,7 @@ class CytoMetricsPanel(PluginBase):
             self.btn_draw._apply_theme_styles()
 
     def _on_cell_drawn(self, points: list):
-        self.state.cell_counter += 1
-        self.state.cells.append(
-            {"id": self.state.cell_counter, "points": points, "source": "manual"}
-        )
+        self.session.add_manual_cell(points)
         self._on_cells_edited()
 
     def _update_dropdowns(self):
@@ -979,10 +967,7 @@ class CytoMetricsPanel(PluginBase):
 
     def _on_cell_deleted(self, cell_id):
         """Removes a cell by ID and triggers a state refresh for Undo/Redo."""
-        self.state.cells = [c for c in self.state.cells if c["id"] != cell_id]
-        kept = self.measurements[self.measurements["ObjectNumber"] != cell_id].copy()
-        kept.attrs = self.measurements.attrs
-        self.measurements = kept
+        self.session.delete_cells({cell_id})
         self._on_cells_edited()
 
     def _redraw_cells(self, *_args) -> None:
@@ -998,20 +983,17 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.set_show_ids(self.chk_show_ids.isChecked())
 
     def _update_probability_map(self, *_args) -> None:
-        probability = self._probability
+        probability = self.session.probability
         usable = probability is not None and probability.shape == self.image_set.shape
         self.chk_probability_map.setEnabled(usable)
         show = usable and self.chk_probability_map.isChecked()
         self.canvas.set_probability_map(probability if show else None)
 
     def _uncertain_cells(self) -> list[dict]:
-        """Cells below the confidence threshold, least confident first."""
-        limit = self.spin_uncertain.value()
-        scored = [c for c in self.state.cells if c.get("confidence") is not None]
-        return sorted((c for c in scored if c["confidence"] < limit), key=lambda c: c["confidence"])
+        return self.session.uncertain_cells(self.spin_uncertain.value())
 
     def _update_review_controls(self, *_args) -> None:
-        has_confidence = any(c.get("confidence") is not None for c in self.state.cells)
+        has_confidence = self.session.has_confidence()
         self.chk_color_confidence.setEnabled(has_confidence)
         for widget in (self.lbl_uncertain, self.spin_uncertain, self.btn_next_uncertain):
             widget.setEnabled(has_confidence)
@@ -1075,8 +1057,7 @@ class CytoMetricsPanel(PluginBase):
         self._update_probability_map()
 
     def _needs_measuring(self) -> bool:
-        measured = set(self.measurements["ObjectNumber"]) if len(self.measurements) else set()
-        return bool(self.state.cells) and measured != {c["id"] for c in self.state.cells}
+        return bool(self.image_set.channels) and self.session.needs_measuring()
 
     def _on_cells_edited(self) -> None:
         """A cell was drawn or deleted: redraw now, re-measure in the background."""
@@ -1086,7 +1067,7 @@ class CytoMetricsPanel(PluginBase):
         self.state_changed.emit()
 
     def _on_measure_options_changed(self, *_args) -> None:
-        self.measure_options = MeasureOptions(
+        self.session.measure_options = MeasureOptions(
             background=self.combo_background.currentData(),
             texture=self.chk_texture.isChecked(),
             nucleus_channel=self.combo_nucleus.currentData(),
@@ -1107,7 +1088,7 @@ class CytoMetricsPanel(PluginBase):
         self.chk_texture.setChecked(options.texture)
         for w in widgets:
             w.blockSignals(False)
-        self.measure_options = options
+        self.session.measure_options = options
 
     def _remeasure(self) -> None:
         """Measure every cell again on a background thread; only the newest result is kept."""
@@ -1131,7 +1112,7 @@ class CytoMetricsPanel(PluginBase):
     def _on_measured(self, generation: int, results: dict) -> None:
         if generation != self._measure_generation:
             return  # a newer measurement is on its way
-        self.measurements = results["measurements"]
+        self.session.measurements = results["measurements"]
         self._refresh_table()
 
     def _on_export_csv(self):
@@ -1161,13 +1142,7 @@ class CytoMetricsPanel(PluginBase):
                 show_error(self, "Export Error", f"Could not save file:\n{str(e)}")
 
     def _export_stem(self) -> str:
-        """The first image's file name without extension, for default export names."""
-        path = self.image_set.channels[0].path if self.image_set.channels else ""
-        name = Path(path).name if path else "cytometrics"
-        for suffix in (".ome.tiff", ".ome.tif"):
-            if name.lower().endswith(suffix):
-                return name[: -len(suffix)]
-        return Path(name).stem
+        return self.session.export_stem()
 
     def _on_export_rois(self) -> None:
         if not self.state.cells:
@@ -1218,26 +1193,8 @@ class CytoMetricsPanel(PluginBase):
 
     def _write_methods(self, export_path: str):
         """Write the methods paragraph and BibTeX beside an export; None if no run to describe."""
-        run = getattr(self, "_last_run", None)
-        if run is None:
-            return None
-        pipeline, params = run
-        n_manual = sum(1 for c in self.state.cells if c.get("source") == "manual")
-        steps = build_steps(
-            pipeline,
-            params,
-            self.state.scale,
-            len(self.state.cells),
-            n_manual=n_manual,
-            scale_source=self.state.scale_source,
-            measured=Measured(
-                tuple(c.name for c in self.image_set.channels),
-                self.measure_options.background,
-                self.measure_options.texture,
-                self.measure_options.nucleus_channel,
-            ),
-        )
-        return write_methods_sidecars(export_path, steps)
+        steps = self.session.methods_steps()
+        return write_methods_sidecars(export_path, steps) if steps is not None else None
 
     def _on_table_selection(self):
         """Grabs the selected row, extracts the ID, and highlights it on the canvas."""
@@ -1297,33 +1254,6 @@ class CytoMetricsPanel(PluginBase):
             self.load_state(pm.load_workflow_payload(filename))
         except Exception as e:
             show_error(self, "Load Error", f"Could not load workflow:\n{e}")
-
-
-# Saved v1 `ui_params` keys → (segmenter id, display values).
-_V1_PIPELINES = {
-    "Basic Threshold (Otsu)": "otsu",
-    "Watershed (Clump Splitting)": "watershed",
-    "AI Smart Detect (Cellpose)": "cellpose",
-}
-_V1_KEYS = {
-    "target_channel": "target_channel",
-    "seed_channel": "seed_channel",
-    "use_dual": "use_dual_channel",
-    "min_area": "min_area_px",
-    "max_area": "max_area_px",
-    "diameter": "diameter",
-    "flow": "flow_threshold",
-    "exclude_borders": "exclude_borders",
-}
-
-
-def _ui_params_v2(ui: dict) -> tuple[str | None, dict]:
-    """``(segmenter id, display values)`` from saved `ui_params`, old or new."""
-    if "values" in ui:
-        return ui.get("pipeline"), dict(ui["values"])
-    pipeline = str(ui.get("pipeline", ""))
-    values = {new: ui[old] for old, new in _V1_KEYS.items() if old in ui}
-    return _V1_PIPELINES.get(pipeline, pipeline or None), values
 
 
 def _short_name(column: str) -> str:

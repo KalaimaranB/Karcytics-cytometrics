@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from karcytics_plugins.cytometrics.analysis.session import LastRun
 from karcytics_plugins.cytometrics.ui import main_panel
 
 pytestmark = pytest.mark.ui
@@ -67,7 +68,7 @@ def test_csv_export_writes_methods_and_bibtex(panel, qtbot, tmp_path, monkeypatc
     params = {"target_channel": "GFP", "min_area_px": 40, "max_area_px": 4000}
     monkeypatch.setattr(main_panel, "show_error", lambda *a, **k: pytest.fail(a[-1]))
     panel.state.scale = 0.5
-    panel._last_run = (panel.pipelines["otsu"], params)
+    panel.session.last_run = LastRun(panel.pipelines["otsu"], params)
     panel._on_pipeline_result({"result_cells": [{"id": 1, "points": [[0, 0], [2, 0], [2, 2]]}]})
 
     panel._on_export_csv()
