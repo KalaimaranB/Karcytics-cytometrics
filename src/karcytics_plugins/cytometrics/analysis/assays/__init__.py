@@ -1,6 +1,6 @@
 """The assays offered in "What are you analysing?" (see ``base`` for what an assay is).
 
-Importing this package registers every assay, in picker order.
+Importing this package registers every assay (``by_group`` gives the picker's order).
 """
 
 from . import (  # noqa: F401  (registration side effect)
@@ -24,6 +24,7 @@ from .base import (
     AssayContext,
     Overlay,
     ResultValue,
+    by_group,
     register,
 )
 
@@ -41,5 +42,6 @@ __all__ = [
     "AssayAnalysis",
     "AssayContext",
     "ResultValue",
+    "by_group",
     "register",
 ]

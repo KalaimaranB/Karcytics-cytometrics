@@ -182,7 +182,7 @@ WOUND = register(
         id="wound",
         name="Scratch wound",
         description="Follow a scratch closing as cells migrate: open area, width and % closure "
-        "over time.",
+        "since the start.",
         icon="🩹",
         segmenter="texture",
         group="Growth & migration",

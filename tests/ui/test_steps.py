@@ -48,7 +48,7 @@ def _png(tmp_path, name):
 def test_choosing_an_assay_shows_its_steps(panel):
     panel.mode_picker.cards["cells"].clicked.emit("cells")
 
-    assert panel.left_stack.currentWidget() is panel.stepper
+    assert panel.page_stack.currentWidget() is panel.main_splitter
     assert panel.stepper.step_ids() == [
         "load",
         "calibrate",
@@ -86,12 +86,62 @@ def test_nuclei_assay_segments_the_nuclear_stain_and_measures_texture(panel, tmp
     assert panel.measure_options.texture
 
 
-def test_change_analysis_returns_to_the_picker(panel):
-    panel.set_assay("cells")
+def _pick_from_menu(panel, monkeypatch, choice):
+    """Click the assay button and choose `choice` (an assay id or SHOW_ALL) from its menu."""
+    from karcytics_plugins.cytometrics.ui import main_panel
 
+    offered = []
+    real_menu = main_panel.assay_menu
+
+    def fake_menu(assays, current, parent):
+        menu = real_menu(assays, current, parent)
+        offered.extend(a.data() for a in menu.actions() if a.data())
+        action = next(a for a in menu.actions() if a.data() == choice)
+        monkeypatch.setattr(menu, "exec", lambda *_a: action)
+        return menu
+
+    monkeypatch.setattr(main_panel, "assay_menu", fake_menu)
     panel.btn_assay.click()
+    return offered
 
-    assert panel.left_stack.currentWidget() is panel.mode_picker
+
+def test_assay_menu_switches_directly(panel, monkeypatch):
+    from karcytics_plugins.cytometrics.analysis.assays import REGISTRY as ASSAYS
+    from karcytics_plugins.cytometrics.analysis.assays import by_group
+    from karcytics_plugins.cytometrics.ui.mode_picker import SHOW_ALL
+
+    panel.set_assay("cells")
+    offered = _pick_from_menu(panel, monkeypatch, "colonies")
+
+    groups = by_group(list(ASSAYS.values()))
+    assert groups[0][0] == "Cells" and groups[0][1][0].id == "cells"
+    assert offered == [*(a.id for _g, members in groups for a in members), SHOW_ALL]
+    assert panel.assay.id == "colonies"
+    assert panel.page_stack.currentWidget() is panel.main_splitter
+
+
+def test_show_all_returns_to_the_picker_and_continue_keeps_settings(panel, monkeypatch):
+    from karcytics_plugins.cytometrics.ui.mode_picker import SHOW_ALL
+
+    panel.set_assay("colonies")
+    panel.session.set_assay_settings({"dilution_factor": 1000})
+    _pick_from_menu(panel, monkeypatch, SHOW_ALL)
+
+    assert panel.page_stack.currentWidget() is panel.mode_picker
+    assert panel.mode_picker.btn_continue.text() == "Continue with Colony counter →"
+    panel.mode_picker.btn_continue.click()
+    assert panel.page_stack.currentWidget() is panel.main_splitter
+    assert panel.session.assay_settings["dilution_factor"] == 1000
+
+
+def test_picker_fills_the_width():
+    from karcytics_plugins.cytometrics.analysis.assays import REGISTRY as ASSAYS
+    from karcytics_plugins.cytometrics.ui.mode_picker import ModePicker
+
+    picker = ModePicker(list(ASSAYS.values()))
+    assert picker.columns_for(500) == 1
+    assert picker.columns_for(1300) == 3
+    assert picker.columns_for(5000) == 3
 
 
 def test_assay_is_remembered_per_project(panel, monkeypatch, tmp_path):

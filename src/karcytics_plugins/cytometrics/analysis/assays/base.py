@@ -168,6 +168,14 @@ class Assay:
 
 
 REGISTRY: dict[str, Assay] = {}
+GROUPS = ("Cells", "Counting", "Microbiology", "Growth & migration")  # picker order
+
+
+def by_group(assays: list[Assay]) -> list[tuple[str, list[Assay]]]:
+    """`assays` grouped for the picker: groups in ``GROUPS`` order (others after), then by name."""
+    names = list(dict.fromkeys(a.group for a in assays))
+    names.sort(key=lambda g: GROUPS.index(g) if g in GROUPS else len(GROUPS))
+    return [(g, [a for a in assays if a.group == g]) for g in names]
 
 
 def register(assay: Assay) -> Assay:

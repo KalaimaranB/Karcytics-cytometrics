@@ -62,7 +62,7 @@ from .dialogs.model_center import ModelCenterDialog
 from .gating import GatingController
 from .image_canvas import MultiChannelCanvas, confidence_color, value_color
 from .labels import column_label, fmt, numeric_columns, short_name
-from .mode_picker import ModePicker
+from .mode_picker import SHOW_ALL, ModePicker, assay_menu
 from .results_dock import ResultsDock
 from .stepper import Stepper
 from .steps import (
@@ -226,9 +226,14 @@ class CytoMetricsPanel(PluginBase):
         main_layout.setContentsMargins(0, 0, 0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+        # Two pages: the full-panel assay picker, and the workspace (steps, results, canvas).
+        self.page_stack = QStackedWidget()
+        main_layout.addWidget(self.page_stack)
+        self.mode_picker = ModePicker(list(ASSAYS.values()))
+        self.page_stack.addWidget(self.mode_picker)
         self.main_splitter = BioSplitter(Qt.Orientation.Horizontal)
         self.main_splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        main_layout.addWidget(self.main_splitter)
+        self.page_stack.addWidget(self.main_splitter)
         splitter = BioSplitter(Qt.Orientation.Vertical)
         self.main_splitter.addWidget(splitter)
 
@@ -241,7 +246,7 @@ class CytoMetricsPanel(PluginBase):
         header_row.addWidget(HeaderLabel("CytoMetrics"))
         header_row.addStretch()
         self.btn_assay = SecondaryButton("Choose analysis")
-        self.btn_assay.setToolTip("Change what you're analysing")
+        self.btn_assay.setToolTip("Switch to another kind of analysis")
         self.btn_save_session = SecondaryButton("💾")
         self.btn_save_session.setToolTip("Save this analysis to the project")
         self.btn_load_session = SecondaryButton("📂")
@@ -284,11 +289,7 @@ class CytoMetricsPanel(PluginBase):
             "batch": self.batch_step,
         }
         self.stepper = Stepper()
-        self.mode_picker = ModePicker(list(ASSAYS.values()))
-        self.left_stack = QStackedWidget()
-        self.left_stack.addWidget(self.mode_picker)
-        self.left_stack.addWidget(self.stepper)
-        control_layout.addWidget(self.left_stack, 1)
+        control_layout.addWidget(self.stepper, 1)
         self.status_bar = SystemStatusBar()
         control_layout.addWidget(self.status_bar)
         splitter.addWidget(controls)
@@ -362,7 +363,7 @@ class CytoMetricsPanel(PluginBase):
 
     def _wire(self) -> None:
         """Connect the step pages, canvas and table to the panel."""
-        self.btn_assay.clicked.connect(self._show_mode_picker)
+        self.btn_assay.clicked.connect(self._show_assay_menu)
         self.mode_picker.assay_chosen.connect(self._on_assay_chosen)
         self.stepper.step_changed.connect(self._on_step_changed)
         self.btn_save_session.clicked.connect(self._on_save_workflow)
@@ -432,10 +433,25 @@ class CytoMetricsPanel(PluginBase):
 
     # ── Assays and steps ─────────────────────────────────────────────────
 
-    def _show_mode_picker(self) -> None:
-        self.left_stack.setCurrentWidget(self.mode_picker)
+    def show_mode_picker(self) -> None:
+        """The full-panel assay picker (the workspace stays as it is behind it)."""
+        self.mode_picker.set_current(self._assay, self._remembered_assay())
+        self.page_stack.setCurrentWidget(self.mode_picker)
+
+    def _show_assay_menu(self) -> None:
+        menu = assay_menu(list(ASSAYS.values()), self._assay.id if self._assay else None, self)
+        chosen = menu.exec(self.btn_assay.mapToGlobal(self.btn_assay.rect().bottomLeft()))
+        if chosen is None:
+            return
+        if chosen.data() == SHOW_ALL:
+            self.show_mode_picker()
+        else:
+            self._on_assay_chosen(chosen.data())
 
     def _on_assay_chosen(self, assay_id: str) -> None:
+        if self._assay is not None and assay_id == self._assay.id:
+            self.page_stack.setCurrentWidget(self.main_splitter)  # back to it, settings kept
+            return
         self.set_assay(assay_id)
         self._remember_assay(assay_id)
 
@@ -443,6 +459,7 @@ class CytoMetricsPanel(PluginBase):
         """Switch to `assay_id`'s steps and, unless restoring a session, its default settings."""
         assay = ASSAYS.get(assay_id or "") or ASSAYS[DEFAULT_ASSAY]
         if assay is self._assay and not apply_defaults:
+            self.page_stack.setCurrentWidget(self.main_splitter)
             return  # restoring (e.g. undo): stay on the current step
         self._assay = assay
         self.session.assay = assay
@@ -456,7 +473,7 @@ class CytoMetricsPanel(PluginBase):
         self.stepper.set_steps(
             [(sid, STEP_LABELS[sid], self.step_pages[sid]) for sid in assay.steps]
         )
-        self.left_stack.setCurrentWidget(self.stepper)
+        self.page_stack.setCurrentWidget(self.main_splitter)
         if not apply_defaults:
             self._show_assay_settings()
             return
@@ -510,11 +527,10 @@ class CytoMetricsPanel(PluginBase):
 
     def showEvent(self, event):
         super().showEvent(event)
-        # The project is only known once the panel sits in its window.
+        # The project is only known once the panel sits in its window: until an assay is
+        # chosen, show every assay, marking the one this project used last.
         if self._assay is None:
-            remembered = self._remembered_assay()
-            if remembered in ASSAYS:
-                self.set_assay(remembered)
+            self.show_mode_picker()
 
     def _on_step_changed(self, step_id: str) -> None:
         if step_id != "gate":

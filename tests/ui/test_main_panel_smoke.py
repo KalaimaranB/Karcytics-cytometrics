@@ -14,7 +14,7 @@ def test_panel_constructs(qtbot):
     qtbot.addWidget(panel)
 
     assert panel.plugin_id == "cytometrics"
-    assert panel.left_stack.currentWidget() is panel.mode_picker  # asks what you're analysing
+    assert panel.page_stack.currentWidget() is panel.mode_picker  # asks what you're analysing
     assert set(panel.mode_picker.cards) == set(ASSAYS)
 
 
