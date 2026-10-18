@@ -1,10 +1,31 @@
 from __future__ import annotations
 
-from karcytics_sdk.plugin import BioCaptionLabel, BioComboBox, BioDoubleSpinBox, SecondaryButton
+from karcytics_sdk.plugin import (
+    BioCaptionLabel,
+    BioComboBox,
+    BioDoubleSpinBox,
+    BioSpinBox,
+    DangerButton,
+    SecondaryButton,
+)
 from karcytics_sdk.plugin.theme_fallback import Colors
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel
+from PySide6.QtWidgets import QButtonGroup, QCheckBox, QGridLayout, QHBoxLayout, QLabel
 
 from .base import StepPage
+
+# (canvas mode, button text, tooltip)
+TOOLS = [
+    (
+        "PAN",
+        "✋ Select",
+        "Click a cell to select it, Shift+click for several; drag to move around.",
+    ),
+    ("DRAW", "✏️ Draw", "Outline a missed cell by dragging around it."),
+    ("SPLIT", "✂️ Split", "Draw a line across a cell to cut it in two."),
+    ("BRUSH_ADD", "🖌 Brush +", "Paint pixels onto the selected cell."),
+    ("BRUSH_ERASE", "🧽 Brush −", "Erase pixels from the selected cell."),
+    ("BOX", "⬚ Re-detect", "Drag a box: the current algorithm runs again inside it."),
+]
 
 
 class ReviewStep(StepPage):
@@ -62,9 +83,42 @@ class ReviewStep(StepPage):
         )
 
         self.section("Edit")
-        self.btn_draw = SecondaryButton("✏️  Draw a missed cell")
-        self.btn_draw.setCheckable(True)
-        self.body.addWidget(self.btn_draw)
+        self.tool_group = QButtonGroup(self)
+        self.tool_group.setExclusive(True)
+        grid = QGridLayout()
+        self.tool_buttons: dict[str, SecondaryButton] = {}
+        for i, (mode, text, tip) in enumerate(TOOLS):
+            button = SecondaryButton(text)
+            button.setCheckable(True)
+            button.setToolTip(tip)
+            self.tool_group.addButton(button, i)
+            grid.addWidget(button, i // 3, i % 3)
+            self.tool_buttons[mode] = button
+        self.tool_buttons["PAN"].setChecked(True)
+        self.body.addLayout(grid)
+
+        row = QHBoxLayout()
+        self.lbl_brush = QLabel("Brush size:")
+        self.spin_brush = BioSpinBox()
+        self.spin_brush.setRange(1, 50)
+        self.spin_brush.setValue(4)
+        self.spin_brush.setSuffix(" px")
+        row.addWidget(self.lbl_brush)
+        row.addWidget(self.spin_brush)
+        row.addStretch()
+        self.body.addLayout(row)
+
+        self.lbl_selection = BioCaptionLabel("Click a cell to select it; Shift+click adds more.")
+        self.body.addWidget(self.lbl_selection)
+        row = QHBoxLayout()
+        self.btn_merge = SecondaryButton("⧉ Merge selected")
+        self.btn_merge.setToolTip("Join touching cells into one.")
+        self.btn_delete = DangerButton("🗑 Delete selected")
+        self.btn_merge.setEnabled(False)
+        self.btn_delete.setEnabled(False)
+        row.addWidget(self.btn_merge)
+        row.addWidget(self.btn_delete)
+        self.body.addLayout(row)
         self.finish()
         self.apply_theme()
 
@@ -75,5 +129,6 @@ class ReviewStep(StepPage):
             self.lbl_color_by,
             self.chk_probability_map,
             self.lbl_uncertain,
+            self.lbl_brush,
         ):
             widget.setStyleSheet(f"color: {Colors.FG_PRIMARY};")

@@ -2,6 +2,7 @@ from typing import Any
 
 from karcytics_sdk.plugin import AnalysisBase, PluginState, get_logger
 
+from ..analysis.edit import clip_box, crop, offset_cells
 from ..analysis.measure import MeasureOptions, measure_cells
 from ..analysis.segment import run_segmentation
 
@@ -57,6 +58,20 @@ class CytoPipelineWorker(AnalysisBase):
         except Exception as e:
             logger.exception("CytoMetrics segmentation error")
             return {"error": str(e)}
+
+
+def resegment_func(segmenter, image_set, params, box, progress_callback=None) -> dict:
+    """Background task: segment only inside `box`; cells come back in image coordinates.
+
+    Cells cut by the box's edge are kept (the box is the user's region, not
+    the image border).
+    """
+    clipped = clip_box(box, image_set.shape)
+    sub = crop(image_set, clipped)
+    result = run_segmentation(
+        segmenter, sub, {**params, "exclude_borders": False}, progress_callback
+    )
+    return {"cells": offset_cells(result.cells, clipped[0], clipped[1]), "box": clipped}
 
 
 def measure_func(cells, image_set, scale, options, progress_callback=None) -> dict:

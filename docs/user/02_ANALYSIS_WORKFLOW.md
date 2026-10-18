@@ -41,9 +41,23 @@ Each Cellpose cell also gets a **confidence**: the model's mean cell probability
 
 ## 5. Run and review
 
-Click **✨ Run Segmentation**; the scanning bar shows progress. Detected cells appear as outlines with ID numbers.
+Click **✨ Run Segmentation**; the scanning bar shows progress. To try settings first, zoom to a typical area and click **👁 Preview on visible area**: the result is drawn dashed and nothing is kept. Detected cells appear as outlines with ID numbers.
 
-- **Right-click** a cell to delete a false positive.
+### Editing (Review step)
+
+Pick a tool, then work on the canvas. Every edit can be undone with **↶** (Ctrl+Z) and redone with **↷** (Ctrl+Shift+Z).
+
+| Tool | What it does |
+|---|---|
+| **✋ Select** | Click a cell to select it, Shift+click to add more; drag to move around. Then **⧉ Merge selected** (touching cells only) or **🗑 Delete selected**. |
+| **✏️ Draw** | Outline a missed cell by dragging around it. |
+| **✂️ Split** | Draw a line right across a cell to cut it in two. |
+| **🖌 Brush + / 🧽 Brush −** | Paint pixels onto, or erase them from, the selected cell (set the **Brush size**). |
+| **⬚ Re-detect** | Drag a box: the current algorithm and settings run again inside it and replace the cells centred there. |
+
+Cells you've changed are marked `edited` in the `Source` column; they lose their AI confidence, since the outline is no longer the model's.
+
+- **Right-click** a cell to delete it straight away.
 - **✏️ Draw Cells (Manual)** lets you outline a missed cell by hand.
 - Select a row in the results table to highlight that cell on the canvas.
 

@@ -8,17 +8,23 @@ freehand tool for drawing a missed cell.
 
 import numpy as np
 from karcytics_sdk.plugin import ImageView
-from PySide6.QtCore import QPointF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPen, QPixmap, QPolygonF
+from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
+    QGraphicsLineItem,
+    QGraphicsPathItem,
     QGraphicsPixmapItem,
     QGraphicsPolygonItem,
+    QGraphicsRectItem,
     QGraphicsSimpleTextItem,
     QSizePolicy,
 )
 
 _MIN_POLYGON_POINTS = 3  # a closed polygon needs at least a triangle
 _CELLS_LAYER = "cells"
+_PREVIEW_LAYER = "preview"
+_DRAG_TOOLS = ("SPLIT", "BRUSH_ADD", "BRUSH_ERASE", "BOX")
+_CLICK_SLOP_PX = 4  # a press and release closer than this is a click, not a drag
 _PROBABILITY_LAYER = "probability"  # below the outlines
 _DEFAULT_OUTLINE = QColor(255, 0, 255)
 _PROBABILITY_MAX_ALPHA = 170
@@ -66,8 +72,17 @@ class CellPolygonItem(QGraphicsPolygonItem):
 
 
 class MultiChannelCanvas(ImageView):
+    """Modes: PAN (drag pans, click selects; Shift+click adds), CALIBRATE, DRAW (outline a
+    cell), SPLIT (draw a cut), BRUSH_ADD / BRUSH_ERASE (paint the selected cell) and BOX
+    (drag a region).
+    """
+
     cell_drawn = Signal(list)
     cell_deleted = Signal(int)
+    selection_changed = Signal(object)  # sorted list of selected cell ids
+    split_drawn = Signal(object)  # ((x0, y0), (x1, y1)) in image pixels
+    brush_painted = Signal(object)  # (points, radius, add)
+    box_drawn = Signal(object)  # (x0, y0, x1, y1) in image pixels
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -83,9 +98,13 @@ class MultiChannelCanvas(ImageView):
         self.calibration_line_drawn.connect(self._on_calibration_finished)
 
         self.mode = "PAN"
+        self.brush_radius = 4
         self._drawing_points: list[QPointF] = []
         self._drawing_item: QGraphicsPolygonItem | None = None
+        self._rubber: QGraphicsLineItem | QGraphicsRectItem | QGraphicsPathItem | None = None
+        self._press_pos: QPointF | None = None
         self._cell_items: list[CellPolygonItem] = []
+        self._selection: set[int] = set()
         self.set_mode("PAN")
 
     def load_pixmap(self, pixmap: QPixmap):
@@ -93,7 +112,8 @@ class MultiChannelCanvas(ImageView):
         self.set_mode("PAN")
 
     def set_mode(self, mode_str: str):
-        """PAN (left-drag pans), CALIBRATE (draw one scale line) or DRAW (outline a cell)."""
+        """Switch tool; see the class docstring for the modes."""
+        self._clear_rubber()
         self.mode = mode_str
         if mode_str == "CALIBRATE":
             self.start_calibration()
@@ -119,6 +139,32 @@ class MultiChannelCanvas(ImageView):
             item = CellPolygonItem(cell["id"], poly, colors.get(cell["id"], _DEFAULT_OUTLINE))
             self.add_to_layer(_CELLS_LAYER, item)
             self._cell_items.append(item)
+        present = {c["id"] for c in cells_data}
+        self._selection &= present
+        for item in self._cell_items:
+            item.set_highlighted(item.cell_id in self._selection)
+
+    def set_preview(self, cells: list[dict] | None) -> None:
+        """Dashed outlines of a preview run (not part of the analysis); None clears them."""
+        self.clear_layer(_PREVIEW_LAYER)
+        for cell in cells or []:
+            item = QGraphicsPolygonItem(QPolygonF([QPointF(x, y) for x, y in cell["points"]]))
+            pen = QPen(QColor(0, 230, 255), 2, Qt.PenStyle.DashLine)
+            pen.setCosmetic(True)
+            item.setPen(pen)
+            self.add_to_layer(_PREVIEW_LAYER, item)
+        self.layer(_PREVIEW_LAYER).setZValue(2)
+
+    @property
+    def selection(self) -> list[int]:
+        return sorted(self._selection)
+
+    def set_selection(self, cell_ids, emit: bool = False) -> None:
+        self._selection = set(cell_ids)
+        for item in self._cell_items:
+            item.set_highlighted(item.cell_id in self._selection)
+        if emit:
+            self.selection_changed.emit(self.selection)
 
     def set_probability_map(self, probability: np.ndarray | None) -> None:
         """Overlay a 0–1 probability map as a translucent heat map (None removes it)."""
@@ -134,36 +180,52 @@ class MultiChannelCanvas(ImageView):
                 self.centerOn(item.sceneBoundingRect().center())
                 return
 
-    # ── Mouse: right-click delete and the DRAW tool; the rest is ImageView's ──
+    # ── Mouse: tools; panning and calibration are ImageView's ───────────────
+
+    def _cell_at(self, event) -> CellPolygonItem | None:
+        clicked = self.itemAt(event.position().toPoint())
+        if isinstance(clicked, QGraphicsSimpleTextItem) and isinstance(
+            clicked.parentItem(), CellPolygonItem
+        ):
+            clicked = clicked.parentItem()
+        return clicked if isinstance(clicked, CellPolygonItem) else None
+
+    def _scene_pos(self, event) -> QPointF:
+        return self.mapToScene(event.position().toPoint())
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.RightButton:
-            clicked = self.itemAt(event.position().toPoint())
-            if isinstance(clicked, QGraphicsSimpleTextItem) and isinstance(
-                clicked.parentItem(), CellPolygonItem
-            ):
-                clicked = clicked.parentItem()
-            if isinstance(clicked, CellPolygonItem):
-                self.cell_deleted.emit(clicked.cell_id)
+            cell = self._cell_at(event)
+            if cell is not None:
+                self.cell_deleted.emit(cell.cell_id)
             return
-
-        if self.mode == "DRAW" and event.button() == Qt.MouseButton.LeftButton:
-            self._drawing_points = [self.mapToScene(event.position().toPoint())]
+        left = event.button() == Qt.MouseButton.LeftButton
+        if left and self.mode == "DRAW":
+            self._drawing_points = [self._scene_pos(event)]
             self._drawing_item = QGraphicsPolygonItem()
             self._drawing_item.setPen(QPen(QColor(255, 255, 0), 2))
             self.scene().addItem(self._drawing_item)
             return
+        if left and self.mode in _DRAG_TOOLS:
+            self._start_rubber(self._scene_pos(event))
+            return
+        if left and self.mode == "PAN":
+            self._press_pos = event.position()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self.mode == "DRAW" and self._drawing_points and self._drawing_item is not None:
-            self._drawing_points.append(self.mapToScene(event.position().toPoint()))
+            self._drawing_points.append(self._scene_pos(event))
             self._drawing_item.setPolygon(QPolygonF(self._drawing_points))
+            return
+        if self.mode in _DRAG_TOOLS and self._rubber is not None:
+            self._move_rubber(self._scene_pos(event))
             return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if self.mode == "DRAW" and event.button() == Qt.MouseButton.LeftButton:
+        left = event.button() == Qt.MouseButton.LeftButton
+        if left and self.mode == "DRAW":
             if len(self._drawing_points) >= _MIN_POLYGON_POINTS:
                 self.cell_drawn.emit([(p.x(), p.y()) for p in self._drawing_points])
             if self._drawing_item is not None and self._drawing_item.scene():
@@ -171,10 +233,89 @@ class MultiChannelCanvas(ImageView):
             self._drawing_points = []
             self._drawing_item = None
             return
+        if left and self.mode in _DRAG_TOOLS and self._rubber is not None:
+            self._finish_rubber(self._scene_pos(event))
+            return
+        if left and self.mode == "PAN" and self._press_pos is not None:
+            moved = (event.position() - self._press_pos).manhattanLength()
+            self._press_pos = None
+            if moved < _CLICK_SLOP_PX:
+                self._click_select(event)
         super().mouseReleaseEvent(event)
 
-    def set_outlines_visible(self, visible: bool) -> None:
-        self.set_layer_visible(_CELLS_LAYER, visible)
+    def _click_select(self, event) -> None:
+        cell = self._cell_at(event)
+        add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+        if cell is None:
+            selection = self._selection if add else set()
+        elif add:
+            selection = self._selection ^ {cell.cell_id}
+        else:
+            selection = {cell.cell_id}
+        self.set_selection(selection, emit=True)
+
+    # Rubber-band shapes for SPLIT (line), BOX (rectangle) and BRUSH (stroke).
+
+    def _start_rubber(self, pos: QPointF) -> None:
+        self._clear_rubber()
+        self._drawing_points = [pos]
+        pen = QPen(QColor(255, 220, 0), 2)
+        pen.setCosmetic(True)
+        if self.mode == "SPLIT":
+            self._rubber = QGraphicsLineItem(QLineF(pos, pos))
+        elif self.mode == "BOX":
+            self._rubber = QGraphicsRectItem(QRectF(pos, pos))
+            pen.setStyle(Qt.PenStyle.DashLine)
+        else:
+            colour = (
+                QColor(0, 255, 120, 110) if self.mode == "BRUSH_ADD" else QColor(255, 60, 60, 110)
+            )
+            pen = QPen(colour, 2 * self.brush_radius)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            path = QPainterPath(pos)
+            path.lineTo(pos)
+            self._rubber = QGraphicsPathItem(path)
+        self._rubber.setPen(pen)
+        self._rubber.setZValue(1000)
+        self.scene().addItem(self._rubber)
+
+    def _move_rubber(self, pos: QPointF) -> None:
+        start = self._drawing_points[0]
+        if isinstance(self._rubber, QGraphicsLineItem):
+            self._rubber.setLine(QLineF(start, pos))
+        elif isinstance(self._rubber, QGraphicsRectItem):
+            self._rubber.setRect(QRectF(start, pos).normalized())
+        elif isinstance(self._rubber, QGraphicsPathItem):
+            self._drawing_points.append(pos)
+            path = self._rubber.path()
+            path.lineTo(pos)
+            self._rubber.setPath(path)
+
+    def _finish_rubber(self, pos: QPointF) -> None:
+        start = self._drawing_points[0]
+        if self.mode == "SPLIT":
+            self.split_drawn.emit(((start.x(), start.y()), (pos.x(), pos.y())))
+        elif self.mode == "BOX":
+            rect = QRectF(start, pos).normalized()
+            if rect.width() >= _CLICK_SLOP_PX and rect.height() >= _CLICK_SLOP_PX:
+                self.box_drawn.emit((rect.left(), rect.top(), rect.right(), rect.bottom()))
+        else:
+            points = [(p.x(), p.y()) for p in [*self._drawing_points, pos]]
+            self.brush_painted.emit((points, self.brush_radius, self.mode == "BRUSH_ADD"))
+        self._clear_rubber()
+
+    def _clear_rubber(self) -> None:
+        if self._rubber is not None and self._rubber.scene():
+            self.scene().removeItem(self._rubber)
+        self._rubber = None
+        if self.mode in _DRAG_TOOLS:
+            self._drawing_points = []
+
+    def visible_region(self) -> tuple[float, float, float, float]:
+        """The part of the image in view, as (x0, y0, x1, y1) in image pixels."""
+        rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        return rect.left(), rect.top(), rect.right(), rect.bottom()
 
     def set_show_ids(self, show: bool):
         """Toggles the visibility of all cell ID numbers on the canvas."""
@@ -182,16 +323,19 @@ class MultiChannelCanvas(ImageView):
             item.text_item.setVisible(show)
 
     def highlight_cell(self, target_id):
-        """Highlights a specific cell ID. Pass None to clear all highlights."""
-        for item in self._cell_items:
-            item.set_highlighted(item.cell_id == target_id)
+        """Highlight one cell (None clears), e.g. from a table row."""
+        self.set_selection(set() if target_id is None else {target_id})
 
     def cleanup(self) -> None:
         """Release UI resources. Called when the plugin panel is closed."""
         self._cell_items.clear()
         self._drawing_points.clear()
         self._drawing_item = None
+        self._rubber = None
         super().cleanup()
+
+    def set_outlines_visible(self, visible: bool) -> None:
+        self.set_layer_visible(_CELLS_LAYER, visible)
 
 
 # Viridis (van der Walt & Smith, matplotlib's default colormap; CC0), 5 stops.

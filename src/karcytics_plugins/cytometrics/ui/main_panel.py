@@ -6,6 +6,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+import cv2
+import numpy as np
 import pandas as pd
 from karcytics_sdk.plugin import (
     BioSplitter,
@@ -27,6 +29,7 @@ from karcytics_sdk.plugin.dialogs import SaveWorkflowDialog
 from karcytics_sdk.plugin.io import PluginConfig
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -54,11 +57,13 @@ from .image_canvas import MultiChannelCanvas, confidence_color, value_color
 from .mode_picker import ModePicker
 from .stepper import Stepper
 from .steps import CalibrateStep, DetectStep, LoadStep, MeasureStep, ReportStep, ReviewStep
+from .steps.review import TOOLS
 from .widgets.table_items import NumericTableItem
 from .workers import (
     CytoPipelineWorker,
     load_libraries_func,
     measure_func,
+    resegment_func,
 )
 
 logger = get_logger(__name__, "cytometrics")
@@ -117,6 +122,12 @@ class CytoMetricsPanel(PluginBase):
     def measure_options(self) -> MeasureOptions:
         return self.session.measure_options
 
+    def _track(self, handle):
+        """Keep a running task's handle so ``cleanup`` can detach it."""
+        self._tasks = [h for h in getattr(self, "_tasks", []) if not h.done]
+        self._tasks.append(handle)
+        return handle
+
     def _on_loader_finished(self, results: dict) -> None:
         self._on_ai_loaded(results.get("success", False), results.get("pipelines", {}), "Loaded")
 
@@ -145,6 +156,10 @@ class CytoMetricsPanel(PluginBase):
         # 4. Stop listening to background tasks
         if hasattr(self, "_loader_task"):
             self._loader_task.detach()
+        # Results of runs still in flight must not reach a closed panel.
+        self._measure_generation += 1
+        for handle in getattr(self, "_tasks", []):
+            handle.detach()
 
         # 5. Base cleanup (disconnects and nulls state)
         super().cleanup()
@@ -204,7 +219,19 @@ class CytoMetricsPanel(PluginBase):
         self.btn_save_session.setToolTip("Save this analysis to the project")
         self.btn_load_session = SecondaryButton("📂")
         self.btn_load_session.setToolTip("Open an analysis saved in this project")
-        for button in (self.btn_assay, self.btn_save_session, self.btn_load_session):
+        self.btn_undo = SecondaryButton("↶")
+        self.btn_undo.setToolTip("Undo (Ctrl+Z)")
+        self.btn_redo = SecondaryButton("↷")
+        self.btn_redo.setToolTip("Redo (Ctrl+Shift+Z)")
+        self.btn_undo.setEnabled(False)
+        self.btn_redo.setEnabled(False)
+        for button in (
+            self.btn_assay,
+            self.btn_undo,
+            self.btn_redo,
+            self.btn_save_session,
+            self.btn_load_session,
+        ):
             header_row.addWidget(button)
         control_layout.addLayout(header_row)
 
@@ -271,7 +298,7 @@ class CytoMetricsPanel(PluginBase):
         r = self.review_step
         self.chk_show_ids, self.combo_color_by = r.chk_show_ids, r.combo_color_by
         self.chk_probability_map, self.spin_uncertain = r.chk_probability_map, r.spin_uncertain
-        self.btn_next_uncertain, self.btn_draw = r.btn_next_uncertain, r.btn_draw
+        self.btn_next_uncertain = r.btn_next_uncertain
         m = self.measure_step
         self.combo_background, self.combo_nucleus, self.chk_texture = (
             m.combo_background,
@@ -293,6 +320,7 @@ class CytoMetricsPanel(PluginBase):
         self._assay: Assay | None = None
         self._wire()
         self._apply_theme_styles()
+        self.undo_history.reset(self.get_state().to_dict())
 
     def _wire(self) -> None:
         """Connect the step pages, canvas and table to the panel."""
@@ -322,9 +350,24 @@ class CytoMetricsPanel(PluginBase):
         self.chk_probability_map.toggled.connect(self._update_probability_map)
         self.spin_uncertain.valueChanged.connect(self._update_review_controls)
         self.btn_next_uncertain.clicked.connect(self._on_next_uncertain)
-        self.btn_draw.clicked.connect(self._on_draw_toggled)
+        r = self.review_step
+        r.tool_group.idClicked.connect(self._on_tool_chosen)
+        r.spin_brush.valueChanged.connect(lambda v: setattr(self.canvas, "brush_radius", v))
+        r.btn_merge.clicked.connect(self._on_merge_selected)
+        r.btn_delete.clicked.connect(self._on_delete_selected)
         self.canvas.cell_drawn.connect(self._on_cell_drawn)
         self.canvas.cell_deleted.connect(self._on_cell_deleted)
+        self.canvas.selection_changed.connect(self._on_canvas_selection)
+        self.canvas.split_drawn.connect(self._on_split_drawn)
+        self.canvas.brush_painted.connect(self._on_brush_painted)
+        self.canvas.box_drawn.connect(self._on_box_drawn)
+        self.detect_step.btn_preview.clicked.connect(self._on_preview)
+        self.btn_undo.clicked.connect(self.undo)
+        self.btn_redo.clicked.connect(self.redo)
+        self.signals.undo_available.connect(self.btn_undo.setEnabled)
+        self.signals.redo_available.connect(self.btn_redo.setEnabled)
+        QShortcut(QKeySequence.StandardKey.Undo, self, self.undo)
+        QShortcut(QKeySequence.StandardKey.Redo, self, self.redo)
 
         self.combo_background.currentIndexChanged.connect(self._on_measure_options_changed)
         self.combo_nucleus.currentIndexChanged.connect(self._on_measure_options_changed)
@@ -350,6 +393,8 @@ class CytoMetricsPanel(PluginBase):
     def set_assay(self, assay_id: str | None, apply_defaults: bool = True) -> None:
         """Switch to `assay_id`'s steps and, unless restoring a session, its default settings."""
         assay = ASSAYS.get(assay_id or "") or ASSAYS[DEFAULT_ASSAY]
+        if assay is self._assay and not apply_defaults:
+            return  # restoring (e.g. undo): stay on the current step
         self._assay = assay
         self.btn_assay.setText(f"{assay.icon} {assay.name} ▾")
         self.stepper.set_steps(
@@ -466,6 +511,7 @@ class CytoMetricsPanel(PluginBase):
         """Change the calibration; measured cells are converted to the new units."""
         self.session.set_scale(scale, source)
         self._update_units()
+        self.push_state("Calibrate")
         self.state_changed.emit()
 
     def _update_calibrate_button_state(self):
@@ -503,6 +549,7 @@ class CytoMetricsPanel(PluginBase):
                 self.detect_step.add_citation(key, pipe.name, getattr(pipe, "citations", ()))
             self.combo_pipeline.blockSignals(False)
             self.btn_run_pipeline.setEnabled(True)
+            self.detect_step.btn_preview.setEnabled(True)
             self._refresh_ai_status_label()
 
             # Build the settings for the current (or restored) algorithm.
@@ -565,12 +612,14 @@ class CytoMetricsPanel(PluginBase):
         analyzer.configure(pipeline, self.image_set, params, self.state.scale, self.measure_options)
         self.session.last_run = LastRun(pipeline, params)  # for the methods text
 
-        submit_task(
-            analyzer,
-            self.state,
-            on_finished=self._on_pipeline_result,
-            on_error=self._on_pipeline_error,
-            on_progress=self.progress_bar.setValue,
+        self._track(
+            submit_task(
+                analyzer,
+                self.state,
+                on_finished=self._on_pipeline_result,
+                on_error=self._on_pipeline_error,
+                on_progress=self.progress_bar.setValue,
+            )
         )
 
     def _on_pipeline_result(self, results: dict) -> None:
@@ -593,7 +642,9 @@ class CytoMetricsPanel(PluginBase):
         self.session.replace_cells(
             cells, results.get("measurements"), results.get("labels"), results.get("probability")
         )
+        self.canvas.set_preview(None)
         self.set_state(self.state)
+        self.push_state("Segment")
         self.state_changed.emit()
 
     def _on_pipeline_error(self, error_msg):
@@ -662,6 +713,7 @@ class CytoMetricsPanel(PluginBase):
             return
         state_obj = CytoMetricsState.from_dict(state_dict)
         self.set_state(state_obj)
+        self.undo_history.reset(self.get_state().to_dict())  # a loaded session starts clean
 
     # --- ALIASES FOR HUB DASHBOARD INTEGRATION ---
     def load_workflow(self, payload: dict):
@@ -749,25 +801,144 @@ class CytoMetricsPanel(PluginBase):
         else:
             self._update_units()
 
-    def _on_draw_toggled(self, checked):
-        if not self.image_set.channels:
-            self.btn_draw.setChecked(False)
+    # ── Editing ──────────────────────────────────────────────────────────
+
+    def _on_tool_chosen(self, index: int) -> None:
+        mode = TOOLS[index][0]
+        if mode != "PAN" and not self.image_set.channels:
+            self.review_step.tool_buttons["PAN"].setChecked(True)
             return
-        self.canvas.set_mode("DRAW" if checked else "PAN")
-        if checked:
-            # Highlight as active while drawing; restored to the normal SecondaryButton
-            # look via its own theme method once the user toggles it back off.
-            self.btn_draw.setStyleSheet(f"""
-                QPushButton {{ background-color: {Colors.ACCENT_PRIMARY}; color: {Colors.BG_DARKEST};
-                    border: none; border-radius: 6px; padding: 10px 20px; font-size: 13px;
-                    font-weight: bold; text-align: left; }}
-            """)
-        else:
-            self.btn_draw._apply_theme_styles()
+        self.canvas.brush_radius = self.review_step.spin_brush.value()
+        self.canvas.set_mode(mode)
+
+    def _on_canvas_selection(self, cell_ids: list) -> None:
+        n = len(cell_ids)
+        r = self.review_step
+        r.btn_merge.setEnabled(n >= 2)  # noqa: PLR2004
+        r.btn_delete.setEnabled(n >= 1)
+        r.lbl_selection.setText(
+            f"{n} cell(s) selected." if n else "Click a cell to select it; Shift+click adds more."
+        )
+        self.table.blockSignals(True)
+        self.table.clearSelection()
+        wanted = {f"Cell {i}" for i in cell_ids}
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item and item.text() in wanted:
+                self.table.selectRow(row)
+        self.table.blockSignals(False)
+
+    def _on_merge_selected(self) -> None:
+        ids = set(self.canvas.selection)
+        new_id = self.session.merge_cells(ids)
+        if new_id is None:
+            show_warning(self, "Can't Merge", "Only cells that touch can be merged.")
+            return
+        self.canvas.set_selection({new_id}, emit=True)
+        self._commit_edit(f"Merge {len(ids)} cells")
+
+    def _on_delete_selected(self) -> None:
+        ids = set(self.canvas.selection)
+        if not ids:
+            return
+        self.session.delete_cells(ids)
+        self.canvas.set_selection(set(), emit=True)
+        self._commit_edit(f"Delete {len(ids)} cell(s)")
+
+    def _cell_under(self, x: float, y: float) -> int | None:
+        for cell in self.state.cells:
+            contour = np.asarray(cell["points"], dtype=np.float32)
+            if len(contour) >= 3 and cv2.pointPolygonTest(contour, (x, y), False) >= 0:  # noqa: PLR2004
+                return cell["id"]
+        return None
+
+    def _on_split_drawn(self, line) -> None:
+        (x0, y0), (x1, y1) = line
+        selected = self.canvas.selection
+        target = (
+            selected[0] if len(selected) == 1 else self._cell_under((x0 + x1) / 2, (y0 + y1) / 2)
+        )
+        if target is None:
+            self.status_message.emit("Draw the cut across a cell (or select the cell first).")
+            return
+        pieces = self.session.split_cell(target, (x0, y0), (x1, y1))
+        if not pieces:
+            self.status_message.emit("That line doesn't cut the cell in two; draw it right across.")
+            return
+        self.canvas.set_selection(set(pieces), emit=True)
+        self._commit_edit("Split cell")
+
+    def _on_brush_painted(self, stroke) -> None:
+        points, radius, add = stroke
+        selected = self.canvas.selection
+        if len(selected) != 1:
+            self.status_message.emit("Select one cell to paint on (✋ Select, then click it).")
+            return
+        remaining = self.session.paint_cell(selected[0], points, radius, add)
+        self.canvas.set_selection(set(remaining[:1]), emit=True)
+        self._commit_edit("Brush" if add else "Erase")
+
+    def _commit_edit(self, label: str) -> None:
+        """An edit changed the cells: redraw, re-measure and record an undo step."""
+        self._on_cells_edited()
+        self.push_state(label)
+
+    # ── Running on a region: box re-detect (kept) and preview (not kept) ──
+
+    def _region_task(self, box, on_done) -> None:
+        segmenter = self.pipelines.get(self.combo_pipeline.currentData())
+        if segmenter is None or not self.image_set.channels:
+            return
+        task = FunctionalTask(
+            partial(resegment_func, segmenter, self.image_set, self.params_form.values(), box),
+            self.plugin_id,
+            "Segment region",
+        )
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self._track(
+            submit_task(
+                task,
+                self.state,
+                on_finished=on_done,
+                on_error=self._on_region_error,
+                on_progress=self.progress_bar.setValue,
+            )
+        )
+
+    def _on_region_error(self, message: str) -> None:
+        self.progress_bar.setVisible(False)
+        show_error(self, "Segmentation Error", message)
+
+    def _on_box_drawn(self, box) -> None:
+        self._region_task(box, self._on_box_segmented)
+
+    def _on_box_segmented(self, results: dict) -> None:
+        self.progress_bar.setVisible(False)
+        if "error" in results:
+            self._on_region_error(results["error"])
+            return
+        ids = self.session.replace_region(results["box"], results["cells"])
+        self.canvas.set_selection(set(ids), emit=True)
+        self._commit_edit("Re-detect region")
+        self.status_message.emit(f"Re-detected the region: {len(ids)} cell(s).")
+
+    def _on_preview(self) -> None:
+        self._region_task(self.canvas.visible_region(), self._on_preview_done)
+
+    def _on_preview_done(self, results: dict) -> None:
+        self.progress_bar.setVisible(False)
+        if "error" in results:
+            self._on_region_error(results["error"])
+            return
+        self.canvas.set_preview(results["cells"])
+        self.detect_step.lbl_ai_status.setText(
+            f"👁 Preview: {len(results['cells'])} cell(s) in view (dashed, not kept)"
+        )
 
     def _on_cell_drawn(self, points: list):
         self.session.add_manual_cell(points)
-        self._on_cells_edited()
+        self._commit_edit("Draw cell")
 
     def _update_dropdowns(self):
         """Offer the current channel names in the Detect settings and the nucleus picker."""
@@ -787,7 +958,7 @@ class CytoMetricsPanel(PluginBase):
     def _on_cell_deleted(self, cell_id):
         """Removes a cell by ID and triggers a state refresh for Undo/Redo."""
         self.session.delete_cells({cell_id})
-        self._on_cells_edited()
+        self._commit_edit("Delete cell")
 
     def _redraw_cells(self, *_args) -> None:
         """Outline the cells in one colour, by AI confidence, or by any measurement."""
@@ -958,11 +1129,13 @@ class CytoMetricsPanel(PluginBase):
             self.plugin_id,
             "Measure cells",
         )
-        submit_task(
-            task,
-            self.state,
-            on_finished=lambda results: self._on_measured(generation, results),
-            on_error=lambda message: logger.error("Measuring failed: %s", message),
+        self._track(
+            submit_task(
+                task,
+                self.state,
+                on_finished=lambda results: self._on_measured(generation, results),
+                on_error=lambda message: logger.error("Measuring failed: %s", message),
+            )
         )
 
     def _on_measured(self, generation: int, results: dict) -> None:

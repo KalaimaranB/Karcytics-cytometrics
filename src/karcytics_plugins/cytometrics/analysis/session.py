@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from ..report import Measured, build_steps
+from . import edit
 from .measure import MeasureOptions, measure_cells, rescale
 from .model import ImageSet
 from .state import CytoMetricsState
@@ -95,6 +96,73 @@ class AnalysisSession:
 
     def delete_cells(self, cell_ids: set[int]) -> None:
         self.state.cells = [c for c in self.state.cells if c["id"] not in cell_ids]
+        self._drop_rows(cell_ids)
+
+    # ── Edits (each returns the ids it created; the caller re-measures) ──────
+
+    def _new_cell(self, points: list, source: str = "edited") -> dict:
+        self.state.cell_counter += 1
+        cell = {"id": self.state.cell_counter, "points": points, "source": source}
+        self.state.cells.append(cell)
+        return cell
+
+    def _shape(self) -> tuple[int, int]:
+        shape = self.image_set.shape
+        if shape is None:
+            raise ValueError("No image is loaded.")
+        return shape
+
+    def merge_cells(self, cell_ids: set[int]) -> int | None:
+        """Merge touching cells into one; None if they don't touch (nothing changes)."""
+        cells = [c for c in self.state.cells if c["id"] in cell_ids]
+        if len(cells) < 2:  # noqa: PLR2004
+            return None
+        outline = edit.merge(cells, self._shape())
+        if outline is None:
+            return None
+        self.delete_cells(cell_ids)
+        return self._new_cell(outline)["id"]
+
+    def split_cell(self, cell_id: int, start, end) -> list[int]:
+        """Cut a cell along a line; [] if the line doesn't cut it in two."""
+        cell = self.cell(cell_id)
+        if cell is None:
+            return []
+        pieces = edit.split(cell, start, end, self._shape())
+        if len(pieces) < 2:  # noqa: PLR2004
+            return []
+        self.delete_cells({cell_id})
+        return [self._new_cell(p)["id"] for p in pieces]
+
+    def paint_cell(self, cell_id: int, stroke, radius: int, add: bool) -> list[int]:
+        """Brush pixels onto (or off) a cell; returns the ids of what's left."""
+        cell = self.cell(cell_id)
+        if cell is None:
+            return []
+        pieces = edit.paint(cell, stroke, radius, add, self._shape())
+        if len(pieces) == 1:
+            cell["points"] = pieces[0]
+            if cell.get("source") != "manual":
+                cell["source"] = "edited"
+            cell.pop("confidence", None)  # no longer the model's outline
+            self._drop_rows({cell_id})
+            return [cell_id]
+        self.delete_cells({cell_id})
+        return [self._new_cell(p)["id"] for p in pieces]
+
+    def replace_region(self, box: tuple[int, int, int, int], found: list[dict]) -> list[int]:
+        """Swap the cells centred in `box` for `found` (already in image coordinates)."""
+        old = {c["id"] for c in self.state.cells if edit.inside(c, box)}
+        self.delete_cells(old)
+        ids = []
+        for cell in found:
+            new = self._new_cell(cell["points"], "auto")
+            if cell.get("confidence") is not None:
+                new["confidence"] = cell["confidence"]
+            ids.append(new["id"])
+        return ids
+
+    def _drop_rows(self, cell_ids: set[int]) -> None:
         kept = self.measurements[~self.measurements["ObjectNumber"].isin(cell_ids)].copy()
         kept.attrs = self.measurements.attrs
         self.measurements = kept

@@ -54,9 +54,17 @@ class DetectStep(StepPage):
         self.progress_bar = ScanningIndicator()
         self.progress_bar.setVisible(False)
         self.body.addWidget(self.progress_bar)
+        row = QHBoxLayout()
+        self.btn_preview = SecondaryButton("👁 Preview on visible area")
+        self.btn_preview.setToolTip(
+            "Try the settings on the part of the image in view. Shown dashed; nothing is kept."
+        )
+        self.btn_preview.setEnabled(False)
         self.btn_run = PrimaryButton("✨ Run Segmentation")
         self.btn_run.setEnabled(False)
-        self.body.addWidget(self.btn_run)
+        row.addWidget(self.btn_preview)
+        row.addWidget(self.btn_run)
+        self.body.addLayout(row)
 
         self.hw_monitor = HardwareMonitor()
         self.body.addWidget(self.hw_monitor)
