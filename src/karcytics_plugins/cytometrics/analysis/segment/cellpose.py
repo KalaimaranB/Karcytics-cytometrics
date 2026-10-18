@@ -150,7 +150,7 @@ class CellposeSegmenter:
     id = "cellpose"
     name = "AI Smart Detect (Cellpose)"
     summary = (
-        "Best for complex clusters and faint extensions. Requires a one-time ~1.3 GB model "
+        "Best for complex clusters and faint extensions. Requires a one-time ~1.2 GB model "
         "download."
     )
     citations = ("cpsam2025", "cellpose2021", "pytorch2019")

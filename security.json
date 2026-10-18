@@ -27,7 +27,7 @@
         "src/karcytics_plugins/cytometrics/analysis/models.py": "ddd722ebb55594d02686604f68281077ee7f6ca3491b870043d2eac7a5a50caf",
         "src/karcytics_plugins/cytometrics/analysis/segment/__init__.py": "ca0d55a25c261586ad8b1b293be7d44bf58f9cf47a7e51a444d3cf6933bd41b8",
         "src/karcytics_plugins/cytometrics/analysis/segment/base.py": "036a65b467932ea899a7b9d600205373afcc2f060bfa515cfc2431bdca2d6ac4",
-        "src/karcytics_plugins/cytometrics/analysis/segment/cellpose.py": "a755b7049c0f0707f46c0c941c630e47e622db6ae34a12f5503b2a50374e6310",
+        "src/karcytics_plugins/cytometrics/analysis/segment/cellpose.py": "44678f59ea0626a7b43422a5962eab0fccaac2ee2e9d9b50c6f7a48ba0358d3c",
         "src/karcytics_plugins/cytometrics/analysis/segment/otsu.py": "43f7e4486990075115cca62ef4d820380bfc9293c6f932239783885545e6dde0",
         "src/karcytics_plugins/cytometrics/analysis/segment/watershed.py": "b37da83e6d39bf682cd43e7fbae144f8784ef08e7ffa93a2d779667dee058975",
         "src/karcytics_plugins/cytometrics/analysis/session.py": "49100e58f57ebd7450667fb3e202665d4443c6641b794b49067bf13f432d4ec8",
