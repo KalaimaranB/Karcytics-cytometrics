@@ -40,6 +40,7 @@ class Measured:
     background: str = "none"
     texture: bool = False
     nucleus_channel: str | None = None
+    rods: bool = False
 
 
 def build_steps(
@@ -70,6 +71,17 @@ def build_steps(
                 f"'{measured.nucleus_channel}' channel) and cytoplasm, and nuclear and cytoplasmic "
                 "areas and mean intensities and their ratios were measured",
                 ("otsu1979",),
+            )
+        )
+    if measured.rods:
+        steps.append(
+            MethodStep(
+                "Rod-shaped cells were measured along their midline, the longest path of the "
+                "mask's skeleton (Zhang–Suen thinning): length (extended to the poles by the local "
+                "half-width), median width, curvature (1 − end-to-end distance / length) and the "
+                "narrowest width in the middle 60% relative to the median; cells constricted below "
+                "0.7 were scored as dividing",
+                ("zhang1984", "skimage2014"),
             )
         )
     if measured.texture:
@@ -140,6 +152,7 @@ def batch_methods(batch: Any, pipeline: Any) -> list[MethodStep]:
             m.get("background", "none"),
             bool(m.get("texture", False)),
             m.get("nucleus_channel"),
+            bool(m.get("rods", False)),
         ),
     )
     if recipe.gates:

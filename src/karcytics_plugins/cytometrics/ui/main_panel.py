@@ -412,6 +412,7 @@ class CytoMetricsPanel(PluginBase):
         self.combo_background.currentIndexChanged.connect(self._on_measure_options_changed)
         self.combo_nucleus.currentIndexChanged.connect(self._on_measure_options_changed)
         self.chk_texture.toggled.connect(self._on_measure_options_changed)
+        self.measure_step.chk_rods.toggled.connect(self._on_measure_options_changed)
         self.combo_hist_metric.currentIndexChanged.connect(self._update_stats)
         self.gating.gates_changed.connect(self._on_gates_changed)
         self.gating.population_colors_changed.connect(self._on_population_colors_changed)
@@ -747,6 +748,7 @@ class CytoMetricsPanel(PluginBase):
             "measure": {
                 "background": self.measure_options.background,
                 "texture": self.measure_options.texture,
+                "rods": self.measure_options.rods,
                 "nucleus_channel": self.measure_options.nucleus_channel,
             },
         }
@@ -862,6 +864,7 @@ class CytoMetricsPanel(PluginBase):
             MeasureOptions(
                 background=measure.get("background", "none"),
                 texture=bool(measure.get("texture", False)),
+                rods=bool(measure.get("rods", False)),
                 nucleus_channel=measure.get("nucleus_channel"),
             )
         )
@@ -1438,13 +1441,19 @@ class CytoMetricsPanel(PluginBase):
         self.session.measure_options = MeasureOptions(
             background=self.combo_background.currentData(),
             texture=self.chk_texture.isChecked(),
+            rods=self.measure_step.chk_rods.isChecked(),
             nucleus_channel=self.combo_nucleus.currentData(),
         )
         self._remeasure()
 
     def _set_measure_controls(self, options: MeasureOptions) -> None:
         """Show `options` in the Measurements controls without re-measuring."""
-        widgets = (self.combo_background, self.combo_nucleus, self.chk_texture)
+        widgets = (
+            self.combo_background,
+            self.combo_nucleus,
+            self.chk_texture,
+            self.measure_step.chk_rods,
+        )
         for w in widgets:
             w.blockSignals(True)
         self.combo_background.setCurrentIndex(
@@ -1454,6 +1463,7 @@ class CytoMetricsPanel(PluginBase):
             max(self.combo_nucleus.findData(options.nucleus_channel), 0)
         )
         self.chk_texture.setChecked(options.texture)
+        self.measure_step.chk_rods.setChecked(options.rods)
         for w in widgets:
             w.blockSignals(False)
         self.session.measure_options = options

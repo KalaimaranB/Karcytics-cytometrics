@@ -354,6 +354,7 @@ class AnalysisSession:
                 self.measure_options.background,
                 self.measure_options.texture,
                 self.measure_options.nucleus_channel,
+                self.measure_options.rods,
             ),
         )
         analysis = self.assay.analysis if self.assay else None

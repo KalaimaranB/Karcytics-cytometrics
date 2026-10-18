@@ -36,6 +36,7 @@ class MeasureOptions:
     texture: bool = False
     texture_distance_px: int = 3
     nucleus_channel: str | None = None  # enables the nucleus/cytoplasm measurer
+    rods: bool = False  # rod-shaped cells: length, width, curvature, division
 
 
 @dataclass

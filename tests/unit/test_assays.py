@@ -101,3 +101,52 @@ def test_cfu_per_ml_and_countable_range():
     assert "too few" in few["CFU_per_mL"].warning
     overlay = analysis.overlays(settings, AssayContext(extras={"dish": [1, 2, 3]}))
     assert overlay[0].kind == "circle" and overlay[0].coords == (1, 2, 3)
+
+
+# ── Bacteria ─────────────────────────────────────────────────────────────────
+
+
+def _capsule(length, width, bend=0.0):
+    """A rod `length` × `width` px along x; `bend` bows it."""
+    import cv2
+
+    canvas = np.zeros((80, 160), np.uint8)
+    xs = np.linspace(40, 40 + length - width, 200)
+    for x in xs:
+        t = (x - xs[0]) / (xs[-1] - xs[0]) - 0.5
+        y = 40 + bend * (1 - (2 * t) ** 2)
+        cv2.circle(canvas, (int(round(x)), int(round(y))), int(round(width / 2)), 1, -1)
+    return canvas.astype(bool)
+
+
+def test_rod_measurements():
+    from karcytics_plugins.cytometrics.analysis.measure.rods import rod_shape
+
+    length, width, curvature, constriction = rod_shape(_capsule(60, 12))
+    assert length == pytest.approx(60, rel=0.08)
+    assert width == pytest.approx(12, rel=0.15)
+    assert curvature < 0.03 and constriction > 0.8
+
+    *_, bent_curvature, _ = rod_shape(_capsule(60, 10, bend=15))
+    assert bent_curvature > 0.05
+
+    # A dividing cell: two daughter rods meeting end to end, pinched where they meet.
+    dividing = _capsule(34, 14) | np.roll(_capsule(34, 14), 32, axis=1)
+    *_, pinched = rod_shape(dividing)
+    assert pinched < 0.7
+
+
+def test_bacteria_results_and_dividing_gate():
+    analysis = REGISTRY["bacteria"].analysis
+    table = pd.DataFrame(
+        {
+            "Rod_Length": [3.0, 4.0, 5.0, 6.0],
+            "Rod_Width": [1.0, 1.0, 1.1, 0.9],
+            "Rod_Curvature": [0.0, 0.1, 0.0, 0.2],
+            "Rod_Dividing": [0.0, 1.0, 0.0, 1.0],
+        }
+    )
+    results = {r.key: r.value for r in analysis.results(table, [], {}, AssayContext(scale=0.1))}
+    assert results["MedianLength"] == 4.5 and results["PctDividing"] == 50
+    gate = analysis.suggested_gates(table, {})[0]
+    assert gating.evaluate([gate], table)["Dividing"].tolist() == [False, True, False, True]

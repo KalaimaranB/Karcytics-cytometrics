@@ -54,6 +54,13 @@ class MeasureStep(StepPage):
         )
         self.body.addWidget(self.chk_texture)
 
+        self.chk_rods = QCheckBox("Rod-shaped cells (length, width, curvature, division)")
+        self.chk_rods.setToolTip(
+            "For bacteria and other rods: length along the midline, width, curvature, and a "
+            "dividing flag when the middle is pinched."
+        )
+        self.body.addWidget(self.chk_rods)
+
         self.section("Summary")
         self.lbl_stats = QLabel("Total Cells: 0")
         self.body.addWidget(self.lbl_stats)
@@ -64,5 +71,11 @@ class MeasureStep(StepPage):
         self.apply_theme()
 
     def apply_theme(self) -> None:
-        for widget in (self.lbl_background, self.lbl_nucleus, self.chk_texture, self.lbl_stats):
+        for widget in (
+            self.lbl_background,
+            self.lbl_nucleus,
+            self.chk_texture,
+            self.chk_rods,
+            self.lbl_stats,
+        ):
             widget.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
