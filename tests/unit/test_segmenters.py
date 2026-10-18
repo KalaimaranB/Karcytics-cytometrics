@@ -55,7 +55,7 @@ def _areas(cells: list[dict]) -> list[float]:
 
 
 def test_registry_has_every_segmenter_once():
-    assert set(REGISTRY) == {"otsu", "watershed", "cellpose"}
+    assert set(REGISTRY) == {"otsu", "watershed", "cellpose", "colonies"}
     for sid, cls in REGISTRY.items():
         seg = cls()
         assert seg.id == sid

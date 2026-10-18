@@ -7,6 +7,7 @@ import pytest
 
 @pytest.mark.ui
 def test_panel_constructs(qtbot):
+    from karcytics_plugins.cytometrics.analysis.assays import REGISTRY as ASSAYS
     from karcytics_plugins.cytometrics.ui.main_panel import CytoMetricsPanel
 
     panel = CytoMetricsPanel()
@@ -14,7 +15,7 @@ def test_panel_constructs(qtbot):
 
     assert panel.plugin_id == "cytometrics"
     assert panel.left_stack.currentWidget() is panel.mode_picker  # asks what you're analysing
-    assert set(panel.mode_picker.cards) == {"cells", "nuclei"}
+    assert set(panel.mode_picker.cards) == set(ASSAYS)
 
 
 @pytest.mark.ui

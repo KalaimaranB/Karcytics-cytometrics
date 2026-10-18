@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from karcytics_plugins.cytometrics.analysis.segment import REGISTRY as SEGMENTERS
 from karcytics_plugins.cytometrics.analysis.session import LastRun
 from karcytics_plugins.cytometrics.ui import main_panel
 
@@ -21,7 +22,7 @@ def panel(qtbot):
 def test_segmenters_load_in_the_background_and_unlock_run(panel, qtbot):
     qtbot.waitUntil(lambda: bool(panel.pipelines), timeout=10_000)
 
-    assert set(panel.pipelines) == {"otsu", "watershed", "cellpose"}
+    assert set(panel.pipelines) == set(SEGMENTERS)
     assert panel.combo_pipeline.count() == 3
     assert panel.btn_run_pipeline.isEnabled()
 

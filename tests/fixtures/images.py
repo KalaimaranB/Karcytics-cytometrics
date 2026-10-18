@@ -67,3 +67,27 @@ def nuclei_for_touching_pair() -> np.ndarray:
 
 def stack(*channels: tuple[str, np.ndarray]) -> ImageSet:
     return ImageSet([Channel(name, data) for name, data in channels])
+
+
+def plate_photo(lighter=True, seed=0):
+    """A 600 px photo: dark surround, a lit dish with a lighting gradient, 40 colonies
+    (6 of them in touching pairs).
+    """
+    rng = np.random.default_rng(seed)
+    h = w = 600
+    yy, xx = np.mgrid[:h, :w]
+    image = np.full((h, w), 25.0)
+    dish = (xx - 300) ** 2 + (yy - 300) ** 2 <= 260**2
+    image[dish] = 110 + 40 * (xx[dish] / w)  # uneven light across the plate
+    centres = []
+    while len(centres) < 34:
+        x, y = rng.integers(110, 490, 2)
+        if (x - 300) ** 2 + (y - 300) ** 2 < 200**2 and all(
+            (x - a) ** 2 + (y - b) ** 2 > 30**2 for a, b in centres
+        ):
+            centres.append((int(x), int(y)))
+    pairs = [(c[0] + 11, c[1]) for c in centres[:6]]  # overlapping neighbours
+    for x, y in centres + pairs:
+        cv2.circle(image, (x, y), 7, 200.0 if lighter else 40.0, -1)
+    image += rng.normal(0, 3, image.shape)
+    return np.clip(image, 0, 255).astype(np.uint8), len(centres) + len(pairs)

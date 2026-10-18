@@ -445,6 +445,9 @@ class CytoMetricsPanel(PluginBase):
         self._assay = assay
         self.session.assay = assay
         self.results_step.set_assay(assay)
+        if self.pipelines:
+            self._fill_pipeline_combo()
+            self._on_algorithm_changed()
         self.btn_assay.setText(f"{assay.icon} {assay.name} ▾")
         self.stepper.set_steps(
             [(sid, STEP_LABELS[sid], self.step_pages[sid]) for sid in assay.steps]
@@ -600,12 +603,9 @@ class CytoMetricsPanel(PluginBase):
             # Replace the pipeline registry with the fully constructed instances
             self.pipelines = pipelines
 
-            self.combo_pipeline.blockSignals(True)
-            self.combo_pipeline.clear()
             for key, pipe in pipelines.items():
-                self.combo_pipeline.addItem(pipe.name, key)
                 self.detect_step.add_citation(key, pipe.name, getattr(pipe, "citations", ()))
-            self.combo_pipeline.blockSignals(False)
+            self._fill_pipeline_combo()
             self.btn_run_pipeline.setEnabled(True)
             self.detect_step.btn_preview.setEnabled(True)
             self._refresh_ai_status_label()
@@ -621,6 +621,19 @@ class CytoMetricsPanel(PluginBase):
             self.lbl_ai_status.setStyleSheet(
                 f"color: {Colors.ACCENT_DANGER}; font-size: 12px; font-weight: bold;"
             )
+
+    def _fill_pipeline_combo(self) -> None:
+        """Offer the general segmenters plus those made for the current assay."""
+        assay_id = self._assay.id if self._assay else None
+        current = self.combo_pipeline.currentData()
+        self.combo_pipeline.blockSignals(True)
+        self.combo_pipeline.clear()
+        for key, pipe in self.pipelines.items():
+            only_for = getattr(pipe, "for_assays", ())
+            if not only_for or assay_id in only_for:
+                self.combo_pipeline.addItem(pipe.name, key)
+        self.combo_pipeline.setCurrentIndex(max(self.combo_pipeline.findData(current), 0))
+        self.combo_pipeline.blockSignals(False)
 
     def _on_algorithm_changed(self, _index=None):
         selected = self.combo_pipeline.currentData()

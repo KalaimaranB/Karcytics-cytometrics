@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import cellpose, otsu, watershed  # noqa: F401  (registration side effect)
+from . import cellpose, colonies, otsu, watershed  # noqa: F401  (registration side effect)
 from .base import (
     REGISTRY,
     Param,

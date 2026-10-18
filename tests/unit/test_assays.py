@@ -65,3 +65,39 @@ def test_manual_g1_peak(nuclei_table):
     derived = analysis.derive(nuclei_table, {"g1_peak": 500}, AssayContext())
     assert derived["CellCycle_DNAContent"].iloc[:300].median() == pytest.approx(4.0, rel=0.05)
     assert "set to 500" in analysis.methods({"g1_peak": 500}, AssayContext())[0].description
+
+
+# ── Colonies ─────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("lighter", [True, False])
+def test_colonies_counts_inside_the_dish(lighter):
+    from fixtures import images as img
+
+    from karcytics_plugins.cytometrics.analysis.segment import run_segmentation
+    from karcytics_plugins.cytometrics.analysis.segment.colonies import ColonySegmenter
+
+    plane, n = img.plate_photo(lighter)
+    params = {p.key: p.default for p in ColonySegmenter().parameters()}
+    params.update(target_channel="plate", min_separation_px=6)
+    result = run_segmentation(ColonySegmenter(), img.stack(("plate", plane)), params)
+
+    assert result.extras["polarity"] == ("lighter" if lighter else "darker")
+    x, y, r = result.extras["dish"]
+    assert abs(x - 300) < 8 and abs(y - 300) < 8 and 225 < r < 262
+    assert abs(len(result.cells) - n) <= 2
+
+
+def test_cfu_per_ml_and_countable_range():
+    analysis = REGISTRY["colonies"].analysis
+    table = pd.DataFrame({"ObjectNumber": range(1, 151)})
+    settings = {"dilution_factor": 1e6, "volume_ul": 100}
+    results = {r.key: r for r in analysis.results(table, [], settings, AssayContext())}
+    assert results["Colonies"].value == 150
+    assert results["CFU_per_mL"].value == pytest.approx(150 * 1e6 / 0.1)
+    assert not results["CFU_per_mL"].warning
+
+    few = {r.key: r for r in analysis.results(table.iloc[:10], [], settings, AssayContext())}
+    assert "too few" in few["CFU_per_mL"].warning
+    overlay = analysis.overlays(settings, AssayContext(extras={"dish": [1, 2, 3]}))
+    assert overlay[0].kind == "circle" and overlay[0].coords == (1, 2, 3)
