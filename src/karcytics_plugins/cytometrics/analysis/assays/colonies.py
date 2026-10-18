@@ -125,6 +125,7 @@ COLONIES = register(
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),
         settings={"exclude_borders": False},
         measure={"background": "none"},
+        noun="Colony",
         analysis=ColonyCount(),
         citations=("opencfu2013",),
     )

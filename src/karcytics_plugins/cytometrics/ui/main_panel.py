@@ -79,7 +79,7 @@ from .steps import (
 from .steps.detect import PREVIEW_TEXT
 from .steps.review import TOOLS
 from .widgets.status_bar import SystemStatusBar
-from .widgets.table_items import NumericTableItem
+from .widgets.table_items import NumericTableItem, id_item, item_id
 from .workers import (
     CytoPipelineWorker,
     load_libraries_func,
@@ -450,7 +450,9 @@ class CytoMetricsPanel(PluginBase):
         if self.pipelines:
             self._fill_pipeline_combo()
             self._on_algorithm_changed()
-        self.btn_assay.setText(f"{assay.icon} {assay.name} ▾")
+        self.btn_assay.setText(f"{assay.icon} {assay.name} ▾".replace("&", "&&"))  # & is a mnemonic
+        self.results.inspector.noun = assay.noun
+        self.results.setTabText(self.results.indexOf(self.results.inspector), assay.noun)
         self.stepper.set_steps(
             [(sid, STEP_LABELS[sid], self.step_pages[sid]) for sid in assay.steps]
         )
@@ -465,6 +467,11 @@ class CytoMetricsPanel(PluginBase):
         self._apply_assay_target()
         if self.state.cells:
             self._remeasure()
+
+    @property
+    def noun(self) -> str:
+        """What one object is called ("Cell", "Colony", ...)."""
+        return self._assay.noun if self._assay else "Cell"
 
     @property
     def assay(self) -> Assay | None:
@@ -845,7 +852,7 @@ class CytoMetricsPanel(PluginBase):
         for record in df.to_dict("records"):
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, NumericTableItem(f"Cell {record['ObjectNumber']}"))
+            self.table.setItem(row, 0, id_item(self.noun, record["ObjectNumber"]))
             for i, name in enumerate(columns, start=1):
                 value = record[name]
                 if name == "Flagged":
@@ -917,10 +924,10 @@ class CytoMetricsPanel(PluginBase):
         )
         self.table.blockSignals(True)
         self.table.clearSelection()
-        wanted = {f"Cell {i}" for i in cell_ids}
+        wanted = {int(i) for i in cell_ids}
         for row in range(self.table.rowCount()):
             item = self.table.item(row, 0)
-            if item and item.text() in wanted:
+            if item_id(item) in wanted:
                 self.table.selectRow(row)
         self.table.blockSignals(False)
 
@@ -1211,7 +1218,7 @@ class CytoMetricsPanel(PluginBase):
         """Select `cell_id` in the table and centre it on the canvas."""
         for row in range(self.table.rowCount()):
             item = self.table.item(row, 0)
-            if item and item.text() == f"Cell {cell_id}":
+            if item is not None and item_id(item) == cell_id:
                 self.table.selectRow(row)
                 self.table.scrollToItem(item)
                 break
@@ -1638,15 +1645,7 @@ class CytoMetricsPanel(PluginBase):
 
         # Get the row of whatever item they clicked
         row = selected_items[0].row()
-        id_item = self.table.item(row, 0)  # Column 0 always holds the ID
-
-        if id_item:
-            try:
-                # Strip out the word "Cell " to get the raw integer
-                cell_id = int(id_item.text().replace("Cell ", ""))
-                self.canvas.highlight_cell(cell_id)
-            except ValueError:
-                self.canvas.highlight_cell(None)
+        self.canvas.highlight_cell(item_id(self.table.item(row, 0)))
 
     def _on_save_workflow(self):
         pm = getattr(self.window(), "project_manager", None)

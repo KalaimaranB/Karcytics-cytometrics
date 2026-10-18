@@ -24,6 +24,7 @@ class ResultCard(ModuleCard):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(2)
+        layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize)  # room for a warning
         self.lbl_name = QLabel("")
         self.lbl_value = QLabel("")
         self.lbl_warning = QLabel("")
@@ -35,17 +36,19 @@ class ResultCard(ModuleCard):
     def show_value(self, value) -> None:
         """`value`: an ``analysis.assays.ResultValue``."""
         self.lbl_name.setText(value.label)
-        self.lbl_value.setText(f"{format_value(value.value)} {value.unit}".strip())
+        shown = format_value(value.value)
+        self.lbl_value.setText(shown if shown == _MISSING else f"{shown} {value.unit}".strip())
         self.lbl_warning.setText(f"⚠️ {value.warning}" if value.warning else "")
         self.lbl_warning.setVisible(bool(value.warning))
         self.setToolTip(value.help)
 
     def apply_theme(self) -> None:
-        self.lbl_name.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 11px;")
+        plain = "background: transparent; border: none;"
+        self.lbl_name.setStyleSheet(f"{plain} color: {Colors.FG_SECONDARY}; font-size: 11px;")
         self.lbl_value.setStyleSheet(
-            f"color: {Colors.FG_PRIMARY}; font-size: 20px; font-weight: bold;"
+            f"{plain} color: {Colors.FG_PRIMARY}; font-size: 20px; font-weight: bold;"
         )
-        self.lbl_warning.setStyleSheet(f"color: {Colors.ACCENT_WARNING}; font-size: 11px;")
+        self.lbl_warning.setStyleSheet(f"{plain} color: {Colors.ACCENT_WARNING}; font-size: 11px;")
 
 
 class ResultsStep(StepPage):
@@ -110,6 +113,8 @@ class ResultsStep(StepPage):
 
     def show_results(self, values: list) -> None:
         for card in self._cards:
+            self.cards.removeWidget(card)
+            card.hide()  # gone now, not at the next event loop turn
             card.deleteLater()
         self._cards = []
         for i, value in enumerate(values):
@@ -125,12 +130,15 @@ class ResultsStep(StepPage):
             card.apply_theme()
 
 
+_MISSING = "–"
+
+
 def format_value(value) -> str:
     """Numbers as people write them: 142, 87.3, 1.42 × 10⁸."""
     if isinstance(value, str):
         return value
     if math.isnan(value):
-        return "–"
+        return _MISSING
     magnitude = abs(value)
     if magnitude and (magnitude >= 1e5 or magnitude < 1e-3):  # noqa: PLR2004
         mantissa, exponent = f"{value:.3e}".split("e")

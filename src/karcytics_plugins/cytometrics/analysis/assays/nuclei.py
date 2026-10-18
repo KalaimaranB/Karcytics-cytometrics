@@ -163,6 +163,7 @@ NUCLEI = register(
         ),
         measure={"background": "local", "texture": True},
         target_stain="blue",
+        noun="Nucleus",
         analysis=CellCycle(),
         citations=("cpsam2025",),
     )

@@ -122,6 +122,7 @@ SPHEROIDS = register(
         group="Growth & migration",
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),
         measure={"background": "none"},
+        noun="Spheroid",
         analysis=SpheroidSize(),
         citations=("zanoni2016",),
     )

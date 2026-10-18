@@ -172,6 +172,7 @@ CONFLUENCE = register(
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),
         settings={"detect": "covered", "exclude_borders": False},
         measure={"background": "none"},
+        noun="Patch",
         analysis=Confluence(),
     )
 )
@@ -188,6 +189,7 @@ WOUND = register(
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),
         settings={"detect": "gap", "exclude_borders": False},
         measure={"background": "none"},
+        noun="Gap",
         analysis=Wound(),
         citations=("jonkman2014",),
     )

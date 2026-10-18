@@ -71,6 +71,7 @@ BACTERIA = register(
         ),
         settings={"exclude_borders": True, "min_area_px": 4.0},
         measure={"background": "none", "rods": True},
+        noun="Bacterium",
         analysis=BacteriaSummary(),
         citations=("cpsam2025",),
     )

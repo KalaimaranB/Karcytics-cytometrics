@@ -22,6 +22,7 @@ class CellInspector(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.noun = "Cell"  # what one object is called ("Colony"), set by the panel
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         top = QHBoxLayout()
@@ -62,7 +63,7 @@ class CellInspector(QWidget):
 
     def show_cell(self, cell: dict, rows: list[tuple[str, str]], thumbnail: QPixmap | None) -> None:
         """`rows` are (name with unit, formatted value) pairs."""
-        self.title.setText(f"Cell {cell['id']}")
+        self.title.setText(f"{self.noun} {cell['id']}")
         source = cell.get("source", "auto")
         confidence = cell.get("confidence")
         details = f"Source: {source}"

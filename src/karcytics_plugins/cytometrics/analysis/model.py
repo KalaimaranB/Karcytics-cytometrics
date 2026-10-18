@@ -36,6 +36,7 @@ _NAME_COLORS = [
 ]
 _COLOR_CYCLE = ["green", "magenta", "blue", "red", "cyan", "yellow"]
 _RGB_CHANNELS = 3
+_UNNAMED_RGB = ["Ch 1", "Ch 2", "Ch 3"]
 _ALPHA = "alpha"
 AUTO_PERCENTILES = (0.1, 99.9)
 
@@ -119,7 +120,8 @@ class ImageSet:
         A single-channel file becomes `name`, in `color` unless the name
         says otherwise ("DAPI" → blue). A multi-channel file becomes
         ``"name (<channel>)"`` for each channel, named from the file's
-        metadata where it has names. Only the first time point and
+        metadata where it has names ("Red", "Green", "Blue" for a colour
+        photo without). Only the first time point and
         z-plane are used.
 
         Raises ``ValueError`` if the image's size differs from the channels
@@ -138,8 +140,11 @@ class ImageSet:
             colors = [color_for_name(name) or color]
             names = [name]
         else:
-            colors = _colors_for(image, [n for n, _ in planes])
-            names = [f"{name} ({label})" for label, _ in planes]
+            labels = [n for n, _ in planes]
+            colors = _colors_for(image, labels)
+            if colors == ["red", "green", "blue"] and labels == _UNNAMED_RGB:
+                labels = ["Red", "Green", "Blue"]  # a colour photo: say which colour
+            names = [f"{name} ({label})" for label in labels]
 
         added = [
             Channel(n, data, c, str(path))

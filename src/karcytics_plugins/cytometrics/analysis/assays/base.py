@@ -155,6 +155,7 @@ class Assay:
     target_stain: str | None = None  # colour of the stain to segment by default ("blue")
     analysis: AssayAnalysis | None = None
     citations: tuple[str, ...] = ()  # shown on the picker card and in the Results step
+    noun: str = "Cell"  # what one object is called in the table and the inspector ("Colony 3")
 
     def default_target(self, channel_names: list[str]) -> str | None:
         """The channel to segment by default, from the stain names (None: keep the user's)."""

@@ -35,9 +35,10 @@ def test_stain_name_overrides_the_default_colour(tmp_path):
     assert channel.color == "blue"
 
 
-def test_rgb_png_splits_into_red_green_blue(tmp_path):
+@pytest.mark.parametrize("ext", ["png", "tif"])
+def test_rgb_file_splits_into_red_green_blue(tmp_path, ext):
     rgb = np.dstack([img.touching_pair(), img.isolated_discs(), img.blank()])
-    path = tmp_path / "rgb.png"
+    path = tmp_path / f"rgb.{ext}"
     Image.fromarray(rgb).save(path)
     images = ImageSet()
 
