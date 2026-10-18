@@ -220,6 +220,7 @@ NUCLEI = register(
         description="Count and measure nuclei from a nuclear stain (DAPI, Hoechst): size, shape, "
         "chromatin texture and DNA content, staged into G1, S and G2/M.",
         icon="🧬",
+        outputs="DNA content · G1 / S / G2-M",
         segmenter="cellpose",
         group="Cells",
         steps=(

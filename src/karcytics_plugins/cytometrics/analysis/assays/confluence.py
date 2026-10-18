@@ -228,6 +228,7 @@ CONFLUENCE = register(
         description="How much of the dish cells cover, from phase-contrast or bright-field "
         "images: no stain needed.",
         icon="🟩",
+        outputs="% covered",
         segmenter="texture",
         group="Growth & migration",
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),
@@ -247,6 +248,7 @@ WOUND = register(
         description="Follow a scratch closing as cells migrate: open area, width and % closure "
         "since the start.",
         icon="🩹",
+        outputs="Wound width · % closure",
         segmenter="texture",
         group="Growth & migration",
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),

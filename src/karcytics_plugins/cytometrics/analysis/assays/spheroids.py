@@ -155,6 +155,7 @@ SPHEROIDS = register(
         name="Spheroids & organoids",
         description="Size, volume and shape of 3D spheroids or organoids imaged from above.",
         icon="⚪",
+        outputs="Diameter · volume · shape",
         segmenter="spheroid",
         group="Growth & migration",
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),

@@ -208,3 +208,15 @@ def test_preview_button_is_busy_until_the_preview_returns(panel):
     assert panel.detect_step.btn_preview.isEnabled()
     assert panel.detect_step.btn_preview.text() == PREVIEW_TEXT
     assert "Nothing is kept" in panel.detect_step.lbl_ai_status.text()
+
+
+def test_picker_filters_by_group():
+    from karcytics_plugins.cytometrics.analysis.assays import REGISTRY as ASSAYS
+    from karcytics_plugins.cytometrics.ui.mode_picker import ModePicker
+
+    picker = ModePicker(list(ASSAYS.values()))
+    assert len(picker.visible_cards()) == len(ASSAYS)
+    picker.chips["Microbiology"].click()
+    assert {c.assay_id for c in picker.visible_cards()} == {"bacteria", "colonies"}
+    picker.chips[""].click()
+    assert len(picker.visible_cards()) == len(ASSAYS)

@@ -281,6 +281,7 @@ TRANSFECTION = register(
         description="The share of cells expressing a reporter (GFP, mCherry, …), with the cut-off "
         "set from a negative-control image.",
         icon="💡",
+        outputs="% positive vs control",
         segmenter="cellpose",
         group="Cells",
         steps=(

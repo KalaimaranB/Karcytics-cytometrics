@@ -392,6 +392,7 @@ HEMOCYTOMETER = register(
         description="Count cells in a hemocytometer with trypan blue: live and dead cells, "
         "% viability and cells/mL.",
         icon="🧮",
+        outputs="Cells/mL · % viable",
         segmenter="cellpose",
         group="Counting",
         steps=("load", "calibrate", "detect", "review", "gate", "results", "report", "batch"),

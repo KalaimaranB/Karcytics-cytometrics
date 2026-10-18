@@ -171,6 +171,7 @@ class Assay:
     noun: str = "Cell"  # what one object is called in the table and the inspector ("Colony 3")
     image_kind: str = FLUORESCENCE  # FLUORESCENCE or PHOTO: how the Load step looks
     load_hint: str = ""  # what to load, shown in the Load step (empty: the general text)
+    outputs: str = ""  # the headline results, for the picker card ("CFU/mL · colony size")
 
     def default_target(self, channel_names: list[str]) -> str | None:
         """The channel to segment by default, from the stain names (None: keep the user's)."""

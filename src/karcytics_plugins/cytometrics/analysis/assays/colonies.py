@@ -196,6 +196,7 @@ COLONIES = register(
         description="Count bacterial or yeast colonies on an agar plate photo and get CFU/mL "
         "from the dilution and the volume plated.",
         icon="🧫",
+        outputs="CFU/mL · colony size",
         segmenter="colonies",
         group="Microbiology",
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),

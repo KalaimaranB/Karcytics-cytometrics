@@ -11,6 +11,7 @@ CELLS = register(
         description="Count and measure whole cells in fluorescence or bright-field images: "
         "size, shape and the intensity of every channel.",
         icon="🔬",
+        outputs="Count · size · shape · intensity",
         segmenter="cellpose",
         group="Cells",
         measure={"background": "local"},

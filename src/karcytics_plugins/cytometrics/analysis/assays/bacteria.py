@@ -106,6 +106,7 @@ BACTERIA = register(
         description="Count rod-shaped bacteria in phase-contrast or fluorescence images: length, "
         "width, curvature and the share that are dividing.",
         icon="🦠",
+        outputs="Length · width · % dividing",
         segmenter="cellpose",
         group="Microbiology",
         steps=(
