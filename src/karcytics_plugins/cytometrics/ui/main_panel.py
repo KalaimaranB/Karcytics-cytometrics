@@ -51,6 +51,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..analysis.export import write_cellpose_seg, write_imagej_rois
 from ..analysis.model import ImageSet
 from ..analysis.state import CytoMetricsState
 from ..analysis.units import area_unit, ascii_unit, effective_scale, is_calibrated, length_unit
@@ -924,6 +925,18 @@ class CytoMetricsPanel(PluginBase):
         self.btn_export.clicked.connect(self._on_export_csv)
         results_layout.addWidget(self.btn_export)
 
+        self.btn_export_rois = SecondaryButton("🔷 Export ImageJ / Fiji ROIs")
+        self.btn_export_rois.setToolTip("A .zip of cell outlines for ImageJ/Fiji's ROI Manager.")
+        self.btn_export_rois.clicked.connect(self._on_export_rois)
+        results_layout.addWidget(self.btn_export_rois)
+
+        self.btn_export_seg = SecondaryButton("🧬 Export for Cellpose (_seg.npy)")
+        self.btn_export_seg.setToolTip(
+            "Masks the Cellpose GUI opens for editing, and that Cellpose can train on."
+        )
+        self.btn_export_seg.clicked.connect(self._on_export_seg)
+        results_layout.addWidget(self.btn_export_seg)
+
         results_layout.addStretch()
 
         # ==========================================
@@ -1527,6 +1540,62 @@ class CytoMetricsPanel(PluginBase):
                 )
             except Exception as e:
                 show_error(self, "Export Error", f"Could not save file:\n{str(e)}")
+
+    def _export_stem(self) -> str:
+        """The first image's file name without extension, for default export names."""
+        path = self.image_set.channels[0].path if self.image_set.channels else ""
+        name = Path(path).name if path else "cytometrics"
+        for suffix in (".ome.tiff", ".ome.tif"):
+            if name.lower().endswith(suffix):
+                return name[: -len(suffix)]
+        return Path(name).stem
+
+    def _on_export_rois(self) -> None:
+        if not self.state.cells:
+            show_info(self, "No Data", "There are no cells to export.")
+            return
+        path = get_save_path(
+            self, "Export ImageJ ROIs", f"{self._export_stem()}_rois.zip", "ROI Sets (*.zip)"
+        )
+        if not path:
+            return
+        try:
+            written = write_imagej_rois(path, self.state.cells)
+            show_info(
+                self,
+                "Exported",
+                f"{len(self.state.cells)} ROIs written to:\n{written}\n\n"
+                "In Fiji: Analyze › Tools › ROI Manager › More › Open.",
+            )
+        except Exception as e:
+            show_error(self, "Export Error", f"Could not write ROIs:\n{e}")
+
+    def _on_export_seg(self) -> None:
+        if not self.state.cells or self.image_set.shape is None:
+            show_info(self, "No Data", "There are no cells to export.")
+            return
+        path = get_save_path(
+            self,
+            "Export for Cellpose",
+            f"{self._export_stem()}_seg.npy",
+            "Cellpose segmentation (*_seg.npy)",
+        )
+        if not path:
+            return
+        if not path.endswith("_seg.npy"):
+            path = str(Path(path).with_suffix("")) + "_seg.npy"
+        try:
+            written = write_cellpose_seg(
+                path, self.state.cells, self.image_set.shape, self.image_set.channels[0].path
+            )
+            show_info(
+                self,
+                "Exported",
+                f"Masks for {len(self.state.cells)} cells written to:\n{written}\n\n"
+                "Keep it next to the image and open the image in the Cellpose GUI.",
+            )
+        except Exception as e:
+            show_error(self, "Export Error", f"Could not write the Cellpose file:\n{e}")
 
     def _write_methods(self, export_path: str):
         """Write the methods paragraph and BibTeX beside an export; None if no run to describe."""

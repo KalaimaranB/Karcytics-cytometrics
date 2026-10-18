@@ -136,7 +136,7 @@ karcytics_plugins/cytometrics
 - [x] 3.3 Progress: Cellpose's own `progress` argument only reports in 3-D, so segmenters report stages through a `progress` callback (model loaded, network run, then per-object measuring 90–100%), shown as a percentage on the scanning indicator. The stderr hijack, `StreamCatcher` and `CellposeLogInterceptor` are deleted.
 - [x] 3.4 Per-object **confidence** (mean cell probability inside the mask) from `flows`; confidence heat-map layer; "review uncertain" list. **Done:** Conf. column, mean confidence in the stats, outlines coloured red→amber→green, a cyan cell-probability overlay, and **Next uncertain ▸** (least confident first, centres the canvas). Known layout glitch for 5.8: the histogram overlaps the Export header in a short window.
 - [x] 3.5 Fix the O(cells × pixels) loop (`scipy.ndimage.find_objects` / `skimage.measure.regionprops`).
-- [ ] 3.6 Export ImageJ ROIs and `_seg.npy` (Cellpose GUI/Fiji/QuPath interop).
+- [x] 3.6 Export ImageJ ROIs and `_seg.npy` (Cellpose GUI/Fiji/QuPath interop). **Done** in `analysis/export.py`, from the current cells (deletions and hand-drawn cells included): ROIs via `roifile` (BSD-3), `_seg.npy` with `masks`, `outlines`, `ismanual`, `filename` (flows omitted; optional for the GUI). Default names follow the image (`<image>_rois.zip`, `<image>_seg.npy`).
 - [ ] 3.7 Optional Cellpose3 `denoise` pre-step. Benchmark on synthetic noise first; adopt only if it helps Cellpose-SAM.
 - [x] 3.8 `params_form.py`: controls generated from `parameters()` (basic/advanced). Delete the display-name string matching. **Done:** `Param` declares kind, range, unit (`length`/`area`, shown in µm or px, passed in px), `advanced`, `enabled_by`, help (tooltips). Values are remembered by key across algorithm switches. `ui_params` v2 = `{pipeline: id, values}`; v1 keys are migrated on load.
 - [x] 3.9 Each segmenter shows its citations ("Powered by …") in the Detect step.
@@ -239,6 +239,8 @@ All DOI entries were checked against Crossref on 2026-10-17; `meyer1992` against
 | Trackastra | BSD-3 (verified) | **not stated** (pretrained.json downloads) | ⏸ gated; never use Gurobi |
 | µSAM (micro-sam) | MIT (verified) | **not verified** | ⏸ gated |
 | tifffile, nd2, bioio (core) | BSD-3 (verified) | — | ✅ (bioio readers checked one by one) |
+| roifile (ImageJ ROI export) | BSD-3-Clause (package metadata, verified) | — | ✅ |
+| scipy, scikit-image | BSD-3 (verified) | — | ✅ |
 | StarDist | BSD-3 (verified) | — | ✗ not adopted: needs TensorFlow alongside PyTorch; Cellpose-SAM / InstanSeg cover nuclei |
 | Omnipose | UW NonCommercial with a redistribution clause | — | ✗ not adopted (license not 100% compatible; also pins a Cellpose fork) |
 | Ultralytics YOLO | AGPL | — | ✗ incompatible |

@@ -338,3 +338,24 @@ def test_probability_map_overlay_toggles(panel, tmp_path):
     assert len(panel.canvas.layer("probability").childItems()) == 1
     panel.chk_probability_map.setChecked(False)
     assert panel.canvas.layer("probability").childItems() == []
+
+
+def test_roi_and_cellpose_exports_use_the_image_name(panel, tmp_path, monkeypatch):
+    panel.channel_manager.ingest_path(str(_ome(tmp_path)))
+    _deliver(panel, [_square(1, 0), {**_square(2, 30), "source": "manual"}])
+    offered = []
+
+    def save_path(_parent, _title, default, _filter):
+        offered.append(default)
+        return str(tmp_path / default)
+
+    monkeypatch.setattr(main_panel, "get_save_path", save_path)
+    monkeypatch.setattr(main_panel, "show_info", lambda *a, **k: None)
+
+    panel._on_export_rois()
+    panel._on_export_seg()
+
+    assert offered == ["cells_rois.zip", "cells_seg.npy"]
+    assert (tmp_path / "cells_rois.zip").exists()
+    data = np.load(tmp_path / "cells_seg.npy", allow_pickle=True).item()
+    assert data["ismanual"].tolist() == [False, True]

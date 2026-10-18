@@ -67,4 +67,9 @@ Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probabil
 | `Circularity` | 4π·area / perimeter² (1 = perfect circle) |
 | `Diameter_um` | Diameter of a circle with the same area |
 
-Every export also writes a methods paragraph and BibTeX file listing the settings you used. When you publish results, cite the methods you used: see [How to Cite](03_HOW_TO_CITE.md).
+Two more exports take your cells, as they are after your edits, to other tools:
+
+- **🔷 Export ImageJ / Fiji ROIs**: a `.zip` of outlines named "Cell <ID>". In Fiji: *Analyze › Tools › ROI Manager › More › Open*. QuPath can import it too.
+- **🧬 Export for Cellpose (_seg.npy)**: the masks in Cellpose's own format. Save it next to the image and open the image in the Cellpose GUI to keep editing; Cellpose can also train on it.
+
+Every CSV export also writes a methods paragraph and BibTeX file listing the settings you used. When you publish results, cite the methods you used: see [How to Cite](03_HOW_TO_CITE.md).

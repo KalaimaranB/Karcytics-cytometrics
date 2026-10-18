@@ -18,6 +18,7 @@ dependencies = [
     "matplotlib>=3.8",
     "scipy>=1.11",
     "scikit-image>=0.26",
+    "roifile>=2024.1",
 ]
 
 [project.optional-dependencies]
