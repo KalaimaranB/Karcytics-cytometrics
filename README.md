@@ -33,40 +33,20 @@ CytoMetrics is a high-performance Karcytics plugin designed for automated cell s
 ### 1. Installation
 The plugin is installed via the Karcytics Hub's plugin manager.
 
-### 2. Setting Up the AI Engine
-The primary AI model (~1.3GB) is managed separately to optimize storage:
-1.  Open the **CytoMetrics** panel.
-2.  Navigate to the **Detection Rules** tab.
-3.  Click **⚙️ Manage AI** and select **Download Model**.
-4.  Once installed, the status will show a green checkmark indicating the AI is ready.
+### 2. Choose what you're analysing
+CytoMetrics asks **What are you analysing?** when it opens: **Cells** or **Nuclei**. The choice sets the steps, the starting algorithm and the measurements, and is remembered for the project. Change it any time from the button next to the title.
 
-### 3. Loading Images
-1.  Go to the **Setup & Channels** tab.
-2.  Click **➕ Add Image Channel** to import TIFF, PNG, or JPG files.
-3.  Assign logical colors (e.g., Green for GFP, Blue for DAPI) to each channel.
+### 3. Work through the steps
+**Load › Calibrate › Detect › Review › Measure › Report**. Use Back/Next or click any step.
 
-### 4. Calibration
-To get measurements in micrometers (µm):
-1.  Click **📏 Set Scale / Calibrate**.
-2.  Click and drag a line on the image across a known distance (e.g., a scale bar).
-3.  Enter the physical distance and units.
+- **Load**: add one image per stain or a multi-channel file (TIFF, OME-TIFF, ND2, PNG, JPG), or drop files on the canvas. Full bit depth is kept.
+- **Calibrate**: files that store their pixel size are calibrated automatically; otherwise drag along a scale bar. You can also work in pixels.
+- **Detect**: pick **AI Smart Detect (Cellpose-SAM)**, **Watershed** or **Otsu**; the settings below change with it (hover for help). The Cellpose model (~1.3 GB) is installed from **⚙️ Manage AI**.
+- **Review**: colour outlines by AI confidence, step through uncertain cells, delete or draw cells.
+- **Measure**: size, shape and per-channel intensity for every cell, with optional background subtraction, nucleus/cytoplasm ratios and texture.
+- **Report**: export CSV (with a methods paragraph and BibTeX), ImageJ/Fiji ROIs or Cellpose `_seg.npy`; copy the methods text.
 
----
-
-## 🛠 Analysis Workflow
-
-### Detection Pipeline
-Configure your segmentation rules in the **Detection Rules** tab:
-- **Main Signal**: Select the channel defining the cell boundary.
-- **Algorithm**: Choose between **AI Smart Detect (Cellpose)**, **Watershed**, or **Otsu**.
-- **Splitting Sensitivity**: Adjust how aggressively clumps are separated.
-- **Filters**: Set minimum and maximum area thresholds to exclude debris or artifacts.
-
-### Reviewing Results
-Once segmentation is complete:
-- **Canvas Overlay**: View detected cells with magenta outlines and IDs on the interactive canvas.
-- **Hand-Tuning**: Right-click any cell on the canvas to delete false positives.
-- **Data Export**: Explore the full dataset in the **Results & Analytics** tab and export to CSV for further study.
+See the [user guide](docs/user/01_GETTING_STARTED.md) for details.
 
 ---
 

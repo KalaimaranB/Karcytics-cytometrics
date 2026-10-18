@@ -13,7 +13,8 @@ def test_panel_constructs(qtbot):
     qtbot.addWidget(panel)
 
     assert panel.plugin_id == "cytometrics"
-    assert panel.tabs.count() == 3
+    assert panel.left_stack.currentWidget() is panel.mode_picker  # asks what you're analysing
+    assert set(panel.mode_picker.cards) == {"cells", "nuclei"}
 
 
 @pytest.mark.ui
@@ -44,16 +45,16 @@ def test_panel_live_updates_on_theme_change(qtbot):
 
     assert DynamicColors.BG_DARKEST in panel.table.styleSheet()
     assert DynamicColors.BG_DARKEST in channel_table.styleSheet()
-    assert panel._section_headers, "expected create_header() to have registered labels"
     dark_border = DynamicColors.BORDER
+    dark_warning = DynamicColors.ACCENT_WARNING
+    assert dark_warning in panel.calibrate_step.lbl_units_note.styleSheet()
 
     theme_manager.set_theme("light")
     try:
         assert DynamicColors.BG_DARKEST != dark_border or DynamicColors.BORDER != dark_border
         assert DynamicColors.BG_DARKEST in panel.table.styleSheet()
-        assert DynamicColors.BORDER in panel.tabs.styleSheet()
-        for lbl in panel._section_headers:
-            assert DynamicColors.BORDER in lbl.styleSheet()
+        assert DynamicColors.ACCENT_WARNING in panel.calibrate_step.lbl_units_note.styleSheet()
+        assert DynamicColors.BORDER in panel.report_step.methods_text.styleSheet()
         assert DynamicColors.BG_DARKEST in channel_table.styleSheet()
         assert DynamicColors.BG_DARK in combo.styleSheet()
     finally:

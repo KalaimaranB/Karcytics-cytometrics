@@ -18,11 +18,12 @@ def panel(qtbot):
     p.cleanup()
 
 
-def test_pipeline_loader_unlocks_the_detect_tab(panel, qtbot):
-    qtbot.waitUntil(lambda: panel.tabs.tabText(1) == "2. Smart Detect", timeout=10_000)
+def test_segmenters_load_in_the_background_and_unlock_run(panel, qtbot):
+    qtbot.waitUntil(lambda: bool(panel.pipelines), timeout=10_000)
 
     assert set(panel.pipelines) == {"otsu", "watershed", "cellpose"}
     assert panel.combo_pipeline.count() == 3
+    assert panel.btn_run_pipeline.isEnabled()
 
 
 def test_pipeline_exception_is_reported_as_an_error_not_as_no_cells(panel, monkeypatch):
@@ -50,7 +51,7 @@ def test_pipeline_cells_replace_the_old_ones_and_set_the_counter(panel):
 
 
 def test_detect_step_credits_the_selected_algorithm(panel, qtbot):
-    qtbot.waitUntil(lambda: panel.tabs.tabText(1) == "2. Smart Detect", timeout=10_000)
+    qtbot.waitUntil(lambda: bool(panel.pipelines), timeout=10_000)
 
     for key in ("otsu", "watershed", "cellpose"):
         panel.combo_pipeline.setCurrentIndex(panel.combo_pipeline.findData(key))
@@ -61,7 +62,7 @@ def test_detect_step_credits_the_selected_algorithm(panel, qtbot):
 
 
 def test_csv_export_writes_methods_and_bibtex(panel, qtbot, tmp_path, monkeypatch):
-    qtbot.waitUntil(lambda: panel.tabs.tabText(1) == "2. Smart Detect", timeout=10_000)
+    qtbot.waitUntil(lambda: bool(panel.pipelines), timeout=10_000)
     export = tmp_path / "cells.csv"
     monkeypatch.setattr(main_panel, "get_save_path", lambda *a, **k: str(export))
     monkeypatch.setattr(main_panel, "show_info", lambda *a, **k: None)

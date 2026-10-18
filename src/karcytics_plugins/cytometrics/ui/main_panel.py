@@ -8,17 +8,12 @@ from typing import Any
 
 import pandas as pd
 from karcytics_sdk.plugin import (
-    BioComboBox,
-    BioDoubleSpinBox,
-    BioScrollArea,
     BioSplitter,
     BioTableWidget,
-    CitationLabel,
     FunctionalTask,
     HeaderLabel,
     PluginBase,
     PluginState,
-    PrimaryButton,
     SecondaryButton,
     get_double,
     get_logger,
@@ -29,36 +24,36 @@ from karcytics_sdk.plugin import (
     submit_task,
 )
 from karcytics_sdk.plugin.dialogs import SaveWorkflowDialog
+from karcytics_sdk.plugin.io import PluginConfig
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
+    QApplication,
     QDialog,
-    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
-    QLabel,
     QSizePolicy,
-    QTabWidget,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from ..analysis.assays import DEFAULT as DEFAULT_ASSAY
+from ..analysis.assays import REGISTRY as ASSAYS
+from ..analysis.assays import STEP_LABELS, Assay
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
 from ..analysis.measure import MeasureOptions, unit_label, write_csv
 from ..analysis.model import ImageSet
 from ..analysis.session import AnalysisSession, LastRun
 from ..analysis.state import CytoMetricsState
 from ..analysis.units import is_calibrated
-from ..report import write_methods_sidecars
-from .channel_manager import ChannelManagerWidget
+from ..report import methods_markdown, write_methods_sidecars
 from .dialogs.model_manager import ModelManagerDialog, _check_ai_model_installed
 from .image_canvas import MultiChannelCanvas, confidence_color
-from .params_form import ParamsForm
-from .widgets.hardware_monitor import HardwareMonitor
-from .widgets.histogram import SimpleHistogram
-from .widgets.scanning_indicator import ScanningIndicator
+from .mode_picker import ModePicker
+from .stepper import Stepper
+from .steps import CalibrateStep, DetectStep, LoadStep, MeasureStep, ReportStep, ReviewStep
 from .widgets.table_items import NumericTableItem
 from .workers import (
     CytoPipelineWorker,
@@ -185,435 +180,267 @@ class CytoMetricsPanel(PluginBase):
                 gc.collect()
 
     def _setup_ui(self):
-        self._section_headers: list[QLabel] = []
-
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Ensure this widget fills the core app's central container
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.main_splitter = BioSplitter(Qt.Orientation.Horizontal)
         self.main_splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         main_layout.addWidget(self.main_splitter)
-
         splitter = BioSplitter(Qt.Orientation.Vertical)
         self.main_splitter.addWidget(splitter)
 
-        controls_widget = QWidget()
-        control_layout = QVBoxLayout(controls_widget)
+        controls = QWidget()
+        control_layout = QVBoxLayout(controls)
         control_layout.setContentsMargins(15, 15, 15, 10)
         control_layout.setSpacing(10)
 
-        header = HeaderLabel("CytoMetrics")
-        control_layout.addWidget(header)
+        header_row = QHBoxLayout()
+        header_row.addWidget(HeaderLabel("CytoMetrics"))
+        header_row.addStretch()
+        self.btn_assay = SecondaryButton("Choose analysis")
+        self.btn_assay.setToolTip("Change what you're analysing")
+        self.btn_save_session = SecondaryButton("💾")
+        self.btn_save_session.setToolTip("Save this analysis to the project")
+        self.btn_load_session = SecondaryButton("📂")
+        self.btn_load_session.setToolTip("Open an analysis saved in this project")
+        for button in (self.btn_assay, self.btn_save_session, self.btn_load_session):
+            header_row.addWidget(button)
+        control_layout.addLayout(header_row)
 
-        session_layout = QHBoxLayout()
-
-        self.btn_save_session = SecondaryButton("💾 Save Session")
-        self.btn_save_session.clicked.connect(self._on_save_workflow)
-
-        self.btn_load_session = SecondaryButton("📂 Load Session")
-        self.btn_load_session.clicked.connect(self._on_load_workflow)
-
-        session_layout.addWidget(self.btn_save_session)
-        session_layout.addWidget(self.btn_load_session)
-        control_layout.addLayout(session_layout)
-        # -----------------------------------
-
-        self.tabs = QTabWidget()
-        self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{ border: 1px solid {Colors.BORDER}; border-radius: 4px; top: -1px; }}
-            QTabBar::tab {{ background: {Colors.BG_DARKEST}; color: {Colors.FG_SECONDARY}; border: 1px solid {Colors.BORDER}; padding: 8px 15px; border-top-left-radius: 4px; border-top-right-radius: 4px; }}
-            QTabBar::tab:selected {{ background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; font-weight: bold; border-bottom-color: {Colors.BG_MEDIUM}; }}
-        """)
-
-        def create_header(text):
-            lbl = QLabel(text)
-            lbl.setStyleSheet(
-                f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};"
-            )
-            self._section_headers.append(lbl)
-            return lbl
-
-        # ==========================================
-        # --- TAB 1: SETUP & CHANNELS ---
-        # ==========================================
-        tab_setup = QWidget()
-        setup_layout = QVBoxLayout(tab_setup)
-        setup_layout.setSpacing(15)
-
-        setup_layout.addWidget(create_header("1. Import Images"))
-
-        self.channel_manager = ChannelManagerWidget(self.image_set)
-        self.channel_manager.channels_changed.connect(self._render_composite)
-        self.channel_manager.channels_changed.connect(self._update_calibrate_button_state)
-        self.channel_manager.new_image_loaded.connect(self._apply_metadata_calibration)
-        setup_layout.addWidget(self.channel_manager)
-
-        self.canvas.load_requested.connect(self.channel_manager.prompt_add_channel)
-        self.canvas.files_dropped.connect(self.channel_manager.ingest_paths)
-
-        setup_layout.addWidget(create_header("2. Calibrate Scale"))
-
-        self.lbl_scale = QLabel("Scale: Uncalibrated")
-        self.lbl_scale.setStyleSheet(
-            f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; border: none;"
-        )
-        setup_layout.addWidget(self.lbl_scale)
-
-        self.btn_calibrate = SecondaryButton("📏  Set Scale / Calibrate")
-        self.btn_calibrate.setEnabled(False)
-        self.btn_calibrate.setToolTip("Add an image channel first.")
-        self.btn_calibrate.clicked.connect(self._on_calibrate_clicked)
-        self.canvas.calibration_line_drawn.connect(self._on_calibration_drawn)
-        setup_layout.addWidget(self.btn_calibrate)
-
-        setup_layout.addStretch()
-
-        # ==========================================
-        # --- TAB 2: DETECTION RULES ---
-        # ==========================================
-        tab_detect = QWidget()
-        tab_layout = QVBoxLayout(tab_detect)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Scroll Area protects the grid from being crushed
-        scroll_area = BioScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(BioScrollArea.Shape.NoFrame)
-        scroll_area.setStyleSheet("background: transparent;")
-
-        detect_widget = QWidget()
-        detect_layout = QVBoxLayout(detect_widget)
-        detect_layout.setContentsMargins(10, 10, 10, 10)
-
-        pipe_layout = QGridLayout()
-        pipe_layout.setSpacing(8)
-        pipe_layout.setColumnStretch(1, 1)
-
-        input_style = f"""
-            QComboBox, QSpinBox, QDoubleSpinBox {{
-                background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY};
-                border: 1px solid {Colors.BORDER}; border-radius: 4px; padding: 4px; min-height: 24px;
-            }}
-            QComboBox QAbstractItemView {{ background-color: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY}; selection-background-color: {Colors.ACCENT_PRIMARY}; }}
-        """
-
-        self.lbl_ai_status = QLabel("⏳ Loading AI engine…")
-        self.lbl_ai_status.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 12px;")
-        detect_layout.addWidget(self.lbl_ai_status)
-
-        r = 0
-        pipe_layout.addWidget(create_header("1. Algorithm"), r, 0, 1, 2)
-        r += 1
-
-        lbl_algo = QLabel("Algorithm:")
-        lbl_algo.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        pipe_layout.addWidget(lbl_algo, r, 0)
-
-        # --- NEW HORIZONTAL LAYOUT FOR DROPDOWN + BUTTON ---
-        algo_row_layout = QHBoxLayout()
-
-        self.combo_pipeline = BioComboBox()
-        for key, pipe in self.pipelines.items():
-            self.combo_pipeline.addItem(pipe.name, key)
-        self.combo_pipeline.setStyleSheet(input_style)
-        self.combo_pipeline.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_pipeline.currentIndexChanged.connect(self._on_algorithm_changed)
-
-        self.btn_manage_ai = SecondaryButton("⚙️ Manage AI")
-        self.btn_manage_ai.clicked.connect(self._open_model_manager)
-
-        algo_row_layout.addWidget(self.combo_pipeline)
-        algo_row_layout.addWidget(self.btn_manage_ai)
-
-        pipe_layout.addLayout(algo_row_layout, r, 1)
-        r += 1
-
-        self.lbl_algo_bio = QLabel("")
-        self.lbl_algo_bio.setWordWrap(True)
-        self.lbl_algo_bio.setStyleSheet(
-            f"color: {Colors.FG_SECONDARY}; font-size: 11px; font-style: italic; margin-bottom: 5px;"
-        )
-        pipe_layout.addWidget(self.lbl_algo_bio, r, 1)
-        r += 1
-
-        # "Powered by …" credit for the selected algorithm; one CitationLabel
-        # per pipeline is added once the pipelines have loaded.
-        self._citation_box = QWidget()
-        self._citation_layout = QVBoxLayout(self._citation_box)
-        self._citation_layout.setContentsMargins(0, 2, 0, 0)
-        self._citation_labels: dict[str, CitationLabel] = {}
-        pipe_layout.addWidget(self._citation_box, r, 1)
-        r += 1
-
-        detect_layout.addLayout(pipe_layout)
-        detect_layout.addWidget(create_header("2. Settings"))
-        self.params_form = ParamsForm()
-        detect_layout.addWidget(self.params_form)
-
-        self.lbl_units_note = QLabel(
-            "⚠️ Not calibrated: sizes are in pixels. Set the scale in Setup for µm."
-        )
-        self.lbl_units_note.setWordWrap(True)
-        self.lbl_units_note.setStyleSheet(
-            f"color: {Colors.ACCENT_WARNING}; font-weight: bold; margin-top: 10px;"
-        )
-        self.lbl_units_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        detect_layout.addWidget(self.lbl_units_note)
-
-        self.progress_bar = ScanningIndicator()
-        self.progress_bar.setVisible(False)
-        detect_layout.addWidget(self.progress_bar)
-
-        self.btn_run_pipeline = PrimaryButton("✨ Run Segmentation")
-        self.btn_run_pipeline.clicked.connect(self._on_run_pipeline)
-        detect_layout.addWidget(self.btn_run_pipeline)
-
-        self.hw_monitor = HardwareMonitor()
-        detect_layout.addWidget(self.hw_monitor)
-
-        detect_layout.addStretch()
-
-        scroll_area.setWidget(detect_widget)
-        tab_layout.addWidget(scroll_area)
-
-        # ==========================================
-        # --- TAB 3: RESULTS & EXPORT ---
-        # ==========================================
-        tab_results = QWidget()
-        results_tab_layout = QVBoxLayout(tab_results)
-        results_tab_layout.setContentsMargins(0, 0, 0, 0)
-        results_scroll = BioScrollArea()
-        results_scroll.setWidgetResizable(True)
-        results_scroll.setFrameShape(BioScrollArea.Shape.NoFrame)
-        results_scroll.setStyleSheet("background: transparent;")
-        results_widget = QWidget()
-        results_layout = QVBoxLayout(results_widget)
-        results_layout.setContentsMargins(10, 10, 10, 10)
-        results_scroll.setWidget(results_widget)
-        results_tab_layout.addWidget(results_scroll)
-        results_layout.setSpacing(15)
-
-        results_layout.addWidget(create_header("Canvas View"))
-        self.chk_show_ids = QCheckBox("Show Cell ID Numbers")
-        self.chk_show_ids.setChecked(True)
-        self.chk_show_ids.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
-        self.chk_show_ids.toggled.connect(self.canvas.set_show_ids)
-        results_layout.addWidget(self.chk_show_ids)
-
-        self.chk_color_confidence = QCheckBox("Colour outlines by AI confidence")
-        self.chk_color_confidence.setToolTip(
-            "Cellpose cells only: red = uncertain, amber = borderline, green = confident."
-        )
-        self.chk_color_confidence.toggled.connect(self._redraw_cells)
-        results_layout.addWidget(self.chk_color_confidence)
-
-        self.chk_probability_map = QCheckBox("Show Cellpose cell-probability map")
-        self.chk_probability_map.setToolTip(
-            "Where the model thinks cells are, from the last Cellpose run."
-        )
-        self.chk_probability_map.toggled.connect(self._update_probability_map)
-        results_layout.addWidget(self.chk_probability_map)
-
-        review_row = QHBoxLayout()
-        self.lbl_uncertain = QLabel("Uncertain below:")
-        self.spin_uncertain = BioDoubleSpinBox()
-        self.spin_uncertain.setRange(0.0, 1.0)
-        self.spin_uncertain.setSingleStep(0.05)
-        self.spin_uncertain.setDecimals(2)
-        self.spin_uncertain.setValue(0.75)
-        self.spin_uncertain.setToolTip("Cells whose AI confidence is below this need a look.")
-        self.spin_uncertain.valueChanged.connect(self._update_review_controls)
-        self.btn_next_uncertain = SecondaryButton("Next uncertain ▸")
-        self.btn_next_uncertain.clicked.connect(self._on_next_uncertain)
-        review_row.addWidget(self.lbl_uncertain)
-        review_row.addWidget(self.spin_uncertain)
-        review_row.addWidget(self.btn_next_uncertain)
-        results_layout.addLayout(review_row)
-        self._review_index = -1
-
-        results_layout.addWidget(create_header("Measurements"))
-        background_row = QHBoxLayout()
-        self.lbl_background = QLabel("Intensity background:")
-        self.combo_background = BioComboBox()
-        for text, mode in (
-            ("None (raw intensities)", "none"),
-            ("Global (median outside cells)", "global"),
-            ("Local ring around each cell", "local"),
-        ):
-            self.combo_background.addItem(text, mode)
-        self.combo_background.setToolTip(
-            "Subtract a background level from each cell's intensities. Global: the median of all "
-            "pixels outside the cells. Local: the median of a 5 px ring, 2 px away from the cell, "
-            "avoiding other cells."
-        )
-        self.combo_background.currentIndexChanged.connect(self._on_measure_options_changed)
-        background_row.addWidget(self.lbl_background)
-        background_row.addWidget(self.combo_background, 1)
-        results_layout.addLayout(background_row)
-
-        nucleus_row = QHBoxLayout()
-        self.lbl_nucleus = QLabel("Nucleus / cytoplasm from:")
-        self.combo_nucleus = BioComboBox()
-        self.combo_nucleus.setToolTip(
-            "A nuclear stain (e.g. DAPI). Each cell is split into nucleus (above the stain's Otsu "
-            "threshold) and cytoplasm, and every channel's nuclear/cytoplasmic ratio is measured."
-        )
-        self.combo_nucleus.addItem("Off", None)
-        self.combo_nucleus.currentIndexChanged.connect(self._on_measure_options_changed)
-        nucleus_row.addWidget(self.lbl_nucleus)
-        nucleus_row.addWidget(self.combo_nucleus, 1)
-        results_layout.addLayout(nucleus_row)
-
-        self.chk_texture = QCheckBox("Texture (Haralick features, slower)")
-        self.chk_texture.setToolTip(
-            "Six grey-level co-occurrence features per channel (Haralick et al., 1973): "
-            "uniformity, contrast, correlation, homogeneity, entropy and variance."
-        )
-        self.chk_texture.toggled.connect(self._on_measure_options_changed)
-        results_layout.addWidget(self.chk_texture)
-
-        results_layout.addWidget(create_header("Distribution"))
-        self.combo_hist_metric = BioComboBox()
-        self.combo_hist_metric.currentIndexChanged.connect(self._update_results_tab)
-        results_layout.addWidget(self.combo_hist_metric)
-        self.lbl_stats = QLabel("Total Cells: 0")
-        self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
-        results_layout.addWidget(self.lbl_stats)
-
-        self.histogram = SimpleHistogram()
-        results_layout.addWidget(self.histogram)
-
-        results_layout.addWidget(create_header("Export"))
-        self.btn_export = SecondaryButton("💾 Export to CSV")
-        self.btn_export.clicked.connect(self._on_export_csv)
-        results_layout.addWidget(self.btn_export)
-
-        self.btn_export_rois = SecondaryButton("🔷 Export ImageJ / Fiji ROIs")
-        self.btn_export_rois.setToolTip("A .zip of cell outlines for ImageJ/Fiji's ROI Manager.")
-        self.btn_export_rois.clicked.connect(self._on_export_rois)
-        results_layout.addWidget(self.btn_export_rois)
-
-        self.btn_export_seg = SecondaryButton("🧬 Export for Cellpose (_seg.npy)")
-        self.btn_export_seg.setToolTip(
-            "Masks the Cellpose GUI opens for editing, and that Cellpose can train on."
-        )
-        self.btn_export_seg.clicked.connect(self._on_export_seg)
-        results_layout.addWidget(self.btn_export_seg)
-
-        results_layout.addStretch()
-
-        # ==========================================
-        # --- FINALIZE LAYOUT ---
-        # ==========================================
-        self.tabs.addTab(tab_setup, "1. Setup")
-        self.tabs.addTab(tab_detect, "⏳ Loading AI Engine...")
-        self.tabs.addTab(tab_results, "3. Results")
-        self.tabs.setTabEnabled(1, False)  # Locked until LibraryLoaderWorker finishes
-        self.tabs.currentChanged.connect(self._on_tab_changed)
-        control_layout.addWidget(self.tabs)
-
-        # _on_algorithm_changed will be triggered once _on_ai_loaded populates the combo
-
-        self.btn_draw = SecondaryButton("✏️  Draw Cells (Manual)")
-        self.btn_draw.setCheckable(True)
-        self.btn_draw.clicked.connect(self._on_draw_toggled)
-        self.canvas.cell_drawn.connect(self._on_cell_drawn)
-
-        # Make sure cell_deleted is connected if you added it to canvas!
-        if hasattr(self.canvas, "cell_deleted"):
-            self.canvas.cell_deleted.connect(self._on_cell_deleted)
-
-        control_layout.addWidget(self.btn_draw)
-
-        splitter.addWidget(controls_widget)
+        # One page per step; the assay decides which are shown, in which order.
+        self.load_step = LoadStep(self.image_set)
+        self.calibrate_step = CalibrateStep()
+        self.detect_step = DetectStep()
+        self.review_step = ReviewStep()
+        self.measure_step = MeasureStep()
+        self.report_step = ReportStep()
+        self.step_pages = {
+            "load": self.load_step,
+            "calibrate": self.calibrate_step,
+            "detect": self.detect_step,
+            "review": self.review_step,
+            "measure": self.measure_step,
+            "report": self.report_step,
+        }
+        self.stepper = Stepper()
+        self.mode_picker = ModePicker(list(ASSAYS.values()))
+        self.left_stack = QStackedWidget()
+        self.left_stack.addWidget(self.mode_picker)
+        self.left_stack.addWidget(self.stepper)
+        control_layout.addWidget(self.left_stack, 1)
+        splitter.addWidget(controls)
 
         self.table = BioTableWidget(0, 0)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.setStyleSheet(
-            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER}; border: none;"
-        )
-        self.table.setSortingEnabled(True)  # <--- Enable interactive sorting!
-        self.table.itemSelectionChanged.connect(self._on_table_selection)
+        self.table.setSortingEnabled(True)
         splitter.addWidget(self.table)
         splitter.setStretchFactor(0, 6)
         splitter.setStretchFactor(1, 4)
         splitter.setCollapsible(1, False)
+        splitter.setSizes([4, 1])
 
-        # Inject the canvas into the right hand side of the main splitter
         self.main_splitter.addWidget(self.canvas)
         self.main_splitter.setStretchFactor(0, 1)
         self.main_splitter.setStretchFactor(1, 3)
-        # setStretchFactor alone only governs how *extra* space is redistributed on
-        # resize — the initial split needs an explicit ratio, or Qt sizes each pane
-        # by its own sizeHint() instead (which skewed the controls panel far wider
-        # than intended). Values are proportional, not literal pixels — scaled to
-        # whatever the splitter's actual width is at first layout.
+        # setStretchFactor only redistributes extra space; the first split needs a
+        # ratio, or Qt sizes each pane by its sizeHint (far too wide a control pane).
         self.main_splitter.setSizes([1, 3])
 
+        # Short names for the widgets the panel works with.
+        self.channel_manager = self.load_step.channel_manager
+        c = self.calibrate_step
+        self.lbl_scale, self.btn_calibrate, self.lbl_units_note = (
+            c.lbl_scale,
+            c.btn_calibrate,
+            c.lbl_units_note,
+        )
+        d = self.detect_step
+        self.lbl_ai_status, self.combo_pipeline, self.btn_manage_ai = (
+            d.lbl_ai_status,
+            d.combo_pipeline,
+            d.btn_manage_ai,
+        )
+        self.lbl_algo_bio, self.params_form, self.progress_bar = (
+            d.lbl_algo_bio,
+            d.params_form,
+            d.progress_bar,
+        )
+        self.btn_run_pipeline, self.hw_monitor = d.btn_run, d.hw_monitor
+        self._citation_labels = d.citation_labels
+        r = self.review_step
+        self.chk_show_ids, self.chk_color_confidence = r.chk_show_ids, r.chk_color_confidence
+        self.chk_probability_map, self.spin_uncertain = r.chk_probability_map, r.spin_uncertain
+        self.btn_next_uncertain, self.btn_draw = r.btn_next_uncertain, r.btn_draw
+        m = self.measure_step
+        self.combo_background, self.combo_nucleus, self.chk_texture = (
+            m.combo_background,
+            m.combo_nucleus,
+            m.chk_texture,
+        )
+        self.combo_hist_metric, self.lbl_stats, self.histogram = (
+            m.combo_hist_metric,
+            m.lbl_stats,
+            m.histogram,
+        )
+        rp = self.report_step
+        self.btn_export, self.btn_export_rois, self.btn_export_seg = (
+            rp.btn_export,
+            rp.btn_export_rois,
+            rp.btn_export_seg,
+        )
+        self._review_index = -1
+        self._assay: Assay | None = None
+        self._wire()
+        self._apply_theme_styles()
+
+    def _wire(self) -> None:
+        """Connect the step pages, canvas and table to the panel."""
+        self.btn_assay.clicked.connect(self._show_mode_picker)
+        self.mode_picker.assay_chosen.connect(self._on_assay_chosen)
+        self.stepper.step_changed.connect(self._on_step_changed)
+        self.btn_save_session.clicked.connect(self._on_save_workflow)
+        self.btn_load_session.clicked.connect(self._on_load_workflow)
+
+        self.channel_manager.channels_changed.connect(self._render_composite)
+        self.channel_manager.channels_changed.connect(self._update_calibrate_button_state)
+        self.channel_manager.new_image_loaded.connect(self._apply_metadata_calibration)
+        self.channel_manager.new_image_loaded.connect(self._apply_assay_target)
+        self.canvas.load_requested.connect(self.channel_manager.prompt_add_channel)
+        self.canvas.files_dropped.connect(self.channel_manager.ingest_paths)
+
+        self.btn_calibrate.clicked.connect(self._on_calibrate_clicked)
+        self.canvas.calibration_line_drawn.connect(self._on_calibration_drawn)
+
+        self.combo_pipeline.currentIndexChanged.connect(self._on_algorithm_changed)
+        self.btn_manage_ai.clicked.connect(self._open_model_manager)
+        self.btn_run_pipeline.clicked.connect(self._on_run_pipeline)
+
+        self.chk_show_ids.toggled.connect(self.canvas.set_show_ids)
+        self.chk_color_confidence.toggled.connect(self._redraw_cells)
+        self.chk_probability_map.toggled.connect(self._update_probability_map)
+        self.spin_uncertain.valueChanged.connect(self._update_review_controls)
+        self.btn_next_uncertain.clicked.connect(self._on_next_uncertain)
+        self.btn_draw.clicked.connect(self._on_draw_toggled)
+        self.canvas.cell_drawn.connect(self._on_cell_drawn)
+        self.canvas.cell_deleted.connect(self._on_cell_deleted)
+
+        self.combo_background.currentIndexChanged.connect(self._on_measure_options_changed)
+        self.combo_nucleus.currentIndexChanged.connect(self._on_measure_options_changed)
+        self.chk_texture.toggled.connect(self._on_measure_options_changed)
+        self.combo_hist_metric.currentIndexChanged.connect(self._update_results_tab)
+
+        self.btn_export.clicked.connect(self._on_export_csv)
+        self.btn_export_rois.clicked.connect(self._on_export_rois)
+        self.btn_export_seg.clicked.connect(self._on_export_seg)
+        self.report_step.btn_copy_methods.clicked.connect(self._copy_methods)
+
+        self.table.itemSelectionChanged.connect(self._on_table_selection)
+
+    # ── Assays and steps ─────────────────────────────────────────────────
+
+    def _show_mode_picker(self) -> None:
+        self.left_stack.setCurrentWidget(self.mode_picker)
+
+    def _on_assay_chosen(self, assay_id: str) -> None:
+        self.set_assay(assay_id)
+        self._remember_assay(assay_id)
+
+    def set_assay(self, assay_id: str | None, apply_defaults: bool = True) -> None:
+        """Switch to `assay_id`'s steps and, unless restoring a session, its default settings."""
+        assay = ASSAYS.get(assay_id or "") or ASSAYS[DEFAULT_ASSAY]
+        self._assay = assay
+        self.btn_assay.setText(f"{assay.icon} {assay.name} ▾")
+        self.stepper.set_steps(
+            [(sid, STEP_LABELS[sid], self.step_pages[sid]) for sid in assay.steps]
+        )
+        self.left_stack.setCurrentWidget(self.stepper)
+        if not apply_defaults:
+            return
+        self._apply_ui_params({"pipeline": assay.segmenter, "values": dict(assay.settings)})
+        self._set_measure_controls(MeasureOptions(**assay.measure))
+        self._apply_assay_target()
+        if self.state.cells:
+            self._remeasure()
+
+    @property
+    def assay(self) -> Assay | None:
+        return self._assay
+
+    def _apply_assay_target(self, *_args) -> None:
+        """Pick the assay's stain (e.g. DAPI for nuclei) as the channel to segment."""
+        if self._assay is None:
+            return
+        target = self._assay.default_target([c.name for c in self.image_set.channels])
+        if target:
+            self._update_dropdowns()  # the new channel may not be offered yet
+            self._pending_values = {**self._pending_values, "target_channel": target}
+            self.params_form.set_display_values({"target_channel": target})
+
+    def _project_key(self) -> str | None:
+        pm = getattr(self.window(), "project_manager", None)
+        directory = getattr(pm, "project_dir", None) if pm else None
+        return str(directory) if directory else None
+
+    def _remember_assay(self, assay_id: str) -> None:
+        key = self._project_key()
+        if key is None:
+            return
+        config = PluginConfig(self.plugin_id)
+        remembered = dict(config.get("assay_by_project", {}) or {})
+        remembered[key] = assay_id
+        config.set("assay_by_project", remembered)
+        config.save()
+
+    def _remembered_assay(self) -> str | None:
+        key = self._project_key()
+        if key is None:
+            return None
+        return (PluginConfig(self.plugin_id).get("assay_by_project", {}) or {}).get(key)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # The project is only known once the panel sits in its window.
+        if self._assay is None:
+            remembered = self._remembered_assay()
+            if remembered in ASSAYS:
+                self.set_assay(remembered)
+
+    def _on_step_changed(self, step_id: str) -> None:
+        if step_id == "detect":
+            self._update_dropdowns()
+        elif step_id == "report":
+            self._refresh_methods_preview()
+
+    def _refresh_methods_preview(self) -> None:
+        steps = self.session.methods_steps()
+        if steps is None:
+            self.report_step.methods_text.setPlainText(
+                "Run a segmentation to see its methods text."
+            )
+            self.report_step.citations.set_keys(())
+            return
+        self.report_step.methods_text.setMarkdown(methods_markdown(steps))
+        self.report_step.citations.set_keys(
+            list(dict.fromkeys(k for step in steps for k in step.citations))
+        )
+
+    def _copy_methods(self) -> None:
+        QApplication.clipboard().setText(self.report_step.methods_text.toPlainText())
+        self.status_message.emit("Methods text copied.")
+
     def _apply_theme_styles(self) -> None:
-        """Re-applies theme-aware styles when the active theme changes.
-
-        Most widgets here are plain Qt widgets with ``Colors.*`` baked into
-        an f-string stylesheet at construction time, so — unlike the SDK's
-        own ``Bio*`` components (buttons, ``HeaderLabel``, etc.), which
-        already re-style themselves — they need to be explicitly rebuilt
-        here. ``super()`` handles the panel background plus any child that
-        already knows how to restyle itself.
-        """
+        """Re-colour the plain Qt widgets; SDK Bio* widgets restyle themselves."""
         super()._apply_theme_styles()
-
-        self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{ border: 1px solid {Colors.BORDER}; border-radius: 4px; top: -1px; }}
-            QTabBar::tab {{ background: {Colors.BG_DARKEST}; color: {Colors.FG_SECONDARY}; border: 1px solid {Colors.BORDER}; padding: 8px 15px; border-top-left-radius: 4px; border-top-right-radius: 4px; }}
-            QTabBar::tab:selected {{ background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; font-weight: bold; border-bottom-color: {Colors.BG_MEDIUM}; }}
-        """)
-
-        header_style = (
-            f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; "
-            f"padding-top: 15px; padding-bottom: 5px; border-bottom: 1px solid {Colors.BORDER};"
-        )
-        for lbl in self._section_headers:
-            lbl.setStyleSheet(header_style)
-
-        self.lbl_scale.setStyleSheet(
-            f"color: {Colors.ACCENT_PRIMARY}; font-weight: bold; border: none;"
-        )
-
-        input_style = f"""
-            QComboBox, QSpinBox, QDoubleSpinBox {{
-                background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY};
-                border: 1px solid {Colors.BORDER}; border-radius: 4px; padding: 4px; min-height: 24px;
-            }}
-            QComboBox QAbstractItemView {{ background-color: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY}; selection-background-color: {Colors.ACCENT_PRIMARY}; }}
-        """
-        self.combo_pipeline.setStyleSheet(input_style)
-        self.params_form.apply_theme()
-        self.chk_show_ids.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
-        for widget in (
-            self.chk_color_confidence,
-            self.chk_probability_map,
-            self.lbl_uncertain,
-            self.lbl_background,
-            self.lbl_nucleus,
-            self.chk_texture,
-        ):
-            widget.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
-        self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
-        self.lbl_units_note.setStyleSheet(
-            f"color: {Colors.ACCENT_WARNING}; font-weight: bold; margin-top: 10px;"
-        )
-
+        for page in self.step_pages.values():
+            page.apply_theme()
+        self.stepper.apply_theme()
         self.table.setStyleSheet(
-            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER}; border: none;"
+            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; "
+            f"gridline-color: {Colors.BORDER}; border: none;"
         )
-
-        # lbl_ai_status's color depends on AI-load state, not just the theme —
-        # reuse the state-aware helper once loaded, otherwise re-apply the
-        # loading-state color with the new theme's FG_SECONDARY.
-        if self.tabs.isTabEnabled(1):
+        # lbl_ai_status's colour depends on the load state as well as the theme.
+        if self.pipelines:
             self._refresh_ai_status_label()
         else:
             self.lbl_ai_status.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 12px;")
@@ -630,6 +457,7 @@ class CytoMetricsPanel(PluginBase):
             self.lbl_scale.setText("Scale: Uncalibrated (sizes in pixels)")
         self.canvas.set_scale(scale)
         self.lbl_units_note.setVisible(not is_calibrated(scale))
+        self.detect_step.lbl_units_note.setVisible(not is_calibrated(scale))
         self.params_form.set_scale(scale)
         self._refresh_table()
 
@@ -667,18 +495,13 @@ class CytoMetricsPanel(PluginBase):
             # Replace the pipeline registry with the fully constructed instances
             self.pipelines = pipelines
 
-            # Populate the combo box with all available algorithms
+            self.combo_pipeline.blockSignals(True)
             self.combo_pipeline.clear()
             for key, pipe in pipelines.items():
                 self.combo_pipeline.addItem(pipe.name, key)
-                label = CitationLabel(pipe.name, getattr(pipe, "citations", ()))
-                label.setVisible(False)
-                self._citation_layout.addWidget(label)
-                self._citation_labels[key] = label
-
-            # Unlock and rename tab 2
-            self.tabs.setTabEnabled(1, True)
-            self.tabs.setTabText(1, "2. Smart Detect")
+                self.detect_step.add_citation(key, pipe.name, getattr(pipe, "citations", ()))
+            self.combo_pipeline.blockSignals(False)
+            self.btn_run_pipeline.setEnabled(True)
             self._refresh_ai_status_label()
 
             # Build the settings for the current (or restored) algorithm.
@@ -688,9 +511,7 @@ class CytoMetricsPanel(PluginBase):
                     {"pipeline": self._pending_pipeline, "values": self._pending_values}
                 )
         else:
-            # Partial load — tab stays locked with error label
-            self.tabs.setTabText(1, "⚠️ Load Failed")
-            self.lbl_ai_status.setText("⚠️ AI engine failed to load")
+            self.lbl_ai_status.setText(f"⚠️ Segmentation algorithms failed to load: {message}")
             self.lbl_ai_status.setStyleSheet(
                 f"color: {Colors.ACCENT_DANGER}; font-size: 12px; font-weight: bold;"
             )
@@ -704,8 +525,7 @@ class CytoMetricsPanel(PluginBase):
             self.params_form.set_params(segmenter.parameters())
             self.params_form.set_channels([c.name for c in self.image_set.channels])
             self.params_form.set_scale(self.state.scale)
-        for key, label in self._citation_labels.items():
-            label.setVisible(key == selected)
+        self.detect_step.show_citation(selected)
 
     def _render_composite(self):
         composite = self.image_set.composite()
@@ -787,6 +607,7 @@ class CytoMetricsPanel(PluginBase):
         """Package the workspace state for the SDK."""
         # Sync UI params before exporting
         self.state.ui_params = {
+            "assay": self._assay.id if self._assay else None,
             "pipeline": self.combo_pipeline.currentData() or self._pending_pipeline,
             "values": self.params_form.display_values() or self._pending_values,
             "measure": {
@@ -816,6 +637,8 @@ class CytoMetricsPanel(PluginBase):
             logger.exception("Failed to restore images")
 
         # 2. Restore UI settings
+        if state.ui_params.get("assay") in ASSAYS:
+            self.set_assay(state.ui_params["assay"], apply_defaults=False)
         self._apply_ui_params(state.ui_params)
 
         # 3. Restore data & canvas
@@ -960,11 +783,6 @@ class CytoMetricsPanel(PluginBase):
         if current and current not in names:  # its channel was renamed or removed
             self._on_measure_options_changed()
 
-    def _on_tab_changed(self, index):
-        """Force a refresh of the dropdowns when switching to the Smart Detect tab."""
-        if index == 1:  # Index 1 is the second tab (Smart Detect)
-            self._update_dropdowns()
-
     def _on_cell_deleted(self, cell_id):
         """Removes a cell by ID and triggers a state refresh for Undo/Redo."""
         self.session.delete_cells({cell_id})
@@ -995,7 +813,11 @@ class CytoMetricsPanel(PluginBase):
     def _update_review_controls(self, *_args) -> None:
         has_confidence = self.session.has_confidence()
         self.chk_color_confidence.setEnabled(has_confidence)
-        for widget in (self.lbl_uncertain, self.spin_uncertain, self.btn_next_uncertain):
+        for widget in (
+            self.review_step.lbl_uncertain,
+            self.spin_uncertain,
+            self.btn_next_uncertain,
+        ):
             widget.setEnabled(has_confidence)
         n = len(self._uncertain_cells())
         self.btn_next_uncertain.setText(

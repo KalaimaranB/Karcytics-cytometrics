@@ -1,6 +1,6 @@
 # Analysis Workflow
 
-## 1. Pick an algorithm (2. Smart Detect)
+## 1. Pick an algorithm (Detect step)
 
 | Algorithm | Best for | Method |
 |---|---|---|
@@ -49,7 +49,7 @@ Click **✨ Run Segmentation**; the scanning bar shows progress. Detected cells 
 
 ### Reviewing Cellpose results
 
-Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probability inside the outline. In **3. Results**:
+Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probability inside the outline. In the **Review** step:
 
 - **Colour outlines by AI confidence**: red = uncertain, amber = borderline, green = confident.
 - **Show Cellpose cell-probability map**: a cyan overlay of where the model thinks cells are. Useful to see dim cells it nearly found (lower the Detection Threshold to include them).
@@ -57,7 +57,7 @@ Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probabil
 
 ## 6. Results and export
 
-Every cell is measured from its mask, the same way whether it was detected, drawn by hand, edited or reloaded. The results table shows every measurement; hover over a column header for its definition. In **3. Results**:
+Every cell is measured from its mask, the same way whether it was detected, drawn by hand, edited or reloaded. The results table shows every measurement; hover over a column header for its definition. In the **Measure** step:
 
 - **Intensity background**: *None* reports raw intensities. *Global* subtracts the median of all pixels outside the cells. *Local ring* subtracts the median of a 5-pixel ring 2 pixels outside each cell, skipping neighbouring cells. Either adds Background and Corrected… columns.
 - **Nucleus / cytoplasm from**: pick a nuclear stain (e.g. DAPI). Each cell is split into nucleus (above the stain's Otsu threshold) and cytoplasm; you get `Nucleus_Area`, `Cytoplasm_Area`, `Nucleus_NCAreaRatio` and, per channel, `Intensity_NucleusMean_…`, `Intensity_CytoplasmMean_…` and `Intensity_NCRatio_…` (above 1 = enriched in the nucleus, e.g. for translocation assays).

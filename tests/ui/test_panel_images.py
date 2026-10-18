@@ -44,7 +44,7 @@ def _ome(tmp_path, um_per_px=0.5):
 
 
 def _ready(panel, qtbot, segmenter="cellpose"):
-    qtbot.waitUntil(lambda: panel.tabs.isTabEnabled(1), timeout=10_000)
+    qtbot.waitUntil(lambda: bool(panel.pipelines), timeout=10_000)
     panel.combo_pipeline.setCurrentIndex(panel.combo_pipeline.findData(segmenter))
 
 
@@ -259,7 +259,7 @@ def test_detect_settings_round_trip_through_saved_state(panel, qtbot, tmp_path):
     other = main_panel.CytoMetricsPanel()
     qtbot.addWidget(other)
     other.load_state(saved)  # before its segmenters have loaded
-    qtbot.waitUntil(lambda: other.tabs.isTabEnabled(1), timeout=10_000)
+    qtbot.waitUntil(lambda: bool(other.pipelines), timeout=10_000)
 
     assert other.combo_pipeline.currentData() == "cellpose"
     values = other.params_form.display_values()
