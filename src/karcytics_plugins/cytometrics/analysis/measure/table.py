@@ -33,6 +33,7 @@ ID_COLUMNS = [
     Column("ObjectNumber", NONE, "The cell's ID, as shown on the canvas."),
     Column("Source", NONE, "'auto' (segmented) or 'manual' (drawn by hand)."),
     Column("Confidence", NONE, "Cellpose's mean cell probability inside the object (0–1)."),
+    Column("Flagged", NONE, "Marked in the Cell inspector to come back to."),
 ]
 
 
@@ -84,6 +85,7 @@ def measure_cells(
             "ObjectNumber": cell["id"],
             "Source": cell.get("source", "auto"),
             "Confidence": cell.get("confidence", np.nan),
+            "Flagged": bool(cell.get("flagged", False)),
         }
         if sl is not None:  # None if a later cell covered this one completely
             crop = _grow(sl, margin, shape)

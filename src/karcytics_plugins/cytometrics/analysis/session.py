@@ -162,6 +162,17 @@ class AnalysisSession:
             ids.append(new["id"])
         return ids
 
+    def set_flag(self, cell_ids: set[int], flagged: bool) -> None:
+        for cell in self.state.cells:
+            if cell["id"] in cell_ids:
+                if flagged:
+                    cell["flagged"] = True
+                else:
+                    cell.pop("flagged", None)
+        if "Flagged" in self.measurements.columns:
+            rows = self.measurements["ObjectNumber"].isin(cell_ids)
+            self.measurements.loc[rows, "Flagged"] = flagged
+
     def _drop_rows(self, cell_ids: set[int]) -> None:
         kept = self.measurements[~self.measurements["ObjectNumber"].isin(cell_ids)].copy()
         kept.attrs = self.measurements.attrs

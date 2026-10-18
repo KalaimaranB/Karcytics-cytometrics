@@ -55,7 +55,7 @@ def test_uncalibrated_panel_labels_sizes_in_pixels_and_can_run(panel, qtbot):
     assert form.widget("min_area_px").suffix() == " px²"
     assert form.widget("diameter").suffix() == " px"
     assert not panel.lbl_units_note.isHidden()
-    assert _headers(panel)[:3] == ["ID", "Confidence", "Area (px²)"]
+    assert _headers(panel)[:4] == ["ID", "Confidence", "Flagged", "Area (px²)"]
 
 
 def test_adding_an_image_shows_it_on_the_canvas(panel, tmp_path):
@@ -133,8 +133,8 @@ def test_csv_headers_follow_the_units(panel, tmp_path, monkeypatch):
         "ObjectNumber",
         "Source",
         "Confidence",
+        "Flagged",
         "AreaShape_Area [px2]",
-        "AreaShape_Perimeter [px]",
     ]
     assert "Intensity_MeanIntensity_cells_png [a.u.]" in header
 

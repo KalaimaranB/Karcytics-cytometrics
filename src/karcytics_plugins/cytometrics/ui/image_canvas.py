@@ -36,10 +36,11 @@ _SUPPORTED_EXTENSIONS = (".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp")
 class CellPolygonItem(QGraphicsPolygonItem):
     """Custom polygon that knows its own ID and holds a text label."""
 
-    def __init__(self, cell_id, polygon, color: QColor = _DEFAULT_OUTLINE):
+    def __init__(self, cell_id, polygon, color: QColor = _DEFAULT_OUTLINE, flagged: bool = False):
         super().__init__(polygon)
         self.cell_id = cell_id
         self.color = QColor(color)
+        self.flagged = flagged
 
         self.set_highlighted(False)
 
@@ -56,14 +57,17 @@ class CellPolygonItem(QGraphicsPolygonItem):
     def set_highlighted(self, is_highlighted: bool):
         """Swaps the styling between default and highlighted states."""
         if is_highlighted:
-            pen = QPen(QColor(255, 255, 0))
-            pen.setWidth(3)
+            # White, so it stands out whatever the outlines are coloured by.
+            pen = QPen(QColor(255, 255, 255))
+            pen.setWidth(4)
             self.setPen(pen)
-            self.setBrush(QBrush(QColor(255, 255, 0, 100)))
+            self.setBrush(QBrush(QColor(255, 255, 255, 70)))
             self.setZValue(1)  # in front of overlapping neighbours
         else:
             pen = QPen(self.color)
             pen.setWidth(2)
+            if self.flagged:
+                pen.setStyle(Qt.PenStyle.DashLine)
             self.setPen(pen)
             fill = QColor(self.color)
             fill.setAlpha(40)
@@ -136,7 +140,12 @@ class MultiChannelCanvas(ImageView):
         colors = colors or {}
         for cell in cells_data:
             poly = QPolygonF([QPointF(x, y) for x, y in cell["points"]])
-            item = CellPolygonItem(cell["id"], poly, colors.get(cell["id"], _DEFAULT_OUTLINE))
+            item = CellPolygonItem(
+                cell["id"],
+                poly,
+                colors.get(cell["id"], _DEFAULT_OUTLINE),
+                bool(cell.get("flagged")),
+            )
             self.add_to_layer(_CELLS_LAYER, item)
             self._cell_items.append(item)
         present = {c["id"] for c in cells_data}

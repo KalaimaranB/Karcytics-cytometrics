@@ -136,3 +136,59 @@ def test_tools_switch_canvas_modes(panel):
     assert panel.canvas.mode == "SPLIT"
     panel.review_step.tool_buttons["PAN"].click()
     assert panel.canvas.mode == "PAN"
+
+
+def test_inspector_shows_the_selected_cell(panel):
+    panel.canvas.set_selection({3}, emit=True)
+
+    inspector = panel.results.inspector
+    assert inspector.title.text() == "Cell 3"
+    names = [inspector.values.item(i, 0).text() for i in range(inspector.values.rowCount())]
+    assert "Area (px²)" in names and "MaxFeretDiameter (px)" in names
+    assert inspector.thumbnail.pixmap() is not None and not inspector.thumbnail.pixmap().isNull()
+
+    panel.canvas.set_selection({1, 2}, emit=True)
+    assert inspector.title.text() == "2 cells selected"
+
+
+def test_flag_is_saved_shown_and_undoable(panel):
+    panel.canvas.set_selection({3}, emit=True)
+
+    panel.results.inspector.btn_flag.click()
+
+    assert panel.session.cell(3)["flagged"] is True
+    assert panel.measurements.set_index("ObjectNumber").loc[3, "Flagged"]
+    assert next(i for i in panel.canvas._cell_items if i.cell_id == 3).flagged
+    assert panel.undo_text() == "Undo Flag cell"
+    panel.undo()
+    assert "flagged" not in panel.session.cell(3)
+
+
+def test_scatter_plots_cells_and_links_selection_both_ways(panel):
+    scatter = panel.results.scatter
+    panel.results.setCurrentIndex(2)
+    scatter.resize(400, 300)
+    panel._update_scatter()
+    assert scatter.point_count == 3
+
+    panel._on_scatter_clicked(2, False)
+    assert panel.canvas.selection == [2]
+    panel._on_scatter_clicked(3, True)
+    assert panel.canvas.selection == [2, 3]
+
+    panel.canvas.set_selection({1}, emit=True)
+    assert scatter._selected == {1}
+
+
+def test_scatter_point_hit_testing(qtbot):
+    from karcytics_plugins.cytometrics.ui.widgets.scatter import ScatterPlot
+
+    plot = ScatterPlot()
+    qtbot.addWidget(plot)
+    plot.resize(300, 200)
+    plot.set_data([1, 2, 3], [1, 4, 9], [7, 8, 9], "x", "y")
+
+    hit = plot.point_at(plot._to_screen(2, 4))
+
+    assert hit == 8
+    assert plot.point_at(plot._to_screen(2, 9)) is None

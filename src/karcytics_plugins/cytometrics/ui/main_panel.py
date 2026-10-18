@@ -11,12 +11,12 @@ import numpy as np
 import pandas as pd
 from karcytics_sdk.plugin import (
     BioSplitter,
-    BioTableWidget,
     FunctionalTask,
     HeaderLabel,
     PluginBase,
     PluginState,
     SecondaryButton,
+    array_to_pixmap,
     get_double,
     get_logger,
     get_save_path,
@@ -34,7 +34,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QHBoxLayout,
-    QHeaderView,
     QInputDialog,
     QSizePolicy,
     QStackedWidget,
@@ -55,6 +54,7 @@ from ..report import methods_markdown, write_methods_sidecars
 from .dialogs.model_manager import ModelManagerDialog, _check_ai_model_installed
 from .image_canvas import MultiChannelCanvas, confidence_color, value_color
 from .mode_picker import ModePicker
+from .results_dock import ResultsDock
 from .stepper import Stepper
 from .steps import CalibrateStep, DetectStep, LoadStep, MeasureStep, ReportStep, ReviewStep
 from .steps.review import TOOLS
@@ -258,14 +258,14 @@ class CytoMetricsPanel(PluginBase):
         control_layout.addWidget(self.left_stack, 1)
         splitter.addWidget(controls)
 
-        self.table = BioTableWidget(0, 0)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.setSortingEnabled(True)
-        splitter.addWidget(self.table)
+        self.results = ResultsDock()
+        self.results.setMinimumHeight(140)
+        self.table = self.results.table
+        splitter.addWidget(self.results)
         splitter.setStretchFactor(0, 6)
         splitter.setStretchFactor(1, 4)
         splitter.setCollapsible(1, False)
-        splitter.setSizes([4, 1])
+        splitter.setSizes([3, 1])
 
         self.main_splitter.addWidget(self.canvas)
         self.main_splitter.setStretchFactor(0, 1)
@@ -305,10 +305,10 @@ class CytoMetricsPanel(PluginBase):
             m.combo_nucleus,
             m.chk_texture,
         )
-        self.combo_hist_metric, self.lbl_stats, self.histogram = (
-            m.combo_hist_metric,
-            m.lbl_stats,
-            m.histogram,
+        self.lbl_stats = m.lbl_stats
+        self.combo_hist_metric, self.histogram = (
+            self.results.combo_hist_metric,
+            self.results.histogram,
         )
         rp = self.report_step
         self.btn_export, self.btn_export_rois, self.btn_export_seg = (
@@ -380,6 +380,10 @@ class CytoMetricsPanel(PluginBase):
         self.report_step.btn_copy_methods.clicked.connect(self._copy_methods)
 
         self.table.itemSelectionChanged.connect(self._on_table_selection)
+        self.results.combo_x.currentIndexChanged.connect(self._update_scatter)
+        self.results.combo_y.currentIndexChanged.connect(self._update_scatter)
+        self.results.scatter.point_clicked.connect(self._on_scatter_clicked)
+        self.results.inspector.flag_toggled.connect(self._on_flag_toggled)
 
     # ── Assays and steps ─────────────────────────────────────────────────
 
@@ -481,10 +485,7 @@ class CytoMetricsPanel(PluginBase):
         for page in self.step_pages.values():
             page.apply_theme()
         self.stepper.apply_theme()
-        self.table.setStyleSheet(
-            f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; "
-            f"gridline-color: {Colors.BORDER}; border: none;"
-        )
+        self.results.apply_theme()
         # lbl_ai_status's colour depends on the load state as well as the theme.
         if self.pipelines:
             self._refresh_ai_status_label()
@@ -738,6 +739,8 @@ class CytoMetricsPanel(PluginBase):
         units = df.attrs.get("units", {})
         helps = df.attrs.get("help", {})
         columns = [c for c in df.columns if c not in ("ObjectNumber", "Source")]
+        # Flags show as a 🚩 in the table rather than True/False.
+        flagged = set(df.loc[df["Flagged"], "ObjectNumber"]) if "Flagged" in df else set()
         self.table.setSortingEnabled(False)
         self.table.clear()
         self.table.setColumnCount(len(columns) + 1)
@@ -756,7 +759,10 @@ class CytoMetricsPanel(PluginBase):
             self.table.insertRow(row)
             self.table.setItem(row, 0, NumericTableItem(f"Cell {record['ObjectNumber']}"))
             for i, name in enumerate(columns, start=1):
-                self.table.setItem(row, i, NumericTableItem(_format(record[name])))
+                value = record[name]
+                if name == "Flagged":
+                    value = "🚩" if record["ObjectNumber"] in flagged else ""
+                self.table.setItem(row, i, NumericTableItem(_format(value)))
         self.table.setSortingEnabled(True)
         self._update_results_tab()
 
@@ -812,6 +818,7 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.set_mode(mode)
 
     def _on_canvas_selection(self, cell_ids: list) -> None:
+        self._show_selection(cell_ids)
         n = len(cell_ids)
         r = self.review_step
         r.btn_merge.setEnabled(n >= 2)  # noqa: PLR2004
@@ -827,6 +834,91 @@ class CytoMetricsPanel(PluginBase):
             if item and item.text() in wanted:
                 self.table.selectRow(row)
         self.table.blockSignals(False)
+
+    def _show_selection(self, cell_ids: list) -> None:
+        """Point the inspector and the scatter plot at the selected cells."""
+        self.results.scatter.set_selected(cell_ids)
+        inspector = self.results.inspector
+        if len(cell_ids) != 1:
+            inspector.show_none(
+                f"{len(cell_ids)} cells selected" if cell_ids else "No cell selected"
+            )
+            return
+        cell = self.session.cell(cell_ids[0])
+        if cell is None:
+            inspector.show_none()
+            return
+        inspector.show_cell(cell, self._measurement_rows(cell["id"]), self._thumbnail(cell))
+
+    def _measurement_rows(self, cell_id: int) -> list[tuple[str, str]]:
+        df = self.measurements
+        match = df[df["ObjectNumber"] == cell_id]
+        if match.empty:
+            return [("(being measured…)", "")]
+        record = match.iloc[0]
+        units = df.attrs.get("units", {})
+        rows = []
+        for name in df.columns:
+            if name in ("ObjectNumber", "Source", "Confidence", "Flagged"):
+                continue
+            unit = unit_label(units.get(name, ""), self.state.scale)
+            rows.append(
+                (
+                    f"{_short_name(name)} ({unit})" if unit else _short_name(name),
+                    _format(record[name]),
+                )
+            )
+        return rows
+
+    def _thumbnail(self, cell: dict):
+        """The cell and a margin around it, from the displayed composite, outlined."""
+        composite = self.image_set.composite()
+        if composite is None:
+            return None
+        pts = np.asarray(cell["points"], dtype=np.int32)
+        h, w = composite.shape[:2]
+        x0, y0 = pts.min(axis=0) - _THUMB_MARGIN_PX
+        x1, y1 = pts.max(axis=0) + _THUMB_MARGIN_PX
+        x0, y0, x1, y1 = max(0, x0), max(0, y0), min(w, x1 + 1), min(h, y1 + 1)
+        crop = np.ascontiguousarray(composite[y0:y1, x0:x1])
+        cv2.polylines(crop, [pts - [x0, y0]], True, (255, 220, 0), 1)
+        return array_to_pixmap(crop)
+
+    def _on_scatter_clicked(self, cell_id: int, add: bool) -> None:
+        current = set(self.canvas.selection)
+        selection = current ^ {cell_id} if add else {cell_id}
+        self.canvas.set_selection(selection, emit=True)
+        self.canvas.center_on_cell(cell_id)
+
+    def _on_flag_toggled(self, flagged: bool) -> None:
+        ids = set(self.canvas.selection)
+        if not ids:
+            return
+        self.session.set_flag(ids, flagged)
+        self._redraw_cells()
+        self._refresh_table()
+        self.push_state("Flag cell" if flagged else "Unflag cell")
+
+    def _update_scatter(self, *_args) -> None:
+        df = self.measurements
+        x_col, y_col = self.results.combo_x.currentData(), self.results.combo_y.currentData()
+        if not len(df) or x_col not in df or y_col not in df:
+            self.results.scatter.set_data([], [], [], "", "")
+            return
+        units = df.attrs.get("units", {})
+
+        def label(col: str) -> str:
+            unit = unit_label(units.get(col, ""), self.state.scale)
+            return f"{_short_name(col)} ({unit})" if unit else _short_name(col)
+
+        self.results.scatter.set_data(
+            df[x_col].to_numpy(),
+            df[y_col].to_numpy(),
+            df["ObjectNumber"].tolist(),
+            label(x_col),
+            label(y_col),
+        )
+        self.results.scatter.set_selected(self.canvas.selection)
 
     def _on_merge_selected(self) -> None:
         ids = set(self.canvas.selection)
@@ -1037,7 +1129,8 @@ class CytoMetricsPanel(PluginBase):
         numeric = [
             c
             for c in df.columns
-            if c not in ("ObjectNumber", "Source", "Location_Center_X", "Location_Center_Y")
+            if c
+            not in ("ObjectNumber", "Source", "Flagged", "Location_Center_X", "Location_Center_Y")
             and pd.api.types.is_numeric_dtype(df[c])
         ]
         current = self.combo_hist_metric.currentData() or "AreaShape_Area"
@@ -1049,6 +1142,7 @@ class CytoMetricsPanel(PluginBase):
         self.combo_hist_metric.blockSignals(False)
 
         self._update_color_by_options(numeric)
+        self._update_scatter_options(numeric)
         metric = self.combo_hist_metric.currentData()
         lines = [f"Total Cells: {len(self.state.cells)}"]
         if metric and len(df):
@@ -1066,6 +1160,24 @@ class CytoMetricsPanel(PluginBase):
         self._update_probability_map()
         if self.combo_color_by.currentData() is not None:
             self._redraw_cells()  # colours follow the latest values
+
+    def _update_scatter_options(self, numeric_columns: list[str]) -> None:
+        defaults = (
+            "AreaShape_Area",
+            next((c for c in numeric_columns if c.startswith("Intensity_Mean")), None),
+        )
+        for combo, default in zip(
+            (self.results.combo_x, self.results.combo_y), defaults, strict=True
+        ):
+            current = combo.currentData() or default
+            combo.blockSignals(True)
+            combo.clear()
+            for name in numeric_columns:
+                combo.addItem(_short_name(name), name)
+            index = combo.findData(current)
+            combo.setCurrentIndex(index if index >= 0 else min(1, combo.count() - 1))
+            combo.blockSignals(False)
+        self._update_scatter()
 
     def _update_color_by_options(self, numeric_columns: list[str]) -> None:
         current = self.combo_color_by.currentData()
@@ -1286,6 +1398,7 @@ class CytoMetricsPanel(PluginBase):
 
 
 _COLOR_BY_CONFIDENCE = "__confidence__"
+_THUMB_MARGIN_PX = 6
 
 
 def _short_name(column: str) -> str:

@@ -17,7 +17,7 @@ class SimpleHistogram(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(160)
+        self.setMinimumHeight(100)
         self.data = []
         self.setStyleSheet(
             f"background: {Colors.BG_DARKEST}; border: 1px solid {Colors.BORDER}; border-radius: 4px;"

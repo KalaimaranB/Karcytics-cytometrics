@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from karcytics_sdk.plugin import BioComboBox
+from karcytics_sdk.plugin import BioCaptionLabel, BioComboBox
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel
 
-from ..widgets.histogram import SimpleHistogram
 from .base import StepPage
 
 
@@ -55,13 +54,12 @@ class MeasureStep(StepPage):
         )
         self.body.addWidget(self.chk_texture)
 
-        self.section("Distribution")
-        self.combo_hist_metric = BioComboBox()
-        self.body.addWidget(self.combo_hist_metric)
+        self.section("Summary")
         self.lbl_stats = QLabel("Total Cells: 0")
         self.body.addWidget(self.lbl_stats)
-        self.histogram = SimpleHistogram()
-        self.body.addWidget(self.histogram)
+        self.body.addWidget(
+            BioCaptionLabel("Histogram and scatter plots are in the results panel below.")
+        )
         self.finish()
         self.apply_theme()
 

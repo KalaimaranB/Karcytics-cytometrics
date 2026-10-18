@@ -69,6 +69,15 @@ Each Cellpose cell has a **Conf.** value (0–1), the model's mean cell probabil
 - **Show Cellpose cell-probability map**: a cyan overlay of where the model thinks cells are. Useful to see dim cells it nearly found (lower the Detection Threshold to include them).
 - **Uncertain below** + **Next uncertain ▸**: steps through cells under the threshold, least confident first, and centres each one so you can delete or keep it.
 
+## Results panel
+
+Under the steps, the results panel has four tabs:
+
+- **Table**: every cell and measurement; sort by any column; select rows to select cells.
+- **Histogram**: the distribution of any measurement.
+- **Scatter**: any two measurements against each other. Click a point to select its cell on the canvas (Shift+click for more); cells you select on the canvas are highlighted in the plot.
+- **Cell**: the selected cell close up: a thumbnail, every measurement, its source and AI confidence, and **🚩 Flag** to mark it for later (flags are saved and exported in the `Flagged` column, and flagged cells have a dashed outline).
+
 ## 6. Results and export
 
 Every cell is measured from its mask, the same way whether it was detected, drawn by hand, edited or reloaded. The results table shows every measurement; hover over a column header for its definition. In the **Measure** step:
