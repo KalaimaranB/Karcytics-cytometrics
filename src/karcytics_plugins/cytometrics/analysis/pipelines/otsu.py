@@ -2,7 +2,7 @@ import math
 
 import cv2
 
-from .base import SegmentationPipeline, area_range_um2
+from .base import SegmentationPipeline, area_range
 
 
 class OtsuPipeline(SegmentationPipeline):
@@ -15,7 +15,7 @@ class OtsuPipeline(SegmentationPipeline):
         return (
             f"Objects in the '{params.get('target_channel')}' channel were segmented by Otsu "
             "thresholding after a 5 × 5 Gaussian blur",
-            {"size filter": area_range_um2(params, scale)},
+            {"size filter": area_range(params, scale)},
         )
 
     @property
@@ -25,16 +25,13 @@ class OtsuPipeline(SegmentationPipeline):
     def get_parameters(self) -> dict:
         return {"target_channel": "channel_select", "min_area_px": "int", "max_area_px": "int"}
 
-    def run(self, image_stack, parameters: dict, scale: float) -> list:
-        # Find the specific channel the user wants to analyze
-        target_name = parameters.get("target_channel")
-        channel = next((c for c in image_stack.channels if c.name == target_name), None)
-
+    def run(self, image_set, parameters: dict, scale: float) -> list:
+        channel = image_set.get(parameters.get("target_channel"))
         if not channel:
             return []
 
         # 1. Processing
-        blurred = cv2.GaussianBlur(channel.data, (5, 5), 0)
+        blurred = cv2.GaussianBlur(channel.as_uint8(), (5, 5), 0)
         ret, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 

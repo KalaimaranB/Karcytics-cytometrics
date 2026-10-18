@@ -89,3 +89,21 @@ def test_sidecars_are_written_next_to_the_export(tmp_path):
     assert bib.name == "results_citations.bib"
     assert bib_text.count("@") == 3
     assert "doi = {10.1038/s41592-020-01018-x}" in bib_text
+
+
+def test_uncalibrated_run_reports_pixels():
+    md = methods_markdown(build_steps(CellposePipeline(), PARAMS, 0.0, n_cells=3))
+
+    assert "not spatially calibrated; sizes are reported in pixels" in md
+    assert "cell diameter = 60 px" in md
+    assert "size filter = 40–4000 px²" in md
+
+
+def test_scale_origin_is_stated():
+    manual = methods_markdown(build_steps(OtsuPipeline(), PARAMS, SCALE, 1, scale_source="manual"))
+    meta = methods_markdown(
+        build_steps(OtsuPipeline(), PARAMS, SCALE, 1, scale_source="metadata (ome)")
+    )
+
+    assert "Pixel size was 0.5 µm (measured against a scale bar in the image)." in manual
+    assert "Pixel size was 0.5 µm (read from the image metadata)." in meta

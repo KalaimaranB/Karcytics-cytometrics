@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..analysis.model import CHANNEL_COLORS, ImageSet
+
 
 class ChannelManagerWidget(QWidget):
     """UI Component for adding images and assigning them to color channels."""
@@ -19,9 +21,9 @@ class ChannelManagerWidget(QWidget):
     channels_changed = Signal()
     new_image_loaded = Signal(str)
 
-    def __init__(self, image_stack, parent=None):
+    def __init__(self, image_set: ImageSet, parent=None):
         super().__init__(parent)
-        self.image_stack = image_stack
+        self.image_set: ImageSet | None = image_set
         self._setup_ui()
 
     def _setup_ui(self):
@@ -89,9 +91,7 @@ class ChannelManagerWidget(QWidget):
         main_win = self.window()
         pm = getattr(main_win, "project_manager", None)
 
-        final_path = Path(
-            path
-        )  # Make sure you have 'from pathlib import Path' at the top of your file
+        final_path = Path(path)
 
         # 3. Handle Workspace Integration (Copying external files to 'assets')
         if pm:
@@ -111,33 +111,25 @@ class ChannelManagerWidget(QWidget):
                 file_hash = pm.add_image(final_path, copy_to_workspace)
                 resolved_path = pm.get_asset_path(file_hash)
                 if resolved_path:
-                    final_path = resolved_path
+                    final_path = Path(resolved_path)
 
             except Exception as e:
                 show_warning(self, "Asset Error", f"Failed to add asset to project:\n{e}")
                 return  # Abort if we can't manage the asset safely
 
-        # Convert back to a standard string for your CytoMetrics logic
-        file_path_str = str(final_path)
+        assert self.image_set is not None
+        palette = ["gray", "green", "magenta", "blue", "red"]
+        color = palette[len(self.image_set.channels) % len(palette)]
+        try:
+            added = self.image_set.add_file(final_path, final_path.name, color)
+        except (OSError, ValueError) as e:  # includes UnsupportedImageError
+            show_warning(self, "Can't Add Image", f"Could not read '{final_path.name}':\n{e}")
+            return
 
-        # 4. CYTOMETRICS LOAD LOGIC
-        name = final_path.name
-        default_colors = ["gray", "green", "magenta", "blue", "red"]
-        color = default_colors[len(self.image_stack.channels) % len(default_colors)]
-
-        added_channels = self.image_stack.add_channel(file_path_str, name, color)
-
-        if added_channels:
-            for ch_name, ch_color in added_channels:
-                self._add_row_to_ui(ch_name, ch_color)
-
-                for c in self.image_stack.channels:
-                    if c.name == ch_name:
-                        c.path = file_path_str
-
-            # Emit the signals using the new, safely managed path
-            self.new_image_loaded.emit(file_path_str)
-            self.channels_changed.emit()
+        for ch in added:
+            self._add_row_to_ui(ch.name, ch.color)
+        self.new_image_loaded.emit(str(final_path))
+        self.channels_changed.emit()
 
     def ingest_paths(self, paths: list[str]):
         """Add multiple image files as channels, e.g. from a drag-and-drop event."""
@@ -156,7 +148,7 @@ class ChannelManagerWidget(QWidget):
         self.table.setItem(row, 0, item)
 
         combo = BioComboBox()
-        combo.addItems(["gray", "magenta", "green", "blue", "red", "cyan", "yellow"])
+        combo.addItems(CHANNEL_COLORS)
         combo.setCurrentText(current_color)
         combo.currentTextChanged.connect(lambda text, r=row: self._on_color_changed(r, text))
         combo.setStyleSheet(f"background: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY};")
@@ -170,27 +162,32 @@ class ChannelManagerWidget(QWidget):
         col = item.column()
 
         # We only care if they edited the Name column (Column 0)
-        if col == 0 and row < len(self.image_stack.channels):
+        if col == 0 and self.image_set and row < len(self.image_set.channels):
             new_name = item.text()
             # 1. Update the underlying data model
-            self.image_stack.channels[row].name = new_name
+            self.image_set.channels[row].name = new_name
             # 2. Update the hover tooltip to match
             item.setToolTip(new_name)
             # 3. Tell the rest of the app to refresh!
             self.channels_changed.emit()
 
     def _on_color_changed(self, row: int, new_color: str):
-        if row < len(self.image_stack.channels):
-            self.image_stack.channels[row].color = new_color
+        if self.image_set and row < len(self.image_set.channels):
+            self.image_set.channels[row].color = new_color
             self.channels_changed.emit()
 
     def clear_ui(self):
         """Safely removes all channel rows from the UI table."""
-        # Because you are using a QTableWidget, clearing it is this easy!
         self.table.setRowCount(0)
+
+    def refresh(self) -> None:
+        """Rebuild the table from the image set, e.g. after a workflow is restored."""
+        self.clear_ui()
+        for ch in self.image_set.channels if self.image_set else []:
+            self._add_row_to_ui(ch.name, ch.color)
 
     def cleanup(self) -> None:
         """Release UI resources. Called when the plugin panel is closed."""
         self.table.blockSignals(True)
         self.clear_ui()
-        self.image_stack = None  # Release reference to data model
+        self.image_set = None  # Release reference to data model

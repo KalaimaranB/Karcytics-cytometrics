@@ -3,7 +3,7 @@ import math
 import cv2
 import numpy as np
 
-from .base import area_range_um2
+from .base import area_range
 
 _MASK_ACTIVE_VALUE = 255  # 8-bit binary mask: 255 marks foreground/unknown pixels
 
@@ -25,19 +25,20 @@ class WatershedPipeline:
             f"Cells in the '{params.get('target_channel')}' channel were segmented by marker-based "
             f"watershed on an Otsu-derived foreground, {seeds}; cells touching the image border "
             "were excluded",
-            {"size filter": area_range_um2(params, scale)},
+            {"size filter": area_range(params, scale)},
         )
 
-    def run(self, image_stack, params, scale=1.0):
+    def run(self, image_set, params, scale=1.0):
         target_name = params.get("target_channel")
         use_dual = params.get("use_dual_channel", False)
         seed_name = params.get("seed_channel")
         min_area = params.get("min_area_px", 100)
         max_area = params.get("max_area_px", 50000)
 
-        target_img = next((ch.data for ch in image_stack.channels if ch.name == target_name), None)
-        if target_img is None:
+        target = image_set.get(target_name)
+        if target is None:
             return []
+        target_img = target.as_uint8()
 
         img_h, img_w = target_img.shape
 
@@ -46,8 +47,9 @@ class WatershedPipeline:
         # ==========================================
         sure_fg = None
         if use_dual and seed_name:
-            seed_img = next((ch.data for ch in image_stack.channels if ch.name == seed_name), None)
-            if seed_img is not None:
+            seed = image_set.get(seed_name)
+            if seed is not None:
+                seed_img = seed.as_uint8()
                 # Find nuclei and split any touching ones
                 blur_seed = cv2.GaussianBlur(seed_img, (5, 5), 0)
                 _, seed_mask = cv2.threshold(blur_seed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)

@@ -15,16 +15,34 @@ from karcytics_sdk.plugin.citations import MethodStep, methods_text, to_bibtex
 
 from . import __version__
 from . import citations as _registered  # noqa: F401  (registers CytoMetrics' entries)
+from .analysis.units import is_calibrated
 
 SOFTWARE = "Karcytics CytoMetrics"
 SOFTWARE_URL = "https://github.com/KalaimaranB/Karcytics-cytometrics"
 
 
+def _scale_origin(scale_source: str) -> str:
+    if scale_source == "manual":
+        return " (measured against a scale bar in the image)"
+    if scale_source.startswith("metadata"):
+        return " (read from the image metadata)"
+    return ""
+
+
 def build_steps(
-    pipeline: Any, params: dict, scale: float, n_cells: int, n_manual: int = 0
+    pipeline: Any,
+    params: dict,
+    scale: float,
+    n_cells: int,
+    n_manual: int = 0,
+    scale_source: str = "",
 ) -> list[MethodStep]:
     """The methods steps for one segmentation run, in reading order."""
-    steps = [MethodStep(f"Pixel size was {scale:.4g} µm")] if scale > 0 else []
+    steps = [
+        MethodStep(f"Pixel size was {scale:.4g} µm{_scale_origin(scale_source)}")
+        if is_calibrated(scale)
+        else MethodStep("Images were not spatially calibrated; sizes are reported in pixels")
+    ]
     description, parameters = pipeline.describe(params, scale)
     steps.append(MethodStep(description, tuple(pipeline.citations), parameters))
     if n_manual:

@@ -63,7 +63,9 @@ def test_csv_export_writes_methods_and_bibtex(panel, qtbot, tmp_path, monkeypatc
     monkeypatch.setattr(main_panel, "get_save_path", lambda *a, **k: str(export))
     monkeypatch.setattr(main_panel, "show_info", lambda *a, **k: None)
     params = {"target_channel": "GFP", "min_area_px": 40, "max_area_px": 4000}
-    panel._last_run = (panel.pipelines["otsu"], params, 0.5)
+    monkeypatch.setattr(main_panel, "show_error", lambda *a, **k: pytest.fail(a[-1]))
+    panel.state.scale = 0.5
+    panel._last_run = (panel.pipelines["otsu"], params)
     panel._on_pipeline_result(
         {
             "result_cells": [

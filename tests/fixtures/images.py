@@ -7,31 +7,14 @@ drawn with OpenCV so they match what the pipelines' own contour maths sees.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import cv2
 import numpy as np
+
+from karcytics_plugins.cytometrics.analysis.model import Channel, ImageSet
 
 CANVAS = 256
 FOREGROUND = 200  # 8-bit intensity of a "cell"; background is 0 plus noise
 NOISE_SEED = 1234
-
-
-@dataclass
-class FakeChannel:
-    """Duck-types `analysis.image_stack.Channel` (name + 2-D uint8 data)."""
-
-    name: str
-    data: np.ndarray
-    color: str = "gray"
-    visible: bool = True
-
-
-@dataclass
-class FakeStack:
-    """Duck-types `ImageStack` for pipelines, which only read `.channels`."""
-
-    channels: list[FakeChannel] = field(default_factory=list)
 
 
 def blank(size: int = CANVAS) -> np.ndarray:
@@ -82,5 +65,5 @@ def nuclei_for_touching_pair() -> np.ndarray:
     return add_noise(draw_discs(TOUCHING_CENTRES, 7))
 
 
-def stack(*channels: tuple[str, np.ndarray]) -> FakeStack:
-    return FakeStack([FakeChannel(name, data) for name, data in channels])
+def stack(*channels: tuple[str, np.ndarray]) -> ImageSet:
+    return ImageSet([Channel(name, data) for name, data in channels])

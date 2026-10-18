@@ -3,7 +3,8 @@ import math
 import cv2
 import numpy as np
 
-from .base import area_range_um2
+from ..units import effective_scale, length_unit
+from .base import area_range
 
 _STACKED_CHANNELS_NDIM = 3  # (channel, height, width) — a dual-channel stack, not a flat 2D image
 
@@ -20,9 +21,13 @@ class CellposePipeline:
         )
         diameter_px = params.get("diameter")
         parameters = {
-            "cell diameter": f"{diameter_px * scale:g} µm" if diameter_px else "automatic",
+            "cell diameter": (
+                f"{diameter_px * effective_scale(scale):g} {length_unit(scale)}"
+                if diameter_px
+                else "automatic"
+            ),
             "flow threshold": params.get("flow_threshold", 0.4),
-            "size filter": area_range_um2(params, scale),
+            "size filter": area_range(params, scale),
             "border cells": "excluded" if params.get("exclude_borders", True) else "kept",
         }
         return (
@@ -59,7 +64,7 @@ class CellposePipeline:
         # Cellpose-SAM generalist model, loaded via `pretrained_model` (not `model`).
         self.model = models.CellposeModel(pretrained_model="cpsam", gpu=use_gpu, device=self.device)
 
-    def run(self, image_stack, params, scale=1.0):
+    def run(self, image_set, params, scale=1.0):
         self._ensure_model()
         target_name = params.get("target_channel")
         use_dual = params.get("use_dual_channel", False)
@@ -73,9 +78,11 @@ class CellposePipeline:
         # Grab the new parameter from the UI (defaulting to True)
         exclude_borders = params.get("exclude_borders", True)
 
-        target_img = next((ch.data for ch in image_stack.channels if ch.name == target_name), None)
-        if target_img is None:
+        # Cellpose normalises internally, so it gets the native bit depth.
+        target = image_set.get(target_name)
+        if target is None:
             return []
+        target_img = target.data
 
         img_h, img_w = target_img.shape
 
@@ -84,8 +91,8 @@ class CellposePipeline:
         # index argument from Cellpose v1-v3 is deprecated and silently ignored in v4+;
         # `channel_axis` is how the channel dimension is now identified.
         if use_dual and seed_name:
-            seed_img = next((ch.data for ch in image_stack.channels if ch.name == seed_name), None)
-            stacked_img = np.array([target_img, seed_img]) if seed_img is not None else target_img
+            seed = image_set.get(seed_name)
+            stacked_img = np.array([target_img, seed.data]) if seed is not None else target_img
         else:
             stacked_img = target_img
 

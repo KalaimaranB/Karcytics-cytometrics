@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from ..units import area_unit, effective_scale
+
 
 class SegmentationPipeline(ABC):
     """Abstract Base Class for all CytoMetrics detection algorithms."""
@@ -16,7 +18,7 @@ class SegmentationPipeline(ABC):
         pass
 
     @abstractmethod
-    def run(self, image_stack, parameters: dict, scale: float) -> list[dict]:
+    def run(self, image_set, parameters: dict, scale: float) -> list[dict]:
         """Executes the algorithm.
 
         Returns a list of cell dictionaries: [{"points": [...], "area": X, "perim": Y, "circ": Z}, ...].
@@ -24,8 +26,9 @@ class SegmentationPipeline(ABC):
         pass
 
 
-def area_range_um2(params: dict, scale: float) -> str:
-    """The size filter as the user set it, in µm²."""
-    lo = params.get("min_area_px", 0) * scale**2
-    hi = params.get("max_area_px", 0) * scale**2
-    return f"{lo:g}–{hi:g} µm²"
+def area_range(params: dict, scale: float) -> str:
+    """The size filter as the user set it, in µm² (or px² when uncalibrated)."""
+    factor = effective_scale(scale) ** 2
+    lo = params.get("min_area_px", 0) * factor
+    hi = params.get("max_area_px", 0) * factor
+    return f"{lo:g}–{hi:g} {area_unit(scale)}"

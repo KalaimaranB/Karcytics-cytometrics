@@ -2,11 +2,9 @@
 
 import collections
 import csv
-import json
 import math
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +12,6 @@ import psutil
 from karcytics_sdk.plugin import (
     BioComboBox,
     BioDoubleSpinBox,
-    BioLineEdit,
     BioScrollArea,
     BioSplitter,
     BioTableWidget,
@@ -34,30 +31,28 @@ from karcytics_sdk.plugin import (
     show_warning,
     submit_task,
 )
+from karcytics_sdk.plugin.dialogs import SaveWorkflowDialog
 from karcytics_sdk.plugin.theme_fallback import Colors
-from PIL import Image
 from PySide6.QtCore import QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QDialogButtonBox,
-    QFileDialog,
-    QFormLayout,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QSizePolicy,
     QTableWidgetItem,
     QTabWidget,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from ..analysis.image_stack import ImageStack
+from ..analysis.model import ImageSet
 from ..analysis.state import CytoMetricsState
+from ..analysis.units import area_unit, ascii_unit, effective_scale, is_calibrated, length_unit
 from ..report import build_steps, write_methods_sidecars
 from .channel_manager import ChannelManagerWidget
 from .image_canvas import MultiChannelCanvas
@@ -71,7 +66,6 @@ logger = get_logger(__name__, "cytometrics")
 
 _MIN_LINE_POINTS = 2  # need at least 2 points to draw a line segment
 _GAUSSIAN_SPIKE_CUTOFF = 25  # exp(-25) ~= 1.4e-11, negligible past this point
-_TIFF_RESOLUTION_UNIT_CENTIMETERS = 3  # TIFF ResolutionUnit tag value for "centimeters"
 
 
 def _check_ai_model_installed() -> tuple[bool, float]:
@@ -452,53 +446,6 @@ class ModelManagerDialog(QDialog):
         self._check_status()
 
 
-class SaveWorkflowDialog(QDialog):
-    """Dialog to collect metadata before handing the workflow to the Project Manager."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Save CytoMetrics Workflow")
-        self.setMinimumWidth(400)
-        self.setStyleSheet(f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY};")
-
-        layout = QFormLayout(self)
-
-        self.input_name = BioLineEdit()
-        self.input_name.setStyleSheet(
-            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
-        )
-
-        self.input_desc = QTextEdit()
-        self.input_desc.setStyleSheet(
-            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
-        )
-        self.input_desc.setMaximumHeight(80)
-
-        self.input_tags = BioLineEdit()
-        self.input_tags.setPlaceholderText("e.g. wild-type, batch_A (comma separated)")
-        self.input_tags.setStyleSheet(
-            f"background: {Colors.BG_DARK}; border: 1px solid {Colors.BORDER}; padding: 4px;"
-        )
-
-        layout.addRow("Workflow Name:", self.input_name)
-        layout.addRow("Description:", self.input_desc)
-        layout.addRow("Tags:", self.input_tags)
-
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        self.buttons.accepted.connect(self.accept)
-        self.buttons.rejected.connect(self.reject)
-        layout.addRow("", self.buttons)
-
-    def get_data(self):
-        return {
-            "name": self.input_name.text().strip(),
-            "description": self.input_desc.toPlainText().strip(),
-            "tags": [t.strip() for t in self.input_tags.text().split(",") if t.strip()],
-        }
-
-
 class SimpleHistogram(QWidget):
     """A lightweight, native Qt histogram with axis labels."""
 
@@ -630,14 +577,14 @@ class CytoMetricsPanel(PluginBase):
 
         self.state = CytoMetricsState()
 
-        self.image_stack = ImageStack()
+        self.image_set = ImageSet()
         self.canvas = MultiChannelCanvas()
 
         # All pipelines are loaded in the background — start empty
         self.pipelines: dict[str, Any] = {}
 
         self._setup_ui()
-        self._update_run_button_state()
+        self._update_units()
         self.state_changed.connect(self._update_results_tab)
 
         # Kick off heavy AI imports as a background task
@@ -670,8 +617,8 @@ class CytoMetricsPanel(PluginBase):
             self.channel_manager.cleanup()
 
         # 3. Release image data
-        if hasattr(self, "image_stack") and self.image_stack:
-            self.image_stack.channels.clear()
+        if hasattr(self, "image_set") and self.image_set:
+            self.image_set.clear()
 
         # 4. Stop listening to background tasks
         if hasattr(self, "_loader_task"):
@@ -694,8 +641,8 @@ class CytoMetricsPanel(PluginBase):
         # Clear large state objects
         if self.state:
             self.state.cells.clear()
-        if self.image_stack:
-            self.image_stack.channels.clear()
+        if self.image_set:
+            self.image_set.clear()
 
         # Force VRAM release if torch is loaded
         if "torch" in sys.modules:
@@ -739,7 +686,11 @@ class CytoMetricsPanel(PluginBase):
         self.btn_save_session = SecondaryButton("💾 Save Session")
         self.btn_save_session.clicked.connect(self._on_save_workflow)
 
+        self.btn_load_session = SecondaryButton("📂 Load Session")
+        self.btn_load_session.clicked.connect(self._on_load_workflow)
+
         session_layout.addWidget(self.btn_save_session)
+        session_layout.addWidget(self.btn_load_session)
         control_layout.addLayout(session_layout)
         # -----------------------------------
 
@@ -767,10 +718,10 @@ class CytoMetricsPanel(PluginBase):
 
         setup_layout.addWidget(create_header("1. Import Images"))
 
-        self.channel_manager = ChannelManagerWidget(self.image_stack)
+        self.channel_manager = ChannelManagerWidget(self.image_set)
         self.channel_manager.channels_changed.connect(self._render_composite)
         self.channel_manager.channels_changed.connect(self._update_calibrate_button_state)
-        self.channel_manager.new_image_loaded.connect(self._extract_tiff_metadata)
+        self.channel_manager.new_image_loaded.connect(self._apply_metadata_calibration)
         setup_layout.addWidget(self.channel_manager)
 
         self.canvas.load_requested.connect(self.channel_manager.prompt_add_channel)
@@ -988,12 +939,15 @@ class CytoMetricsPanel(PluginBase):
 
         detect_layout.addLayout(pipe_layout)
 
-        self.lbl_calibration_warning = QLabel("⚠️ Please set scale in Setup tab to run.")
-        self.lbl_calibration_warning.setStyleSheet(
-            f"color: {Colors.ACCENT_DANGER}; font-weight: bold; text-align: center; margin-top: 10px;"
+        self.lbl_units_note = QLabel(
+            "⚠️ Not calibrated: sizes are in pixels. Set the scale in Setup for µm."
         )
-        self.lbl_calibration_warning.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        detect_layout.addWidget(self.lbl_calibration_warning)
+        self.lbl_units_note.setWordWrap(True)
+        self.lbl_units_note.setStyleSheet(
+            f"color: {Colors.ACCENT_WARNING}; font-weight: bold; margin-top: 10px;"
+        )
+        self.lbl_units_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        detect_layout.addWidget(self.lbl_units_note)
 
         self.progress_bar = ScanningIndicator()
         self.progress_bar.setVisible(False)
@@ -1142,6 +1096,9 @@ class CytoMetricsPanel(PluginBase):
         self.check_exclude_borders.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         self.chk_show_ids.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
+        self.lbl_units_note.setStyleSheet(
+            f"color: {Colors.ACCENT_WARNING}; font-weight: bold; margin-top: 10px;"
+        )
 
         self.table.setStyleSheet(
             f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER}; border: none;"
@@ -1155,13 +1112,41 @@ class CytoMetricsPanel(PluginBase):
         else:
             self.lbl_ai_status.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-size: 12px;")
 
-    def _update_run_button_state(self):
-        has_scale = self.state.scale > 0
-        self.btn_run_pipeline.setEnabled(has_scale)
-        self.lbl_calibration_warning.setVisible(not has_scale)
+    def _update_units(self):
+        """Label every size control and readout in µm, or px when uncalibrated."""
+        scale = self.state.scale
+        length, area = length_unit(scale), area_unit(scale)
+        if is_calibrated(scale):
+            origin = (
+                " (from image metadata)" if self.state.scale_source.startswith("metadata") else ""
+            )
+            self.lbl_scale.setText(f"Scale: {scale:.4f} µm/px{origin}")
+        else:
+            self.lbl_scale.setText("Scale: Uncalibrated (sizes in pixels)")
+        self.canvas.set_scale(scale)
+        self.lbl_units_note.setVisible(not is_calibrated(scale))
+        self.spin_diameter.setSuffix(f" {length}")
+        self.spin_min_area.setSuffix(f" {area}")
+        self.spin_max_area.setSuffix(f" {area}")
+        self.table.setHorizontalHeaderLabels(
+            ["ID", f"Area ({area})", f"Perim ({length})", "Circ.", f"Diam. ({length})"]
+        )
+        self._update_results_tab()
+
+    def _set_scale(self, scale: float, source: str) -> None:
+        """Change the calibration; measured cells are converted to the new units."""
+        ratio = effective_scale(scale) / effective_scale(self.state.scale)
+        for cell in self.state.cells:
+            cell["area"] = cell.get("area", 0.0) * ratio**2
+            cell["perim"] = cell.get("perim", 0.0) * ratio
+        self.state.scale = scale
+        self.state.scale_source = source if is_calibrated(scale) else ""
+        self._update_units()
+        self._refresh_table()
+        self.state_changed.emit()
 
     def _update_calibrate_button_state(self):
-        has_channels = bool(self.image_stack.channels)
+        has_channels = bool(self.image_set.channels)
         self.btn_calibrate.setEnabled(has_channels)
         self.btn_calibrate.setToolTip("" if has_channels else "Add an image channel first.")
 
@@ -1243,24 +1228,20 @@ class CytoMetricsPanel(PluginBase):
             label.setVisible(key == selected)
 
     def _render_composite(self):
-        composite = self.image_stack.get_composite()
+        composite = self.image_set.composite()
         if composite is not None:
-            # The composite is BGR (OpenCV order); keep the user's zoom when
-            # only colours or visibility changed.
-            self.canvas.set_array(composite[..., ::-1], keep_view=self.canvas.has_image)
+            # Keep the user's zoom when only colours or visibility changed.
+            self.canvas.set_array(composite, keep_view=self.canvas.has_image)
 
         self._update_dropdowns()
         self.state_changed.emit()
 
     def _on_run_pipeline(self):
-        if not self.image_stack.channels:
+        if not self.image_set.channels:
             show_warning(self, "No Image", "Please add a channel first.")
             return
 
-        scale = self.state.scale
-        if not scale:
-            show_warning(self, "Uncalibrated", "Please set the image scale first.")
-            return
+        scale = effective_scale(self.state.scale)  # µm/px, or 1 to work in pixels
 
         pipeline_key = self.combo_pipeline.currentData()
         pipeline = self.pipelines.get(pipeline_key)
@@ -1293,8 +1274,8 @@ class CytoMetricsPanel(PluginBase):
         self.state.cell_counter = 0
 
         analyzer = CytoPipelineWorker()
-        analyzer.configure(pipeline, self.image_stack, params, scale)
-        self._last_run = (pipeline, params, scale)  # for the methods text on export
+        analyzer.configure(pipeline, self.image_set, params, scale)
+        self._last_run = (pipeline, params)  # for the methods text on export
 
         submit_task(
             analyzer,
@@ -1312,7 +1293,7 @@ class CytoMetricsPanel(PluginBase):
             self._on_pipeline_finished(results.get("result_cells", []))
 
     def _on_pipeline_finished(self, new_cells):
-        self._update_run_button_state()
+        self.btn_run_pipeline.setEnabled(True)
         self.btn_run_pipeline.setText("✨ Run Segmentation")
         self.progress_bar.setVisible(False)
 
@@ -1329,7 +1310,7 @@ class CytoMetricsPanel(PluginBase):
         self.state_changed.emit()
 
     def _on_pipeline_error(self, error_msg):
-        self._update_run_button_state()
+        self.btn_run_pipeline.setEnabled(True)
         self.btn_run_pipeline.setText("✨ Run Segmentation")
         self.progress_bar.setVisible(False)
         show_error(self, "Pipeline Error", f"An error occurred:\n{error_msg}")
@@ -1353,9 +1334,8 @@ class CytoMetricsPanel(PluginBase):
 
         # Sync channels metadata
         channels_meta = []
-        for c in self.image_stack.channels:
-            img_path = getattr(c, "path", getattr(c, "filepath", getattr(c, "file_path", "")))
-            channels_meta.append({"name": c.name, "path": str(img_path), "color": c.color})
+        for c in self.image_set.channels:
+            channels_meta.append({"name": c.name, "path": c.path, "color": c.color})
         self.state.channels_metadata = channels_meta
 
         return self.state
@@ -1376,26 +1356,10 @@ class CytoMetricsPanel(PluginBase):
             logger.exception("Failed to restore images")
 
         # 2. Restore UI settings
-        ui = state.ui_params
-        if ui:
-            self.combo_target_channel.setCurrentText(ui.get("target_channel", ""))
-            self.combo_seed_channel.setCurrentText(ui.get("seed_channel", ""))
-            self.combo_pipeline.setCurrentText(ui.get("pipeline", ""))
-            self.spin_min_area.setValue(ui.get("min_area", 10.0))
-            self.spin_max_area.setValue(ui.get("max_area", 5000.0))
-            self.spin_diameter.setValue(ui.get("diameter", 0.0))
-            self.spin_flow.setValue(ui.get("flow", 0.4))
-            self.check_dual_channel.setChecked(ui.get("use_dual", False))
-            if hasattr(self, "check_exclude_borders"):
-                self.check_exclude_borders.setChecked(ui.get("exclude_borders", True))
+        self._apply_ui_params(state.ui_params)
 
         # 3. Restore data & canvas
-        scale_val = state.scale
-        self.lbl_scale.setText(
-            f"Scale: {scale_val:.4f} µm/px" if scale_val > 0 else "Scale: Uncalibrated"
-        )
-        self.canvas.set_scale(scale_val)
-        self._update_run_button_state()
+        self._update_units()
 
         if state.cells:
             self.canvas.draw_cells_from_state(state.cells)
@@ -1419,49 +1383,32 @@ class CytoMetricsPanel(PluginBase):
     def load_workflow(self, payload: dict):
         self.load_state(payload)
 
-    def apply_state(self, payload: dict):
-        self.load_state(payload)
-
     # ------------------------------------------------
 
     def load_images_from_meta(self, channels_meta: list[dict]) -> None:
-        """Helper to reload images based on metadata."""
-        current_paths = [getattr(c, "path", "") for c in self.image_stack.channels]
+        """Reload the saved images, then reapply the saved channel names and colours."""
+        current_paths = [c.path for c in self.image_set.channels]
         saved_paths = [ch.get("path", "") for ch in channels_meta]
+        if current_paths == saved_paths:
+            return
 
-        if current_paths != saved_paths:
-            self.image_stack.channels.clear()
-            if hasattr(self.channel_manager, "clear_ui"):
-                self.channel_manager.clear_ui()
+        self.image_set.clear()
+        for path in dict.fromkeys(saved_paths):  # each file once, in order
+            if not path or not Path(path).exists():
+                logger.warning("Saved image not found: %s", path)
+                continue
+            try:
+                self.image_set.add_file(path, Path(path).name)
+            except (OSError, ValueError):
+                logger.exception("Could not reload saved image %s", path)
 
-            loaded_paths = set()
-            for ch in channels_meta:
-                path = ch.get("path", "")
-                if path and path not in loaded_paths and Path(path).exists():
-                    added = self.image_stack.add_channel(path, Path(path).name, "gray")
-                    if added:
-                        for ch_name, ch_color in added:
-                            self.channel_manager._add_row_to_ui(ch_name, ch_color)
-                    loaded_paths.add(path)
+        for channel, saved in zip(self.image_set.channels, channels_meta, strict=False):
+            channel.name = saved.get("name", channel.name)
+            channel.color = saved.get("color", channel.color)
 
-            for i, ch in enumerate(channels_meta):
-                if i < len(self.image_stack.channels):
-                    saved_name = ch.get("name", f"Ch {i}")
-                    saved_color = ch.get("color", "gray")
-                    self.image_stack.channels[i].name = saved_name
-                    self.image_stack.channels[i].color = saved_color
-                    self.image_stack.channels[i].path = ch.get("path", "")
-
-                    name_item = self.channel_manager.table.item(i, 0)
-                    if name_item:
-                        name_item.setText(saved_name)
-                    color_combo = self.channel_manager.table.cellWidget(i, 1)
-                    if color_combo:
-                        color_combo.blockSignals(True)
-                        color_combo.setCurrentText(saved_color)
-                        color_combo.blockSignals(False)
-            self._render_composite()
-            self._update_calibrate_button_state()
+        self.channel_manager.refresh()
+        self._render_composite()
+        self._update_calibrate_button_state()
 
     def _refresh_table(self) -> None:
         """Sync the results table with the current state."""
@@ -1481,42 +1428,31 @@ class CytoMetricsPanel(PluginBase):
         self.table.scrollToBottom()
         self._update_results_tab()
 
-        # --- RESTORE UI SETTINGS ---
-        ui_params = self.state.ui_params
-        if ui_params:
-            self.combo_target_channel.setCurrentText(ui_params.get("target_channel", ""))
-            self.combo_seed_channel.setCurrentText(ui_params.get("seed_channel", ""))
-            self.combo_pipeline.setCurrentText(ui_params.get("pipeline", ""))
-            self.spin_min_area.setValue(ui_params.get("min_area", 10.0))
-            self.spin_max_area.setValue(ui_params.get("max_area", 5000.0))
-            self.spin_diameter.setValue(ui_params.get("diameter", 0.0))
-            self.spin_flow.setValue(ui_params.get("flow", 0.4))
-            self.check_dual_channel.setChecked(ui_params.get("use_dual", False))
-            if hasattr(self, "check_exclude_borders"):
-                self.check_exclude_borders.setChecked(ui_params.get("exclude_borders", True))
+    def _apply_ui_params(self, ui: dict) -> None:
+        """Restore the Smart Detect controls from saved `ui_params`."""
+        if not ui:
+            return
+        self.combo_target_channel.setCurrentText(ui.get("target_channel", ""))
+        self.combo_seed_channel.setCurrentText(ui.get("seed_channel", ""))
+        self.combo_pipeline.setCurrentText(ui.get("pipeline", ""))
+        self.spin_min_area.setValue(ui.get("min_area", 10.0))
+        self.spin_max_area.setValue(ui.get("max_area", 5000.0))
+        self.spin_diameter.setValue(ui.get("diameter", 0.0))
+        self.spin_flow.setValue(ui.get("flow", 0.4))
+        self.check_dual_channel.setChecked(ui.get("use_dual", False))
+        self.check_exclude_borders.setChecked(ui.get("exclude_borders", True))
 
-    def _extract_tiff_metadata(self, file_path):
-        try:
-            with Image.open(file_path) as img:
-                x_res, res_unit = img.tag_v2.get(282), img.tag_v2.get(296)
-                if x_res and res_unit and x_res[1] != 0:
-                    px_per_unit = x_res[0] / x_res[1]
-                    if (
-                        res_unit == _TIFF_RESOLUTION_UNIT_CENTIMETERS
-                        and (px_per_unit / 10000.0) != 0
-                    ):
-                        self.state.scale = 1.0 / (px_per_unit / 10000.0)
-                        self.lbl_scale.setText(f"Scale: {self.state.scale:.4f} µm/px")
-                        self.canvas.set_scale(self.state.scale)
-                        self._update_run_button_state()
-                        self.state_changed.emit()
-        except Exception:
-            pass
+    def _apply_metadata_calibration(self, _path: str = "") -> None:
+        """Use the pixel size stored in the image file, unless a scale is already set."""
+        pixel_size = self.image_set.pixel_size
+        if pixel_size is None or is_calibrated(self.state.scale):
+            return
+        self._set_scale(pixel_size.x_um, f"metadata ({pixel_size.source})")
 
     def _on_calibrate_clicked(self):
-        if not self.image_stack.channels:
+        if not self.image_set.channels:
             return
-        self.lbl_scale.setText("Scale: Click and drag over scale bar.")
+        self.lbl_scale.setText("Scale: Click and drag along the image's scale bar.")
         self.canvas.set_mode("CALIBRATE")
 
     def _on_calibration_drawn(self, pixels: float):
@@ -1524,13 +1460,12 @@ class CytoMetricsPanel(PluginBase):
             self, "Set Scale", f"Line is {pixels:.1f} px long.\nMicrons?", 20.0, 0.001, 10000.0, 3
         )
         if microns is not None and microns > 0:
-            self.state.scale = microns / pixels
-            self.set_state(self.state)
-            self._update_run_button_state()
-            self.state_changed.emit()
+            self._set_scale(microns / pixels, "manual")
+        else:
+            self._update_units()
 
     def _on_draw_toggled(self, checked):
-        if not self.image_stack.channels:
+        if not self.image_set.channels:
             self.btn_draw.setChecked(False)
             return
         self.canvas.set_mode("DRAW" if checked else "PAN")
@@ -1553,7 +1488,7 @@ class CytoMetricsPanel(PluginBase):
             area_px += points[i][0] * points[j][1] - points[j][0] * points[i][1]
             perim_px += math.hypot(points[j][0] - points[i][0], points[j][1] - points[i][1])
         area_px = abs(area_px) / 2.0
-        scale = self.state.scale if self.state.scale else 1.0
+        scale = effective_scale(self.state.scale)
         area_um2, perim_um = area_px * (scale**2), perim_px * scale
         circularity = (4 * math.pi * area_um2) / (perim_um**2) if perim_um > 0 else 0.0
         self.state.cell_counter += 1
@@ -1575,7 +1510,7 @@ class CytoMetricsPanel(PluginBase):
         target_idx = self.combo_target_channel.currentIndex()
         seed_idx = self.combo_seed_channel.currentIndex()
 
-        channel_names = [c.name for c in self.image_stack.channels]
+        channel_names = [c.name for c in self.image_set.channels]
 
         self.combo_target_channel.blockSignals(True)
         self.combo_seed_channel.blockSignals(True)
@@ -1610,13 +1545,11 @@ class CytoMetricsPanel(PluginBase):
         """Refreshes the histogram and stats when cells change."""
         cells = self.state.cells
         num = len(cells)
-        if num > 0:
-            avg_area = sum(c["area"] for c in cells) / num
-            self.lbl_stats.setText(f"Total Cells: {num}\nAvg Area: {avg_area:.1f} µm²")
-            self.histogram.update_data([c["area"] for c in cells])
-        else:
-            self.lbl_stats.setText("Total Cells: 0\nAvg Area: 0.0 µm²")
-            self.histogram.update_data([])
+        avg_area = sum(c["area"] for c in cells) / num if num else 0.0
+        self.lbl_stats.setText(
+            f"Total Cells: {num}\nAvg Area: {avg_area:.1f} {area_unit(self.state.scale)}"
+        )
+        self.histogram.update_data([c["area"] for c in cells])
 
     def _on_export_csv(self):
         """Saves the data table to a CSV file."""
@@ -1630,8 +1563,16 @@ class CytoMetricsPanel(PluginBase):
                 with open(path, "w", newline="") as f:
                     writer = csv.writer(f)
                     # Add Diameter to the header
+                    length = ascii_unit(length_unit(self.state.scale))
+                    area = ascii_unit(area_unit(self.state.scale))
                     writer.writerow(
-                        ["Cell_ID", "Area_um2", "Perimeter_um", "Circularity", "Diameter_um"]
+                        [
+                            "Cell_ID",
+                            f"Area_{area}",
+                            f"Perimeter_{length}",
+                            "Circularity",
+                            f"Diameter_{length}",
+                        ]
                     )
 
                     for c in self.state.cells:
@@ -1665,9 +1606,16 @@ class CytoMetricsPanel(PluginBase):
         run = getattr(self, "_last_run", None)
         if run is None:
             return None
-        pipeline, params, scale = run
+        pipeline, params = run
         n_manual = sum(1 for c in self.state.cells if c.get("source") == "manual")
-        steps = build_steps(pipeline, params, scale, len(self.state.cells), n_manual)
+        steps = build_steps(
+            pipeline,
+            params,
+            self.state.scale,
+            len(self.state.cells),
+            n_manual,
+            self.state.scale_source,
+        )
         return write_methods_sidecars(export_path, steps)
 
     def _on_table_selection(self):
@@ -1690,70 +1638,41 @@ class CytoMetricsPanel(PluginBase):
                 self.canvas.highlight_cell(None)
 
     def _on_save_workflow(self):
-        main_win = self.window()
-        pm = getattr(main_win, "project_manager", None)
-
+        pm = getattr(self.window(), "project_manager", None)
         if not pm:
             show_warning(self, "No Active Project", "Please open a project to save this workflow.")
             return
 
         dialog = SaveWorkflowDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            meta = dialog.get_data()
-            if not meta["name"]:
-                show_warning(self, "Invalid Input", "A workflow name is required.")
-                return
-
-            try:
-                # 1. Grab everything from the UI and Canvas
-                state_data = self.export_state()
-
-                # 2. Add the timestamp so the Hub Dashboard can sort it properly
-                meta["timestamp"] = datetime.now().isoformat()
-
-                # 3. Hand it off to the core Project Manager using the exact kwargs it expects
-                pm.save_workflow(module_id="cytometrics", payload=state_data, metadata=meta)
-
-                show_info(self, "Success", f"Workflow '{meta['name']}' saved successfully!")
-
-            except Exception as e:
-                show_error(self, "Save Error", f"Failed to save workflow to project:\n{str(e)}")
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        meta = dialog.get_metadata()
+        try:
+            pm.save_workflow(module_id=self.plugin_id, payload=self.export_state(), metadata=meta)
+            show_info(self, "Success", f"Workflow '{meta['name']}' saved successfully!")
+        except Exception as e:
+            show_error(self, "Save Error", f"Failed to save workflow to project:\n{e}")
 
     def _on_load_workflow(self):
-        main_win = self.window()
-        pm = getattr(main_win, "project_manager", None)
-        default_dir = str(pm.project_dir) if pm else ""
-
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load CytoMetrics Workflow",
-            default_dir,
-            "CytoMetrics Session (*.cyto *.json);;All Files (*)",
-        )
-        if not path:
+        """Pick one of this project's saved CytoMetrics workflows and restore it."""
+        pm = getattr(self.window(), "project_manager", None)
+        if not pm:
+            show_warning(self, "No Active Project", "Please open a project to load a workflow.")
+            return
+        saved = [w for w in pm.workflows.list_all() if w.get("module") == self.plugin_id]
+        if not saved:
+            show_info(self, "No Workflows", "This project has no saved CytoMetrics workflows yet.")
             return
 
+        newest_first = list(reversed(saved))
+        labels = [
+            f"{w.get('name', w['filename'])}  ({w.get('timestamp', '')[:16]})" for w in newest_first
+        ]
+        choice, ok = QInputDialog.getItem(self, "Load Workflow", "Workflow:", labels, 0, False)
+        if not ok:
+            return
+        filename = newest_first[labels.index(choice)]["filename"]
         try:
-            with open(path) as f:
-                state_data = json.load(f)
-
-            # Restore the core state (cells, scale, etc.)
-            self.load_state(state_data)
-
-            # Restore UI Params
-            ui_params = state_data.get("ui_params", {})
-            if ui_params:
-                self.combo_target_channel.setCurrentText(ui_params.get("target_channel", ""))
-                self.combo_seed_channel.setCurrentText(ui_params.get("seed_channel", ""))
-                self.combo_pipeline.setCurrentText(ui_params.get("pipeline", ""))
-                self.spin_min_area.setValue(ui_params.get("min_area", 10.0))
-                self.spin_max_area.setValue(ui_params.get("max_area", 5000.0))
-                self.spin_diameter.setValue(ui_params.get("diameter", 0.0))
-                self.spin_flow.setValue(ui_params.get("flow", 0.4))
-                self.check_dual_channel.setChecked(ui_params.get("use_dual", False))
-                if hasattr(self, "check_exclude_borders"):
-                    self.check_exclude_borders.setChecked(ui_params.get("exclude_borders", True))
-
-            show_info(self, "Success", f"Workflow loaded from:\n{Path(path).name}")
+            self.load_state(pm.load_workflow_payload(filename))
         except Exception as e:
             show_error(self, "Load Error", f"Could not load workflow:\n{e}")

@@ -7,11 +7,15 @@ CytoMetrics runs as an **isolated** Karcytics plugin (`process_model = "isolated
 ```
 src/karcytics_plugins/cytometrics/
   __init__.py            initialize(), get_panel_class(), __version__ (read from pyproject.toml)
-  ui_daemon.py           daemon entry point; pre-imports numpy/cv2 (Windows stdin deadlock)
+  ui_daemon.py           daemon entry point (the SDK runtime pre-imports numpy)
   analysis/              no Qt
-    image_stack.py       ImageStack/Channel: load files (8-bit), additive colour composite
-    state.py             CytoMetricsState (PluginState dataclass, saved in workflows)
+    model.py             ImageSet/Channel: files read via the SDK's read_image (native bit depth,
+                         metadata pixel size and channel names), RGB composite
+    units.py             µm vs px: a scale of 0 means uncalibrated and everything reads px
+    state.py             CytoMetricsState (PluginState dataclass, saved in workflows; scale_source)
     pipelines/           otsu.py, watershed.py, cellpose_pipeline.py → list of cell dicts
+  citations.py           verified Citation entries registered with the SDK
+  report.py              methods paragraph + BibTeX sidecars for exports
   ui/
     main_panel.py        CytoMetricsPanel (PluginBase) + helper widgets and dialogs
     image_canvas.py      MultiChannelCanvas (zoom/pan, calibrate, draw, delete)

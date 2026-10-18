@@ -60,13 +60,13 @@ class CytoPipelineWorker(AnalysisBase):
     def __init__(self, plugin_id: str = "cytometrics") -> None:
         super().__init__(plugin_id)
         self.pipeline = None
-        self.image_stack = None
+        self.image_set = None
         self.params: dict[str, Any] = {}
         self.scale = 1.0
 
-    def configure(self, pipeline, image_stack, params, scale):
+    def configure(self, pipeline, image_set, params, scale):
         self.pipeline = pipeline
-        self.image_stack = image_stack
+        self.image_set = image_set
         self.params = params
         self.scale = scale
 
@@ -84,7 +84,7 @@ class CytoPipelineWorker(AnalysisBase):
 
         try:
             # 2. Run the AI
-            result_cells = self.pipeline.run(self.image_stack, self.params, self.scale)
+            result_cells = self.pipeline.run(self.image_set, self.params, self.scale)
             return {"result_cells": result_cells}
 
         except Exception as e:

@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phase 0 done; Phase 1 in progress. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0 and 2 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 3. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -115,26 +115,23 @@ karcytics_plugins/cytometrics
 
 ### Phase 1: SDK shared foundations (Karcytics-SDK, then cytometrics adopts)
 - [x] 1.1 `FunctionalTask(progress_callback=...)` (SDK `518e488`). Delete cytometrics' `FunctionalAnalysisTask`.
-- [x] 1.2 `submit_task(...)` + `TaskHandle.cancel()/detach()` (SDK `518e488`, `8ccd52b`): one watcher `QObject` on the GUI thread, exactly one outcome callback, every connection removed however the task ends. Cytometrics adopted it. Follow-up for flow (6 files) and western-blot (3 files): listed in 1.6d.
+- [x] 1.2 `submit_task(...)` + `TaskHandle.cancel()/detach()` (SDK `518e488`, `8ccd52b`): one watcher `QObject` on the GUI thread, exactly one outcome callback, every connection removed however the task ends. Cytometrics adopted it. Flow and western-blot adopt it on their own schedule (out of this plan's scope).
 - [x] 1.3 `contrib.imaging.read_image()` (SDK `823010b`): native dtype, canonical TCZYX, pixel size/z step/interval/channel names from OME, ImageJ, cm-unit TIFF resolution, ND2 (optional `karcytics-sdk[imaging]`). Inch-unit resolution is ignored on purpose (screen DPI). Cytometrics adopts it in 2.1.
 - [x] 1.4 `ImageView` (SDK `a20e041`): zoom limits, middle/Ctrl+drag pan (left-drag opt-in), fit, empty state, file drop, calibration line, scale bar, named layers. Cytometrics `9cd8f84` and western-blot `f5d9f72` (on `main`, after fast-forwarding it to `fix/theme-following`) are built on it.
 - [x] 1.5 SDK `citations` + `citation_widgets` (`a852509`): `Citation`, registry, `MethodStep`, `methods_text()`, `to_bibtex()`, `CitationLabel`, `CitationsPanel`. Cytometrics registers verified entries, each pipeline declares `citations` + `describe()`, the Detect step shows a "Powered by" line for every algorithm, and CSV export writes `_methods.md` + `_citations.bib` (pulled forward from §6).
 - [x] 1.6 `karcytics-sdk check-licenses` (SDK `acdbcf3`); `doctor` now flags a repo with no license hook. Cytometrics' copy deleted. **Not** done for the ledger verifier, by decision: it is a stdlib-only script so CI can run it before installing anything (the CLI imports PySide6); its four copies are identical apart from formatting.
 - [x] 1.6b `read_plugin_version` (SDK `cc7b5c5`); cytometrics uses it.
-- [x] 1.6c `run_ui_daemon` pre-imports numpy (SDK `cc7b5c5`); cytometrics' workaround removed. Flow's stays until 1.6d (it also pre-imports pandas for its own reasons).
-- [ ] 1.6d Flow and western-blot adopt the shared pieces: flow's integration test → `karcytics_sdk.testing.ui_daemon`; their task closures → `submit_task`; their version readers → `read_plugin_version`.
+- [x] 1.6c `run_ui_daemon` pre-imports numpy (SDK `cc7b5c5`); cytometrics' workaround removed. Flow keeps its own copy (it also pre-imports pandas); that's flow's call.
 - [ ] 1.7 SDK version bump (proposed 3.1.0) and cytometrics `karcytics-sdk>=3.1.0`. **Waiting on the user:** the SDK's CI publishes to PyPI on push when `main` has an untagged version, and `main` also carries other unpushed work.
 
 ### Phase 2: domain model (cytometrics)
-- [ ] 2.1 `Channel`/`ImageSet` with declared `path`, native bit depth via SDK `ImageReader`; display scaling done only in the view.
-- [ ] 2.2 `Calibration` from metadata (auto) or the calibration line (manual). Uncalibrated runs are allowed and report in pixels, clearly labelled.
-- [ ] 2.3 `LabelMask` as the single source of truth; contours derived for display.
-- [ ] 2.4 `ObjectTable` on pandas (add `pandas` dependency).
-- [ ] 2.5 `AnalysisSession` + `CytoMetricsState` v2 with a migration from v1 saved workflows.
-- [ ] 2.6 Remove the duplicate `SaveWorkflowDialog`; one save/load path through the project manager (load currently bypasses it and reads a raw JSON file).
+- [x] 2.1 `analysis/model.py`: `Channel` (native dtype, `path`, `as_uint8()` for display and the 8-bit OpenCV segmenters) and `ImageSet` (`add_file` via SDK `read_image`, `get(name)`, `composite()` in RGB, size check). Multi-channel files take their names from metadata (OME/ND2) and colours from stain names (DAPI → blue, GFP → green, Cy5 → magenta, …). Only t=0, z=0 for now (3-D is Phase 10). `ImageStack` and its 16-bit truncation are gone; Cellpose now gets native 16-bit data.
+- [x] 2.2 Calibration: pixel size from file metadata is applied automatically unless a scale is already set; the calibration line sets it manually; `state.scale_source` records which, and the methods text says so. Uncalibrated runs are allowed: every control, table header, CSV column and methods sentence reads px/px². Recalibrating converts already-measured cells.
+- [x] 2.6 Save/load through the project manager only: the SDK `SaveWorkflowDialog`, a 📂 Load Session button listing this project's CytoMetrics workflows (`pm.workflows.list_all()` → `pm.load_workflow_payload`). The duplicate dialog, the raw-JSON loader, the `apply_state` alias and the three copies of the UI-parameter restore are gone. `CytoMetricsState.from_dict` ignores keys it doesn't know.
+- Moved: `LabelMask` → 3.1, `ObjectTable` (pandas) → 4.1, `AnalysisSession` + state v2 migration → 5.1. They belong with the code that first needs them.
 
 ### Phase 3: segmenters, using Cellpose fully (cytometrics)
-- [ ] 3.1 `Segmenter` protocol (`id`, `name`, `parameters()`, `citations`, `segment(ImageSet, params) -> LabelMask`) + decorator registry. Otsu and Watershed ported; shared channel lookup and border exclusion.
+- [ ] 3.1 `LabelMask` as the single source of truth (contours derived for display) and the `Segmenter` protocol (`id`, `name`, `parameters()`, `citations`, `segment(ImageSet, params) -> LabelMask`) + decorator registry. Otsu and Watershed ported; shared channel lookup and border exclusion.
 - [ ] 3.2 Cellpose: raw 16-bit input with the `normalize` options (percentiles, tile normalisation for uneven illumination); `cellprob_threshold`, `min_size`, `max_size_fraction`, `niter`, `augment` ("High quality"), `batch_size`/`bsize` (memory).
 - [ ] 3.3 `progress` callback → real progress bar. Delete the stderr hijack and `CellposeLogInterceptor`.
 - [ ] 3.4 Per-object **confidence** (mean cell probability inside the mask) from `flows`; confidence heat-map layer; "review uncertain" list.
@@ -145,7 +142,7 @@ karcytics_plugins/cytometrics
 - [ ] 3.9 Each segmenter shows its citations ("Powered by …") in the Detect step.
 
 ### Phase 4: measurements (cytometrics)
-- [ ] 4.1 `Measurer` protocol + registry. Shape: area, perimeter, circularity, solidity, eccentricity, major/minor axis, Feret max/min, equivalent diameter.
+- [ ] 4.1 `ObjectTable` on pandas (add `pandas`) and the `Measurer` protocol + registry. Shape: area, perimeter, circularity, solidity, eccentricity, major/minor axis, Feret max/min, equivalent diameter.
 - [ ] 4.2 Intensity per channel: mean, median, min, max, std, integrated; local-annulus or global background subtraction.
 - [ ] 4.3 Texture (GLCM / Haralick, via scikit-image) and nucleus/cytoplasm ratio when a seed channel exists.
 - [ ] 4.4 CellProfiler-style column names; units in headers.
@@ -153,7 +150,7 @@ karcytics_plugins/cytometrics
 - [ ] 4.6 Measurement families carry citations (Haralick 1973; CellProfiler naming).
 
 ### Phase 5: UI overhaul (cytometrics, may grow as we go)
-- [ ] 5.1 Split `main_panel.py`: widgets/dialogs to their own files; panel becomes wiring only.
+- [ ] 5.1 Split `main_panel.py`: widgets/dialogs to their own files; panel becomes wiring only. `AnalysisSession` + `CytoMetricsState` v2 with a migration from v1 saved workflows.
 - [ ] 5.2 Mode picker ("What are you analysing?") → Assay selection; remembered per project.
 - [ ] 5.3 Stepper (SDK `WizardPanel`/`StepIndicator`): Load › Calibrate › Detect › Review › Measure › Report; steps supplied by the assay.
 - [ ] 5.4 `CytoCanvas(ImageView)`: layers (channels, masks, outlines, IDs, confidence), per-channel display range for 16-bit, colour outlines by any measurement.
