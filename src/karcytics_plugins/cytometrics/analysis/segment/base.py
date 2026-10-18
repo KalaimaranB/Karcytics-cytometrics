@@ -43,6 +43,7 @@ class Param:
     advanced: bool = False
     help: str = ""
     special_value_text: str = ""
+    enabled_by: str = ""  # key of a bool Param that switches this one on
 
 
 @dataclass
@@ -83,13 +84,20 @@ def register(cls: type) -> type:
 # ── Shared parameters ────────────────────────────────────────────────────────
 
 TARGET_CHANNEL = Param("target_channel", "Target Channel", "channel")
+USE_SEED = Param(
+    "use_dual_channel",
+    "Use a nuclei channel",
+    "bool",
+    default=False,
+    help="A second, internal marker helps separate touching cells.",
+)
 SEED_CHANNEL = Param(
     "seed_channel",
     "Nuclei Channel",
     "channel",
     help="A nuclear stain (e.g. DAPI) used to tell touching cells apart.",
+    enabled_by="use_dual_channel",
 )
-USE_SEED = Param("use_dual_channel", "Use a nuclei channel", "bool", default=False)
 EXCLUDE_BORDERS = Param(
     "exclude_borders",
     "Exclude cells touching image edges",

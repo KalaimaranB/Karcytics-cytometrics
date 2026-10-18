@@ -42,14 +42,106 @@ DIAMETER = Param(
 )
 FLOW_THRESHOLD = Param(
     "flow_threshold",
-    "Splitting Sensitivity",
+    "Shape Tolerance",
     "float",
     default=0.4,
     minimum=0.0,
     maximum=3.0,
     step=0.1,
     decimals=2,
-    help="Flow error threshold. Higher keeps more (and less regular) shapes; lower is stricter.",
+    help="Cellpose's flow threshold. Higher keeps more, less regular shapes; lower keeps only "
+    "well-formed cells.",
+)
+CELLPROB_THRESHOLD = Param(
+    "cellprob_threshold",
+    "Detection Threshold",
+    "float",
+    default=0.0,
+    minimum=-6.0,
+    maximum=6.0,
+    step=0.5,
+    decimals=1,
+    help="Cellpose's cell-probability threshold. Lower finds more and larger cells (including "
+    "dim ones); higher finds fewer, brighter ones.",
+)
+NORM_LOW = Param(
+    "norm_percentile_low",
+    "Contrast: Low Percentile",
+    "float",
+    default=1.0,
+    minimum=0.0,
+    maximum=50.0,
+    step=0.5,
+    advanced=True,
+    help="Intensity percentile mapped to black before segmentation.",
+)
+NORM_HIGH = Param(
+    "norm_percentile_high",
+    "Contrast: High Percentile",
+    "float",
+    default=99.0,
+    minimum=50.0,
+    maximum=100.0,
+    step=0.5,
+    advanced=True,
+    help="Intensity percentile mapped to white. Lower it if a few very bright cells wash out "
+    "the rest.",
+)
+TILE_NORM = Param(
+    "tile_norm_blocksize",
+    "Uneven Illumination: Tile Size",
+    "float",
+    default=0.0,
+    minimum=0.0,
+    maximum=5000.0,
+    decimals=0,
+    unit="length",
+    advanced=True,
+    special_value_text="Off",
+    help="Normalise contrast in tiles of this size, so cells in dark corners are found too. "
+    "Try about 3–5 cell diameters.",
+)
+AUGMENT = Param(
+    "augment",
+    "High Quality (slower)",
+    "bool",
+    default=False,
+    advanced=True,
+    help="Also runs the network on flipped copies of each tile and averages them.",
+)
+NITER = Param(
+    "niter",
+    "Mask Iterations",
+    "int",
+    default=0,
+    minimum=0,
+    maximum=2000,
+    advanced=True,
+    special_value_text="Auto",
+    help="Steps used to follow the flows into cells. Raise it for long, thin cells (e.g. "
+    "bacteria) that come out fragmented.",
+)
+MAX_SIZE_FRACTION = Param(
+    "max_size_fraction",
+    "Largest Object (fraction of image)",
+    "float",
+    default=0.4,
+    minimum=0.01,
+    maximum=1.0,
+    step=0.05,
+    decimals=2,
+    advanced=True,
+    help="Cellpose discards masks bigger than this fraction of the image.",
+)
+BATCH_SIZE = Param(
+    "batch_size",
+    "GPU Batch Size",
+    "int",
+    default=8,
+    minimum=1,
+    maximum=64,
+    advanced=True,
+    help="Image tiles processed at once. Lower it if you run out of memory.",
 )
 
 
@@ -67,7 +159,22 @@ class CellposeSegmenter:
         self.model: Any = None
 
     def parameters(self) -> list[Param]:
-        return [TARGET_CHANNEL, USE_SEED, SEED_CHANNEL, DIAMETER, FLOW_THRESHOLD, *COMMON]
+        return [
+            TARGET_CHANNEL,
+            USE_SEED,
+            SEED_CHANNEL,
+            DIAMETER,
+            CELLPROB_THRESHOLD,
+            FLOW_THRESHOLD,
+            *COMMON,
+            NORM_LOW,
+            NORM_HIGH,
+            TILE_NORM,
+            AUGMENT,
+            NITER,
+            MAX_SIZE_FRACTION,
+            BATCH_SIZE,
+        ]
 
     def describe(self, params: dict, scale: float) -> tuple[str, dict]:
         nuclei = params.get("seed_channel") if params.get("use_dual_channel") else None
@@ -80,9 +187,25 @@ class CellposeSegmenter:
                 else "automatic"
             ),
             "flow threshold": params.get("flow_threshold", FLOW_THRESHOLD.default),
+            "cell probability threshold": params.get(
+                "cellprob_threshold", CELLPROB_THRESHOLD.default
+            ),
+            "normalisation percentiles": (
+                f"{params.get('norm_percentile_low', NORM_LOW.default):g}–"
+                f"{params.get('norm_percentile_high', NORM_HIGH.default):g}"
+            ),
             "size filter": area_range(params, scale),
             "border cells": "excluded" if params.get("exclude_borders", True) else "kept",
         }
+        tile = params.get("tile_norm_blocksize") or 0
+        if tile:
+            parameters["tile normalisation"] = (
+                f"{tile * effective_scale(scale):g} {length_unit(scale)} blocks"
+            )
+        if params.get("augment"):
+            parameters["test-time augmentation"] = "on"
+        if params.get("niter"):
+            parameters["dynamics iterations"] = params["niter"]
         return (
             f"Cells in the '{params.get('target_channel')}' channel were segmented with the "
             f"Cellpose-SAM generalist model ({MODEL_NAME}){second}",
@@ -117,14 +240,31 @@ class CellposeSegmenter:
         report(5)
         self._ensure_model()
         report(15)
-        diameter = params.get("diameter") or None
-        masks, flows, _styles = self.model.eval(
-            image,
-            channel_axis=0 if image.ndim == 3 else None,  # noqa: PLR2004
-            diameter=diameter,
-            flow_threshold=params.get("flow_threshold", FLOW_THRESHOLD.default),
-        )
+        masks, flows, _styles = self.model.eval(image, **eval_kwargs(params, image.ndim))
         report(85)
         # flows[2] is the cell-probability logit map.
         probability = 1.0 / (1.0 + np.exp(-np.asarray(flows[2], dtype=np.float32)))
         return SegmentationResult(np.asarray(masks, dtype=np.int32), probability)
+
+
+def eval_kwargs(params: dict, ndim: int) -> dict:
+    """``CellposeModel.eval`` keyword arguments for `params` (sizes in pixels)."""
+    return {
+        "channel_axis": 0 if ndim == 3 else None,  # noqa: PLR2004  (C, H, W)
+        "diameter": params.get("diameter") or None,
+        "flow_threshold": params.get("flow_threshold", FLOW_THRESHOLD.default),
+        "cellprob_threshold": params.get("cellprob_threshold", CELLPROB_THRESHOLD.default),
+        # Always a dict: passing a bool makes Cellpose 4.2 overwrite its module defaults.
+        "normalize": {
+            "normalize": True,
+            "percentile": [
+                params.get("norm_percentile_low", NORM_LOW.default),
+                params.get("norm_percentile_high", NORM_HIGH.default),
+            ],
+            "tile_norm_blocksize": int(round(params.get("tile_norm_blocksize") or 0)),
+        },
+        "augment": bool(params.get("augment", AUGMENT.default)),
+        "niter": params.get("niter") or None,
+        "max_size_fraction": params.get("max_size_fraction", MAX_SIZE_FRACTION.default),
+        "batch_size": int(params.get("batch_size", BATCH_SIZE.default)),
+    }

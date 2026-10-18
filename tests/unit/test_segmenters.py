@@ -198,3 +198,31 @@ class TestCellsFromLabels:
 
         assert set(np.unique(clear_border(labels))) == {0, 8}
         assert set(np.unique(relabel(clear_border(labels)))) == {0, 1}
+
+
+def test_cellpose_eval_arguments_cover_the_exposed_options():
+    from karcytics_plugins.cytometrics.analysis.segment.cellpose import eval_kwargs
+
+    kwargs = eval_kwargs(
+        {
+            "diameter": 0,
+            "cellprob_threshold": -1.5,
+            "norm_percentile_low": 2,
+            "norm_percentile_high": 98,
+            "tile_norm_blocksize": 99.6,
+            "augment": True,
+            "niter": 0,
+            "batch_size": 4,
+        },
+        ndim=3,
+    )
+
+    assert kwargs["channel_axis"] == 0
+    assert kwargs["diameter"] is None and kwargs["niter"] is None
+    assert kwargs["cellprob_threshold"] == -1.5
+    assert kwargs["normalize"] == {
+        "normalize": True,
+        "percentile": [2, 98],
+        "tile_norm_blocksize": 100,
+    }
+    assert kwargs["augment"] is True and kwargs["batch_size"] == 4

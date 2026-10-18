@@ -11,7 +11,6 @@ from typing import Any
 import psutil
 from karcytics_sdk.plugin import (
     BioComboBox,
-    BioDoubleSpinBox,
     BioScrollArea,
     BioSplitter,
     BioTableWidget,
@@ -56,6 +55,7 @@ from ..analysis.units import area_unit, ascii_unit, effective_scale, is_calibrat
 from ..report import build_steps, write_methods_sidecars
 from .channel_manager import ChannelManagerWidget
 from .image_canvas import MultiChannelCanvas
+from .params_form import ParamsForm
 from .workers import (
     CytoPipelineWorker,
     download_model_func,
@@ -582,6 +582,9 @@ class CytoMetricsPanel(PluginBase):
         self.setMinimumHeight(600)
 
         self.state = CytoMetricsState()
+        # Detect settings restored before the segmenters finished loading.
+        self._pending_pipeline: str | None = None
+        self._pending_values: dict[str, Any] = {}
 
         self.image_set = ImageSet()
         self.canvas = MultiChannelCanvas()
@@ -784,65 +787,7 @@ class CytoMetricsPanel(PluginBase):
         detect_layout.addWidget(self.lbl_ai_status)
 
         r = 0
-
-        # --- 1. SIGNAL SELECTION ---
-        pipe_layout.addWidget(create_header("1. Signal Selection"), r, 0, 1, 2)
-        r += 1
-
-        lbl_target = QLabel("Main Signal:")
-        lbl_target.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        pipe_layout.addWidget(lbl_target, r, 0)
-
-        self.combo_target_channel = BioComboBox()
-        self.combo_target_channel.setStyleSheet(input_style)
-        self.combo_target_channel.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        self.combo_target_channel.setMinimumWidth(180)
-        self.combo_target_channel.view().setMinimumWidth(300)
-        pipe_layout.addWidget(self.combo_target_channel, r, 1)
-        r += 1
-
-        lbl_target_desc = QLabel(
-            "The primary boundary to outline (e.g., cytoplasm, or nuclei if using a single stain)."
-        )
-        lbl_target_desc.setWordWrap(True)
-        lbl_target_desc.setStyleSheet(
-            f"color: {Colors.FG_SECONDARY}; font-size: 11px; font-style: italic; margin-bottom: 5px;"
-        )
-        pipe_layout.addWidget(lbl_target_desc, r, 1)
-        r += 1
-
-        self.check_dual_channel = QCheckBox("Use a 2nd signal to split clumps")
-        self.check_dual_channel.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
-        pipe_layout.addWidget(self.check_dual_channel, r, 1)
-        r += 1
-
-        lbl_seed = QLabel("Splitting Marker:")
-        lbl_seed.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        pipe_layout.addWidget(lbl_seed, r, 0)
-
-        self.combo_seed_channel = BioComboBox()
-        self.combo_seed_channel.setStyleSheet(input_style)
-        self.combo_seed_channel.setMinimumWidth(180)
-        self.combo_seed_channel.view().setMinimumWidth(300)
-        self.combo_seed_channel.setEnabled(False)
-        self.check_dual_channel.toggled.connect(self.combo_seed_channel.setEnabled)
-        pipe_layout.addWidget(self.combo_seed_channel, r, 1)
-        r += 1
-
-        lbl_seed_desc = QLabel(
-            "An internal marker (e.g., nuclei) to help separate touching boundaries."
-        )
-        lbl_seed_desc.setWordWrap(True)
-        lbl_seed_desc.setStyleSheet(
-            f"color: {Colors.FG_SECONDARY}; font-size: 11px; font-style: italic; margin-bottom: 5px;"
-        )
-        pipe_layout.addWidget(lbl_seed_desc, r, 1)
-        r += 1
-
-        # --- 2. ALGORITHM SETTINGS ---
-        pipe_layout.addWidget(create_header("2. Algorithm Settings"), r, 0, 1, 2)
+        pipe_layout.addWidget(create_header("1. Algorithm"), r, 0, 1, 2)
         r += 1
 
         lbl_algo = QLabel("Algorithm:")
@@ -857,7 +802,7 @@ class CytoMetricsPanel(PluginBase):
             self.combo_pipeline.addItem(pipe.name, key)
         self.combo_pipeline.setStyleSheet(input_style)
         self.combo_pipeline.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.combo_pipeline.currentTextChanged.connect(self._on_algorithm_changed)
+        self.combo_pipeline.currentIndexChanged.connect(self._on_algorithm_changed)
 
         self.btn_manage_ai = SecondaryButton("⚙️ Manage AI")
         self.btn_manage_ai.clicked.connect(self._open_model_manager)
@@ -885,65 +830,10 @@ class CytoMetricsPanel(PluginBase):
         pipe_layout.addWidget(self._citation_box, r, 1)
         r += 1
 
-        self.lbl_diameter = QLabel("Cell Diameter:")
-        self.lbl_diameter.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_diameter = BioDoubleSpinBox()
-        self.spin_diameter.setRange(0, 500)
-        self.spin_diameter.setValue(0)
-        self.spin_diameter.setDecimals(1)
-        self.spin_diameter.setSpecialValueText("Auto")
-        self.spin_diameter.setSuffix(" µm")
-        self.spin_diameter.setStyleSheet(input_style)
-        pipe_layout.addWidget(self.lbl_diameter, r, 0)
-        pipe_layout.addWidget(self.spin_diameter, r, 1)
-        r += 1
-
-        self.lbl_flow = QLabel("Splitting Sensitivity:")
-        self.lbl_flow.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_flow = BioDoubleSpinBox()
-        self.spin_flow.setRange(0.1, 1.0)
-        self.spin_flow.setValue(0.4)
-        self.spin_flow.setSingleStep(0.1)
-        self.spin_flow.setStyleSheet(input_style)
-        self.spin_flow.setToolTip("(Higher = Merges cells together, Lower = Splits clumps apart)")
-        pipe_layout.addWidget(self.lbl_flow, r, 0)
-        pipe_layout.addWidget(self.spin_flow, r, 1)
-        r += 1
-
-        self.check_exclude_borders = QCheckBox("Exclude cells touching image edges")
-        self.check_exclude_borders.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
-        self.check_exclude_borders.setChecked(True)  # Usually a good default
-        pipe_layout.addWidget(self.check_exclude_borders, r, 1)
-        r += 1
-
-        # --- 3. SIZE FILTERS ---
-        pipe_layout.addWidget(create_header("3. Size Filters"), r, 0, 1, 2)
-        r += 1
-
-        self.lbl_min = QLabel("Min Area:")
-        self.lbl_min.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_min_area = BioDoubleSpinBox()
-        self.spin_min_area.setRange(0, 100000)
-        self.spin_min_area.setValue(10.0)
-        self.spin_min_area.setDecimals(1)
-        self.spin_min_area.setSuffix(" µm²")
-        self.spin_min_area.setStyleSheet(input_style)
-        pipe_layout.addWidget(self.lbl_min, r, 0)
-        pipe_layout.addWidget(self.spin_min_area, r, 1)
-        r += 1
-
-        self.lbl_max = QLabel("Max Area:")
-        self.lbl_max.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.spin_max_area = BioDoubleSpinBox()
-        self.spin_max_area.setRange(0, 100000)
-        self.spin_max_area.setValue(5000.0)
-        self.spin_max_area.setDecimals(1)
-        self.spin_max_area.setSuffix(" µm²")
-        self.spin_max_area.setStyleSheet(input_style)
-        pipe_layout.addWidget(self.lbl_max, r, 0)
-        pipe_layout.addWidget(self.spin_max_area, r, 1)
-
         detect_layout.addLayout(pipe_layout)
+        detect_layout.addWidget(create_header("2. Settings"))
+        self.params_form = ParamsForm()
+        detect_layout.addWidget(self.params_form)
 
         self.lbl_units_note = QLabel(
             "⚠️ Not calibrated: sizes are in pixels. Set the scale in Setup for µm."
@@ -1087,19 +977,8 @@ class CytoMetricsPanel(PluginBase):
             }}
             QComboBox QAbstractItemView {{ background-color: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY}; selection-background-color: {Colors.ACCENT_PRIMARY}; }}
         """
-        for widget in (
-            self.combo_target_channel,
-            self.combo_seed_channel,
-            self.combo_pipeline,
-            self.spin_diameter,
-            self.spin_flow,
-            self.spin_min_area,
-            self.spin_max_area,
-        ):
-            widget.setStyleSheet(input_style)
-
-        self.check_dual_channel.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
-        self.check_exclude_borders.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
+        self.combo_pipeline.setStyleSheet(input_style)
+        self.params_form.apply_theme()
         self.chk_show_ids.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         self.lbl_stats.setStyleSheet(f"color: {Colors.FG_PRIMARY}; font-size: 13px;")
         self.lbl_units_note.setStyleSheet(
@@ -1131,9 +1010,7 @@ class CytoMetricsPanel(PluginBase):
             self.lbl_scale.setText("Scale: Uncalibrated (sizes in pixels)")
         self.canvas.set_scale(scale)
         self.lbl_units_note.setVisible(not is_calibrated(scale))
-        self.spin_diameter.setSuffix(f" {length}")
-        self.spin_min_area.setSuffix(f" {area}")
-        self.spin_max_area.setSuffix(f" {area}")
+        self.params_form.set_scale(scale)
         self.table.setHorizontalHeaderLabels(
             ["ID", f"Area ({area})", f"Perim ({length})", "Circ.", f"Diam. ({length})"]
         )
@@ -1193,8 +1070,12 @@ class CytoMetricsPanel(PluginBase):
             self.tabs.setTabText(1, "2. Smart Detect")
             self._refresh_ai_status_label()
 
-            # Trigger algorithm-specific controls to update for the current selection
-            self._on_algorithm_changed(self.combo_pipeline.currentText())
+            # Build the settings for the current (or restored) algorithm.
+            self._on_algorithm_changed()
+            if self._pending_pipeline or self._pending_values:
+                self._apply_ui_params(
+                    {"pipeline": self._pending_pipeline, "values": self._pending_values}
+                )
         else:
             # Partial load — tab stays locked with error label
             self.tabs.setTabText(1, "⚠️ Load Failed")
@@ -1203,16 +1084,15 @@ class CytoMetricsPanel(PluginBase):
                 f"color: {Colors.ACCENT_DANGER}; font-size: 12px; font-weight: bold;"
             )
 
-    def _on_algorithm_changed(self, _text=None):
+    def _on_algorithm_changed(self, _index=None):
         selected = self.combo_pipeline.currentData()
         segmenter = self.pipelines.get(selected)
         self.lbl_algo_bio.setText(getattr(segmenter, "summary", ""))
-        is_ai = selected == "cellpose"
-        self.lbl_diameter.setVisible(is_ai)
-        self.spin_diameter.setVisible(is_ai)
-        self.lbl_flow.setVisible(is_ai)
-        self.spin_flow.setVisible(is_ai)
-        self.btn_manage_ai.setVisible(is_ai)
+        self.btn_manage_ai.setVisible(selected == "cellpose")
+        if segmenter is not None:
+            self.params_form.set_params(segmenter.parameters())
+            self.params_form.set_channels([c.name for c in self.image_set.channels])
+            self.params_form.set_scale(self.state.scale)
         for key, label in self._citation_labels.items():
             label.setVisible(key == selected)
 
@@ -1230,27 +1110,14 @@ class CytoMetricsPanel(PluginBase):
             show_warning(self, "No Image", "Please add a channel first.")
             return
 
-        scale = effective_scale(self.state.scale)  # µm/px, or 1 to work in pixels
-
-        pipeline_key = self.combo_pipeline.currentData()
-        pipeline = self.pipelines.get(pipeline_key)
-
-        min_area_px = self.spin_min_area.value() / (scale**2)
-        max_area_px = self.spin_max_area.value() / (scale**2)
-
-        raw_diam_um = self.spin_diameter.value()
-        diam_px = (raw_diam_um / scale) if raw_diam_um > 0 else None
-
-        params = {
-            "target_channel": self.combo_target_channel.currentText(),
-            "min_area_px": min_area_px,
-            "max_area_px": max_area_px,
-            "use_dual_channel": self.check_dual_channel.isChecked(),
-            "seed_channel": self.combo_seed_channel.currentText(),
-            "diameter": diam_px,
-            "flow_threshold": self.spin_flow.value(),
-            "exclude_borders": self.check_exclude_borders.isChecked(),
-        }
+        pipeline = self.pipelines.get(self.combo_pipeline.currentData())
+        if pipeline is None:
+            show_warning(self, "Not Ready", "The segmentation algorithms are still loading.")
+            return
+        params = self.params_form.values()
+        if params.get("target_channel") not in [c.name for c in self.image_set.channels]:
+            show_warning(self, "No Channel", "Choose the channel to segment.")
+            return
 
         self.btn_run_pipeline.setEnabled(False)
         self.btn_run_pipeline.setText("⏳ Initializing...")
@@ -1263,7 +1130,7 @@ class CytoMetricsPanel(PluginBase):
         self.state.cell_counter = 0
 
         analyzer = CytoPipelineWorker()
-        analyzer.configure(pipeline, self.image_set, params, scale)
+        analyzer.configure(pipeline, self.image_set, params, effective_scale(self.state.scale))
         self._last_run = (pipeline, params)  # for the methods text on export
 
         submit_task(
@@ -1312,15 +1179,8 @@ class CytoMetricsPanel(PluginBase):
         """Package the workspace state for the SDK."""
         # Sync UI params before exporting
         self.state.ui_params = {
-            "target_channel": self.combo_target_channel.currentText(),
-            "seed_channel": self.combo_seed_channel.currentText(),
-            "pipeline": self.combo_pipeline.currentText(),
-            "min_area": self.spin_min_area.value(),
-            "max_area": self.spin_max_area.value(),
-            "diameter": self.spin_diameter.value(),
-            "flow": self.spin_flow.value(),
-            "use_dual": self.check_dual_channel.isChecked(),
-            "exclude_borders": getattr(self, "check_exclude_borders", QCheckBox()).isChecked(),
+            "pipeline": self.combo_pipeline.currentData() or self._pending_pipeline,
+            "values": self.params_form.display_values() or self._pending_values,
         }
 
         # Sync channels metadata
@@ -1420,18 +1280,15 @@ class CytoMetricsPanel(PluginBase):
         self._update_results_tab()
 
     def _apply_ui_params(self, ui: dict) -> None:
-        """Restore the Smart Detect controls from saved `ui_params`."""
+        """Restore the Detect settings from saved `ui_params` (either format)."""
         if not ui:
             return
-        self.combo_target_channel.setCurrentText(ui.get("target_channel", ""))
-        self.combo_seed_channel.setCurrentText(ui.get("seed_channel", ""))
-        self.combo_pipeline.setCurrentText(ui.get("pipeline", ""))
-        self.spin_min_area.setValue(ui.get("min_area", 10.0))
-        self.spin_max_area.setValue(ui.get("max_area", 5000.0))
-        self.spin_diameter.setValue(ui.get("diameter", 0.0))
-        self.spin_flow.setValue(ui.get("flow", 0.4))
-        self.check_dual_channel.setChecked(ui.get("use_dual", False))
-        self.check_exclude_borders.setChecked(ui.get("exclude_borders", True))
+        pipeline, values = _ui_params_v2(ui)
+        self._pending_pipeline, self._pending_values = pipeline, values
+        index = self.combo_pipeline.findData(pipeline)
+        if index >= 0:
+            self.combo_pipeline.setCurrentIndex(index)
+        self.params_form.set_display_values(values)
 
     def _apply_metadata_calibration(self, _path: str = "") -> None:
         """Use the pixel size stored in the image file, unless a scale is already set."""
@@ -1497,29 +1354,8 @@ class CytoMetricsPanel(PluginBase):
         self.state_changed.emit()
 
     def _update_dropdowns(self):
-        """Safely updates dropdown names without losing the current selection."""
-        target_idx = self.combo_target_channel.currentIndex()
-        seed_idx = self.combo_seed_channel.currentIndex()
-
-        channel_names = [c.name for c in self.image_set.channels]
-
-        self.combo_target_channel.blockSignals(True)
-        self.combo_seed_channel.blockSignals(True)
-
-        self.combo_target_channel.clear()
-        self.combo_target_channel.addItems(channel_names)
-
-        self.combo_seed_channel.clear()
-        self.combo_seed_channel.addItems(channel_names)
-
-        # Restore the user's selections
-        if 0 <= target_idx < len(channel_names):
-            self.combo_target_channel.setCurrentIndex(target_idx)
-        if 0 <= seed_idx < len(channel_names):
-            self.combo_seed_channel.setCurrentIndex(seed_idx)
-
-        self.combo_target_channel.blockSignals(False)
-        self.combo_seed_channel.blockSignals(False)
+        """Offer the current channel names in the Detect settings."""
+        self.params_form.set_channels([c.name for c in self.image_set.channels])
 
     def _on_tab_changed(self, index):
         """Force a refresh of the dropdowns when switching to the Smart Detect tab."""
@@ -1667,3 +1503,30 @@ class CytoMetricsPanel(PluginBase):
             self.load_state(pm.load_workflow_payload(filename))
         except Exception as e:
             show_error(self, "Load Error", f"Could not load workflow:\n{e}")
+
+
+# Saved v1 `ui_params` keys → (segmenter id, display values).
+_V1_PIPELINES = {
+    "Basic Threshold (Otsu)": "otsu",
+    "Watershed (Clump Splitting)": "watershed",
+    "AI Smart Detect (Cellpose)": "cellpose",
+}
+_V1_KEYS = {
+    "target_channel": "target_channel",
+    "seed_channel": "seed_channel",
+    "use_dual": "use_dual_channel",
+    "min_area": "min_area_px",
+    "max_area": "max_area_px",
+    "diameter": "diameter",
+    "flow": "flow_threshold",
+    "exclude_borders": "exclude_borders",
+}
+
+
+def _ui_params_v2(ui: dict) -> tuple[str | None, dict]:
+    """``(segmenter id, display values)`` from saved `ui_params`, old or new."""
+    if "values" in ui:
+        return ui.get("pipeline"), dict(ui["values"])
+    pipeline = str(ui.get("pipeline", ""))
+    values = {new: ui[old] for old, new in _V1_KEYS.items() if old in ui}
+    return _V1_PIPELINES.get(pipeline, pipeline or None), values

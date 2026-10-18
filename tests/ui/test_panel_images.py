@@ -42,10 +42,17 @@ def _ome(tmp_path, um_per_px=0.5):
     return path
 
 
-def test_uncalibrated_panel_labels_sizes_in_pixels_and_can_run(panel):
+def _ready(panel, qtbot, segmenter="cellpose"):
+    qtbot.waitUntil(lambda: panel.tabs.isTabEnabled(1), timeout=10_000)
+    panel.combo_pipeline.setCurrentIndex(panel.combo_pipeline.findData(segmenter))
+
+
+def test_uncalibrated_panel_labels_sizes_in_pixels_and_can_run(panel, qtbot):
+    _ready(panel, qtbot)
+    form = panel.params_form
     assert panel.btn_run_pipeline.isEnabled()
-    assert panel.spin_min_area.suffix() == " px²"
-    assert panel.spin_diameter.suffix() == " px"
+    assert form.widget("min_area_px").suffix() == " px²"
+    assert form.widget("diameter").suffix() == " px"
     assert not panel.lbl_units_note.isHidden()
     assert panel.table.horizontalHeaderItem(1).text() == "Area (px²)"
 
@@ -74,13 +81,14 @@ def test_unreadable_image_warns_instead_of_crashing(panel, tmp_path, monkeypatch
     assert panel.image_set.channels == []
 
 
-def test_pixel_size_from_metadata_calibrates_automatically(panel, tmp_path):
+def test_pixel_size_from_metadata_calibrates_automatically(panel, qtbot, tmp_path):
+    _ready(panel, qtbot)
     panel.channel_manager.ingest_path(str(_ome(tmp_path, 0.5)))
 
     assert panel.state.scale == pytest.approx(0.5)
     assert panel.state.scale_source == "metadata (ome)"
     assert "from image metadata" in panel.lbl_scale.text()
-    assert panel.spin_min_area.suffix() == " µm²"
+    assert panel.params_form.widget("min_area_px").suffix() == " µm²"
     assert panel.lbl_units_note.isHidden()
     assert panel.image_set.channels[0].data.dtype == np.uint16
 
@@ -195,10 +203,9 @@ def test_save_and_load_go_through_the_project_manager(panel, monkeypatch):
 
 @pytest.mark.parametrize("segmenter", ["otsu", "watershed"])
 def test_run_button_finds_cells_and_fills_the_table(panel, qtbot, tmp_path, segmenter):
-    qtbot.waitUntil(lambda: panel.tabs.isTabEnabled(1), timeout=10_000)
+    _ready(panel, qtbot, segmenter)
     panel.channel_manager.ingest_path(str(_png(tmp_path)))
-    panel.combo_pipeline.setCurrentIndex(panel.combo_pipeline.findData(segmenter))
-    panel.spin_min_area.setValue(50)
+    panel.params_form.set_display_values({"min_area_px": 50})
 
     panel._on_run_pipeline()
     qtbot.waitUntil(lambda: panel.btn_run_pipeline.isEnabled(), timeout=10_000)
@@ -206,3 +213,65 @@ def test_run_button_finds_cells_and_fills_the_table(panel, qtbot, tmp_path, segm
     assert panel.table.rowCount() == len(img.ISOLATED_CENTRES)
     assert panel._labels.max() == len(img.ISOLATED_CENTRES)
     assert panel.progress_bar.isHidden()
+
+
+def test_settings_follow_the_chosen_algorithm(panel, qtbot):
+    _ready(panel, qtbot, "otsu")
+    assert panel.params_form.widget("diameter") is None
+    assert panel.params_form.btn_advanced.isHidden()
+
+    _ready(panel, qtbot, "cellpose")
+    assert panel.params_form.widget("diameter") is not None
+    assert panel.params_form.widget("augment") is not None
+    assert not panel.params_form.btn_advanced.isHidden()
+
+
+def test_shared_settings_survive_switching_algorithm(panel, qtbot, tmp_path):
+    _ready(panel, qtbot, "otsu")
+    panel.channel_manager.ingest_path(str(_png(tmp_path, "a.png")))
+    panel.channel_manager.ingest_path(str(_png(tmp_path, "b.png")))
+    panel.params_form.set_display_values({"target_channel": "b.png", "min_area_px": 42})
+
+    _ready(panel, qtbot, "watershed")
+
+    values = panel.params_form.display_values()
+    assert values["target_channel"] == "b.png"
+    assert values["min_area_px"] == 42
+
+
+def test_detect_settings_round_trip_through_saved_state(panel, qtbot, tmp_path):
+    _ready(panel, qtbot, "cellpose")
+    panel.channel_manager.ingest_path(str(_png(tmp_path)))
+    panel.params_form.set_display_values({"cellprob_threshold": -2.0, "augment": True})
+    saved = panel.export_state()
+
+    other = main_panel.CytoMetricsPanel()
+    qtbot.addWidget(other)
+    other.load_state(saved)  # before its segmenters have loaded
+    qtbot.waitUntil(lambda: other.tabs.isTabEnabled(1), timeout=10_000)
+
+    assert other.combo_pipeline.currentData() == "cellpose"
+    values = other.params_form.display_values()
+    assert values["cellprob_threshold"] == -2.0
+    assert values["augment"] is True
+    other.cleanup()
+
+
+def test_version_1_saved_settings_still_restore(panel, qtbot):
+    _ready(panel, qtbot, "otsu")
+
+    panel._apply_ui_params(
+        {
+            "pipeline": "AI Smart Detect (Cellpose)",
+            "min_area": 25.0,
+            "diameter": 12.0,
+            "flow": 0.6,
+            "use_dual": True,
+            "exclude_borders": False,
+        }
+    )
+
+    assert panel.combo_pipeline.currentData() == "cellpose"
+    values = panel.params_form.display_values()
+    assert (values["min_area_px"], values["diameter"], values["flow_threshold"]) == (25, 12, 0.6)
+    assert values["use_dual_channel"] is True and values["exclude_borders"] is False
