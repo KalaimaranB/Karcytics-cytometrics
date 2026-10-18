@@ -25,7 +25,7 @@ from karcytics_sdk.plugin import (
     show_warning,
     submit_task,
 )
-from karcytics_sdk.plugin.dialogs import SaveWorkflowDialog
+from karcytics_sdk.plugin.dialogs import SaveWorkflowDialog, get_text
 from karcytics_sdk.plugin.io import PluginConfig
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Qt
@@ -46,12 +46,13 @@ from ..analysis.assays import PHOTO, STEP_LABELS, Assay
 from ..analysis.assays import REGISTRY as ASSAYS
 from ..analysis.assays.common import stain_channel
 from ..analysis.batch import Recipe, channel_tokens
+from ..analysis.experiment import default_name
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
 from ..analysis.fcs import numeric_columns as fcs_columns
 from ..analysis.fcs import write_fcs
 from ..analysis.gating import UNGATED_COLOR
 from ..analysis.measure import MeasureOptions, unit_label, write_csv
-from ..analysis.model import ImageSet
+from ..analysis.model import ImageSet, color_for_name
 from ..analysis.models import MODELS
 from ..analysis.session import AnalysisSession, LastRun
 from ..analysis.state import CytoMetricsState
@@ -407,6 +408,9 @@ class CytoMetricsPanel(PluginBase):
         self.results_step.form.changed.connect(self._on_assay_settings_changed)
         self.results_step.action_clicked.connect(self._on_assay_action)
         self.results_step.apply_gates_clicked.connect(self._on_apply_suggested_gates)
+        self.results_step.add_sample_clicked.connect(self._on_add_sample)
+        self.results_step.remove_sample_clicked.connect(self._on_remove_sample)
+        self.channel_manager.next_image_requested.connect(self._on_next_image)
         self.btn_undo.clicked.connect(self.undo)
         self.btn_redo.clicked.connect(self.redo)
         self.signals.undo_available.connect(self.btn_undo.setEnabled)
@@ -702,6 +706,8 @@ class CytoMetricsPanel(PluginBase):
         if composite is not None:
             # Keep the user's zoom when only colours or visibility changed.
             self.canvas.set_array(composite, keep_view=self.canvas.has_image)
+        else:
+            self.canvas.clear_image()  # back to "Load an image to begin"
 
         self._update_dropdowns()
         self.state_changed.emit()
@@ -1309,21 +1315,100 @@ class CytoMetricsPanel(PluginBase):
         self._refresh_assay_view()
 
     def _refresh_assay_view(self) -> None:
+        comparison = self._apply_experiment_settings()
         self.results_step.show_results(self.session.assay_results())
         self.canvas.set_overlays(self.session.assay_overlays())
+        self.results_step.show_experiment(self.session.samples, comparison)
+        self.results.compare.show_comparison(comparison)
+        self.results.setTabVisible(
+            self.results.indexOf(self.results.compare), bool(self.session.roles)
+        )
+
+    def _apply_experiment_settings(self):
+        """The experiment's comparison, after storing what it sets (e.g. the controls' cut-off)."""
+        comparison = self.session.comparison()
+        if comparison is None or not comparison.settings:
+            return comparison
+        current = self.session.assay_settings
+        if any(current.get(k) != v for k, v in comparison.settings.items()):
+            self.session.set_assay_settings(comparison.settings)
+            form = self.results_step.form
+            form.blockSignals(True)
+            form.set_display_values(self.session.assay_settings)
+            form.blockSignals(False)
+            self._refresh_table()
+        return comparison
+
+    # ── Experiment ──────────────────────────────────────────────────────────
+
+    def _on_add_sample(self, role_id: str) -> None:
+        role = next((r for r in self.session.roles if r.id == role_id), None)
+        if role is None:
+            return
+        if not self.state.cells:
+            show_warning(
+                self, "Nothing to Add", f"Detect the {self.noun.lower()}s in this image first."
+            )
+            return
+        name = default_name(role, self.session.samples)
+        if role.named:
+            typed = get_text(
+                self, "Name This Sample", "What is it? (e.g. siRNA 1, 10 µM drug)", name
+            )
+            if not typed or not typed.strip():
+                return
+            name = typed.strip()
+        files = dict.fromkeys(Path(c.path).name for c in self.image_set.channels if c.path)
+        self.session.add_sample(role_id, name.strip(), ", ".join(files))
+        self._refresh_assay_view()
+        self.push_state(f"Add {name} to the experiment")
+        how = (
+            "📷 Load photo" if self._assay and self._assay.image_kind == PHOTO else "🔄 Next image"
+        )
+        self.results_step.lbl_action.setText(
+            f"Added '{name}'. Load the next image ({how} in the Load step) and add it too."
+        )
+
+    def _on_remove_sample(self, sample_id: str) -> None:
+        self.session.remove_sample(sample_id)
+        self._refresh_assay_view()
+        self.push_state("Remove from the experiment")
+
+    def _on_next_image(self) -> None:
+        """Clear the images and their objects, keeping settings and the experiment."""
+        self.image_set.clear()
+        self.channel_manager.refresh()
+        self._on_photo_replaced()
+        self._render_composite()
+        self._update_calibrate_button_state()
+        self.stepper.go_to("load")
+        self.push_state("Next image")
 
     def _update_assay_channels(self, names: list[str]) -> None:
-        """Offer `names` in the assay's channel settings; unset ones get the assay's stain."""
+        """Offer `names` in the assay's channel settings.
+
+        Unset ones get the assay's stain (the first channel if there's none). One set to
+        a channel that isn't the stain moves to the stain once it's loaded: with DAPI
+        loaded before GFP, the reporter would otherwise stay on DAPI.
+        """
         form = self.results_step.form
         form.set_channels(names)
         analysis = self._assay.analysis if self._assay else None
         if analysis is None or not names:
             return
         settings = self.session.assay_settings
+
+        def needs_channel(key: str) -> bool:
+            current = settings.get(key)
+            if current not in names:
+                return True
+            stain = analysis.channel_stains.get(key)
+            if not stain:
+                return False
+            return color_for_name(current) != stain and stain_channel(names, stain) is not None
+
         unset = [
-            p.key
-            for p in analysis.parameters()
-            if p.kind == "channel" and settings.get(p.key) not in names
+            p.key for p in analysis.parameters() if p.kind == "channel" and needs_channel(p.key)
         ]
         if unset:
             fallback = self._assay.default_target(names) or names[0]  # type: ignore[union-attr]

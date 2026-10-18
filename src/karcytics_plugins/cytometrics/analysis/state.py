@@ -70,6 +70,8 @@ class CytoMetricsState(PluginState):
         batch_manifest:     Path of the batch run's ``batch.json`` (empty if none).
         assay_settings:     The assay's own settings (e.g. dilution, chamber depth).
         extras:             What the segmenter found besides cells (e.g. the dish circle).
+        experiment:         Per assay id, the images added to its experiment
+                            (``analysis.experiment.Sample`` dicts).
         version:            Format version; older saves are migrated by ``from_dict``.
     """
 
@@ -84,6 +86,7 @@ class CytoMetricsState(PluginState):
     batch_manifest: str = ""
     assay_settings: dict = field(default_factory=dict)
     extras: dict = field(default_factory=dict)
+    experiment: dict = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CytoMetricsState:

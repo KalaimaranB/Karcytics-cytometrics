@@ -18,6 +18,7 @@ from typing import Any
 import pandas as pd
 from karcytics_sdk.plugin.citations import MethodStep
 
+from ..experiment import Comparison, Role, Sample
 from ..gating import Gate
 from ..model import color_for_name
 from ..segment.base import Param
@@ -107,6 +108,9 @@ class AssayAnalysis:
     suggests_gates = False  # True when ``suggested_gates`` returns something
     # Default stain colour for each channel setting ({"dna_channel": "blue"}).
     channel_stains: dict[str, str] = {}  # noqa: RUF012  (read-only class default)
+    # What an image can be in an experiment (control, sample, plate, square, …); empty: the
+    # assay works on one image at a time. See ``analysis.experiment`` and ``compare``.
+    roles: tuple[Role, ...] = ()
     # (action id, button text, tooltip): buttons in the Results step; see ``run_action``.
     # An id starting with "box:" first asks the user to drag a box on the image.
     actions: tuple[tuple[str, str, str], ...] = ()
@@ -131,6 +135,12 @@ class AssayAnalysis:
 
     def overlays(self, settings: dict, context: AssayContext) -> list[Overlay]:
         return []
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        """The experiment's result from its images (None: nothing to compare yet)."""
+        return None
 
     def run_action(
         self,

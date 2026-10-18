@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from .batch_results import BatchResults
+from .compare_view import CompareView
 from .widgets.histogram import Histogram
 from .widgets.inspector import CellInspector
 from .widgets.scatter import ScatterPlot
@@ -68,6 +69,8 @@ class ResultsDock(QTabWidget):
 
         self.inspector = CellInspector()
         self.addTab(self.inspector, "Cell")
+        self.compare = CompareView()
+        self.addTab(self.compare, "Compare")
         self.batch = BatchResults()
         self.addTab(self.batch, "Batch")
         self.apply_theme()

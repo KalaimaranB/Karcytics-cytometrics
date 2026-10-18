@@ -1,10 +1,13 @@
 """Transfection / % positive: the share of cells expressing a reporter (GFP, mCherry, …).
 
-The cut-off comes from a negative control: load an untransfected (or
-unstained) image, measure it, and "Use this image as the negative control"
-sets the cut-off at a high percentile of those cells' reporter intensity
-(99th by default, so 1% of control cells would be called positive). Every
-image measured afterwards, here or in a batch, is scored against it.
+The cut-off comes from a negative control: analyse an untransfected (or
+unstained) image and add it to the experiment as the negative control; the
+cut-off is a high percentile of those cells' reporter intensity (99th by
+default, so 1% of control cells would be called positive). Each sample
+added afterwards is scored against it, and compared with the control: %
+positive, the brightness of the positive cells, and the shift of the
+median (fold change). Several control images are pooled. The cut-off also
+applies to the image open now and to batch runs.
 """
 
 from __future__ import annotations
@@ -14,23 +17,35 @@ import pandas as pd
 from karcytics_sdk.plugin.citations import MethodStep
 
 from .. import gating
+from ..experiment import Comparison, Plot, Role, Sample, Series, colors_for
 from ..gating import Gate
 from ..segment.base import Param
-from .base import ActionResult, Assay, AssayAnalysis, AssayContext, ResultValue, register
+from .base import Assay, AssayAnalysis, AssayContext, ResultValue, register
 from .common import intensity_column, percent
 
 POSITIVE = "Positive"
 STATS = (("Mean intensity", "MeanIntensity"), ("Integrated intensity", "IntegratedIntensity"))
 
 
+CONTROL, SAMPLE = "control", "sample"
+
+
 class PercentPositive(AssayAnalysis):
     channel_stains = {"reporter_channel": "green"}
-    actions = (
-        (
-            "set_control",
-            "🎯 Use this image as the negative control",
-            "Set the cut-off from the cells in this image (untransfected or unstained), then "
-            "load your samples.",
+    suggests_gates = True
+    roles = (
+        Role(
+            CONTROL,
+            "negative control",
+            fields=("reporter_channel",),
+            help="Untransfected or unstained cells: they set the cut-off.",
+        ),
+        Role(
+            SAMPLE,
+            "sample",
+            fields=("reporter_channel",),
+            named=True,
+            help="Transfected cells, scored against the control's cut-off.",
         ),
     )
 
@@ -74,22 +89,132 @@ class PercentPositive(AssayAnalysis):
             df, settings.get("reporter_channel"), settings.get("statistic") or "MeanIntensity"
         )
 
-    def run_action(self, action, df, settings, context, box=None) -> ActionResult:
+    def suggested_gates(self, df: pd.DataFrame, settings: dict) -> list[Gate]:
         column = self._column(df, settings)
-        if column is None or not len(df):
-            raise ValueError("Detect and measure the control image's cells first.")
+        cutoff = float(settings.get("cutoff") or 0)
+        if column is None or not cutoff:
+            return []
+        return [Gate(POSITIVE, "threshold", x=column, params={"value": cutoff}, color="#009E73")]
+
+    def _values(self, sample: Sample, settings: dict) -> np.ndarray:
+        """A sample's reporter values (its own channel: file names differ between images)."""
+        column = intensity_column(
+            sample.table,
+            sample.fields.get("reporter_channel"),
+            settings.get("statistic") or "MeanIntensity",
+        )
+        if column is None:
+            return np.zeros(0)
+        values = pd.to_numeric(sample.table[column], errors="coerce").to_numpy(float)
+        return values[np.isfinite(values)]
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        controls = [s for s in samples if s.role == CONTROL]
         pct = float(settings.get("percentile") or 99)
-        values = pd.to_numeric(df[column], errors="coerce").dropna()
-        cutoff = float(np.percentile(values, pct))
-        return ActionResult(
-            settings={"cutoff": cutoff, "control_cells": len(values)},
-            gates=[self._gate(column, cutoff)],
-            message=f"Cut-off set to {cutoff:.4g} from {len(values)} control cells "
-            f"({pct:g}th percentile). Now load a sample.",
+        derived: dict = {}
+        if controls:
+            pooled = np.concatenate([self._values(s, settings) for s in controls])
+            if pooled.size:
+                cutoff = float(np.percentile(pooled, pct))
+                derived = {"cutoff": cutoff, "control_cells": int(pooled.size)}
+        cutoff = float(derived.get("cutoff") or settings.get("cutoff") or 0)
+        control_median = (
+            float(np.median(np.concatenate([self._values(s, settings) for s in controls])))
+            if controls and derived
+            else float("nan")
+        )
+        colors = colors_for(samples, (CONTROL,))
+        rows, values, series = [], [], []
+        for s in samples:
+            v = self._values(s, settings)
+            positive = v > cutoff if cutoff else np.zeros(v.size, bool)
+            median = float(np.median(v)) if v.size else float("nan")
+            row = {
+                "Image": s.name,
+                "Role": "control" if s.role == CONTROL else "sample",
+                "Cells": int(v.size),
+                "% positive": percent(positive) if cutoff else float("nan"),
+                "Mean of positive": float(v[positive].mean()) if positive.any() else float("nan"),
+                "Median": median,
+                "Fold change (median)": median / control_median if control_median else float("nan"),
+            }
+            rows.append(row)
+            series.append(Series(s.name, v, colors[s.id]))
+            if s.role == SAMPLE:
+                values.append(
+                    ResultValue(
+                        f"PctPositive_{s.name}",
+                        f"{s.name}: positive",
+                        row["% positive"],
+                        "%",
+                        f"{row['Cells']} cells; median {row['Fold change (median)']:.2g}× the "
+                        "control's"
+                        if control_median
+                        else f"{row['Cells']} cells",
+                        "" if cutoff else "add a negative control",
+                    )
+                )
+        head = []
+        if derived:
+            head.append(
+                ResultValue(
+                    "Cutoff",
+                    "Cut-off",
+                    cutoff,
+                    "a.u.",
+                    f"The {pct:g}th percentile of {derived['control_cells']} control cells.",
+                )
+            )
+            control_pct = [float(r["% positive"]) for r in rows if r["Role"] == "control"]
+            head.append(
+                ResultValue(
+                    "ControlPositive",
+                    "Control: positive",
+                    float(np.mean(control_pct)),
+                    "%",
+                    f"By construction about {100 - pct:g}%; more means the controls differ.",
+                )
+            )
+        if not any(s.role == SAMPLE for s in samples):
+            note = "Now load a transfected image, detect its cells and add it as a sample."
+        elif not controls:
+            note = "Add a negative control to set the cut-off from untransfected cells."
+        else:
+            note = (
+                f"Cut-off: the {pct:g}th percentile of the pooled control cells' "
+                f"{_stat_name(settings).lower()}."
+            )
+        return Comparison(
+            values=head + values,
+            table=pd.DataFrame(rows),
+            plot=Plot(
+                "histogram",
+                label=f"Reporter {_stat_name(settings).lower()}",
+                log=True,
+                series=series,
+                lines=[(cutoff, "cut-off")] if cutoff else [],
+            ),
+            settings=derived,
+            note=note,
+            methods=self._experiment_methods(rows, settings, derived),
         )
 
-    def _gate(self, column: str, cutoff: float) -> Gate:
-        return Gate(POSITIVE, "threshold", x=column, params={"value": cutoff}, color="#009E73")
+    def _experiment_methods(self, rows: list[dict], settings: dict, derived: dict) -> list:
+        if not derived:
+            return []
+        samples = [r for r in rows if r["Role"] == "sample"]
+        if not samples:
+            return []
+        listed = "; ".join(f"{r['Image']}, {r['% positive']:.1f}% of {r['Cells']}" for r in samples)
+        return [
+            MethodStep(
+                f"Positive cells were counted against a cut-off at the "
+                f"{float(settings.get('percentile') or 99):g}th percentile of "
+                f"{derived['control_cells']} pooled negative-control cells ({listed})"
+            )
+        ]
 
     def results(
         self, df: pd.DataFrame, gates: list[Gate], settings: dict, context: AssayContext
@@ -105,7 +230,7 @@ class PercentPositive(AssayAnalysis):
                     "Positive",
                     float("nan"),
                     "%",
-                    warning="set a cut-off: measure a negative control and click 🎯",
+                    warning="add a negative control to the experiment below (or type a cut-off)",
                 )
             ]
         values = pd.to_numeric(df[column], errors="coerce").to_numpy()
@@ -176,3 +301,7 @@ TRANSFECTION = register(
         citations=("cpsam2025",),
     )
 )
+
+
+def _stat_name(settings: dict) -> str:
+    return {v: k for k, v in STATS}.get(str(settings.get("statistic")), "Mean intensity")

@@ -17,6 +17,7 @@ import pandas as pd
 from ..report import Measured, build_steps, gating_step
 from . import edit, gating
 from .assays import Assay, AssayContext, ResultValue
+from .experiment import Comparison, Role, Sample
 from .gating import Gate
 from .measure import MeasureOptions, measure_cells, rescale
 from .model import ImageSet
@@ -90,6 +91,55 @@ class AnalysisSession:
         if analysis is None:
             return []
         return analysis.results(self.measurements, self.gates, self.assay_settings, self.context())
+
+    # ── Experiment ───────────────────────────────────────────────────────────
+
+    @property
+    def roles(self) -> tuple[Role, ...]:
+        analysis = self.assay.analysis if self.assay else None
+        return analysis.roles if analysis else ()
+
+    @property
+    def samples(self) -> list[Sample]:
+        """The images added to this assay's experiment, in the order added."""
+        if self.assay is None:
+            return []
+        return [Sample.from_dict(d) for d in self.state.experiment.get(self.assay.id, [])]
+
+    def _store(self, samples: list[Sample]) -> None:
+        assert self.assay is not None
+        self.state.experiment = {
+            **self.state.experiment,
+            self.assay.id: [s.to_dict() for s in samples],
+        }
+
+    def add_sample(self, role_id: str, name: str, image: str = "") -> Sample:
+        """Add the current image's measurements to the experiment as `role_id`."""
+        role = next(r for r in self.roles if r.id == role_id)
+        settings = self.assay_settings
+        sample = Sample(
+            name=name,
+            role=role_id,
+            table=self.export_table(),
+            image=image,
+            fields={k: settings.get(k) for k in role.fields},
+            results={v.key: v.value for v in self.assay_results()},
+        )
+        samples = self.samples
+        if not role.many:
+            samples = [s for s in samples if s.role != role_id]
+        self._store([*samples, sample])
+        return sample
+
+    def remove_sample(self, sample_id: str) -> None:
+        self._store([s for s in self.samples if s.id != sample_id])
+
+    def comparison(self) -> Comparison | None:
+        analysis = self.assay.analysis if self.assay else None
+        samples = self.samples
+        if analysis is None or not samples:
+            return None
+        return analysis.compare(samples, self.assay_settings, self.context())
 
     # ── Calibration ──────────────────────────────────────────────────────────
 
@@ -364,6 +414,9 @@ class AnalysisSession:
             steps.extend(analysis.methods(self.assay_settings, self.context()))
         if self.state.gates and len(self.measurements):
             steps.append(gating_step(self.gate_stats()))
+        comparison = self.comparison()
+        if comparison is not None:
+            steps.extend(comparison.methods)
         return steps
 
     def export_stem(self) -> str:

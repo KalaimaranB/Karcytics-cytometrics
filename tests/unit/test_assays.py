@@ -155,26 +155,58 @@ def test_bacteria_results_and_dividing_gate():
 # ── Transfection ─────────────────────────────────────────────────────────────
 
 
-def test_negative_control_sets_the_cutoff_and_scores_samples():
+def _sample(name, role, column, values, channel):
+    from karcytics_plugins.cytometrics.analysis.experiment import Sample
+
+    return Sample(name, role, pd.DataFrame({column: values}), fields={"reporter_channel": channel})
+
+
+def test_negative_control_sets_the_cutoff_and_samples_are_compared():
     analysis = REGISTRY["transfection"].analysis
     rng = np.random.default_rng(1)
-    control = pd.DataFrame({"Intensity_MeanIntensity_GFP": rng.normal(100, 10, 1000)})
-    settings = {"reporter_channel": "GFP", "statistic": "MeanIntensity", "percentile": 99}
-
-    outcome = analysis.run_action("set_control", control, settings, AssayContext())
-    cutoff = outcome.settings["cutoff"]
-    assert cutoff == pytest.approx(100 + 2.33 * 10, rel=0.03)
-    assert outcome.gates[0].name == "Positive" and outcome.gates[0].params["value"] == cutoff
-
-    sample = pd.DataFrame(
-        {"Intensity_MeanIntensity_GFP": np.r_[rng.normal(100, 10, 700), rng.normal(400, 50, 300)]}
+    settings = {"statistic": "MeanIntensity", "percentile": 99}
+    # Each image's columns carry its own file name: the comparison follows each one's reporter.
+    control = _sample(
+        "Control",
+        "control",
+        "Intensity_MeanIntensity_ctrl_GFP",
+        rng.normal(100, 10, 1000),
+        "ctrl GFP",
     )
-    settings.update(outcome.settings)
-    results = {
-        r.key: r.value for r in analysis.results(sample, outcome.gates, settings, AssayContext())
-    }
+    values = np.r_[rng.normal(100, 10, 700), rng.normal(400, 50, 300)]
+    sample = _sample("siRNA 1", "sample", "Intensity_MeanIntensity_s1_GFP", values, "s1 GFP")
+
+    comparison = analysis.compare([control, sample], settings, AssayContext())
+    cutoff = comparison.settings["cutoff"]
+    assert cutoff == pytest.approx(100 + 2.33 * 10, rel=0.03)
+    assert comparison.settings["control_cells"] == 1000
+    by_key = {v.key: v for v in comparison.values}
+    assert by_key["PctPositive_siRNA 1"].value == pytest.approx(30, abs=1.5)
+    assert by_key["ControlPositive"].value == pytest.approx(1, abs=0.5)
+    rows = comparison.table.set_index("Image")
+    assert rows.loc["siRNA 1", "Cells"] == 1000
+    assert rows.loc["siRNA 1", "Fold change (median)"] > 1
+    assert comparison.plot.kind == "histogram" and comparison.plot.lines[0][0] == cutoff
+    assert "pooled negative-control cells" in comparison.methods[0].description
+
+    # The same cut-off scores the image open now, and suggests a Positive gate.
+    table = pd.DataFrame({"Intensity_MeanIntensity_GFP": values})
+    settings = {**settings, **comparison.settings, "reporter_channel": "GFP"}
+    results = {r.key: r.value for r in analysis.results(table, [], settings, AssayContext())}
     assert results["PctPositive"] == pytest.approx(30, abs=1.5)
-    assert "negative-control cells" in analysis.methods(settings, AssayContext())[0].description
+    (gate,) = analysis.suggested_gates(table, settings)
+    assert gate.name == "Positive" and gate.params["value"] == cutoff
+
+
+def test_experiment_samples_round_trip_through_the_saved_state():
+    from karcytics_plugins.cytometrics.analysis.experiment import Sample
+
+    sample = _sample("A", "sample", "Intensity_MeanIntensity_GFP", [1.0, np.nan, 3.0], "GFP")
+    sample.table.attrs = {"units": {"Intensity_MeanIntensity_GFP": "a.u."}}
+    back = Sample.from_dict(sample.to_dict())
+    assert back.name == "A" and back.fields == {"reporter_channel": "GFP"}
+    assert back.table["Intensity_MeanIntensity_GFP"].isna().tolist() == [False, True, False]
+    assert back.table.attrs["units"]["Intensity_MeanIntensity_GFP"] == "a.u."
 
 
 def test_no_cutoff_asks_for_a_control():

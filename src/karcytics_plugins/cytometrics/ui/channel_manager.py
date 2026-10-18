@@ -41,6 +41,7 @@ class ChannelManagerWidget(QWidget):
     new_image_loaded = Signal(str)
     image_replaced = Signal()  # photo mode: the previous photo (and its objects) is gone
     analysis_channel_changed = Signal(str)  # photo mode: the channel to analyse
+    next_image_requested = Signal()  # clear the image (and its objects) to load another
 
     def __init__(self, image_set: ImageSet, parent=None):
         super().__init__(parent)
@@ -55,6 +56,14 @@ class ChannelManagerWidget(QWidget):
         self.btn_add = PrimaryButton("➕ Add Image Channel")
         self.btn_add.clicked.connect(self._on_add_channel)
         layout.addWidget(self.btn_add)
+        self.btn_next = SecondaryButton("🔄 Next image")
+        self.btn_next.setToolTip(
+            "Clear these images and their cells to load the next one. Settings, calibration and "
+            "the experiment are kept."
+        )
+        self.btn_next.clicked.connect(self.next_image_requested)
+        self.btn_next.setVisible(False)
+        layout.addWidget(self.btn_next)
 
         # Photo mode: what's loaded, and which colour to analyse.
         self.photo_box = QWidget()
@@ -124,6 +133,11 @@ class ChannelManagerWidget(QWidget):
         self.contrast_box.setVisible(not photo)
         self.photo_box.setVisible(photo)
         self._refresh_photo()
+        self._update_next()
+
+    def _update_next(self) -> None:
+        has_images = bool(self.image_set and self.image_set.channels)
+        self.btn_next.setVisible(has_images and not self.photo_mode)
 
     def analysis_channel(self) -> str | None:
         """Photo mode: the channel to analyse (the automatic choice resolved)."""
@@ -247,6 +261,7 @@ class ChannelManagerWidget(QWidget):
             self._add_row_to_ui(ch.name, ch.color)
         if self.photo_mode:
             self._refresh_photo()
+        self._update_next()
         self.new_image_loaded.emit(str(final_path))
         self.channels_changed.emit()
 
@@ -358,6 +373,7 @@ class ChannelManagerWidget(QWidget):
         for ch in self.image_set.channels if self.image_set else []:
             self._add_row_to_ui(ch.name, ch.color)
         self._refresh_photo()
+        self._update_next()
 
     def cleanup(self) -> None:
         """Release UI resources. Called when the plugin panel is closed."""

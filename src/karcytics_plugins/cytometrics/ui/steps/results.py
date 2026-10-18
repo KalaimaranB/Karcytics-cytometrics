@@ -4,13 +4,15 @@ import math
 
 from karcytics_sdk.plugin import (
     BioCaptionLabel,
+    BioListWidget,
     CitationLabel,
     ModuleCard,
     SecondaryButton,
+    SubtitleLabel,
 )
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QLabel, QListWidgetItem, QVBoxLayout, QWidget
 
 from ..params_form import ParamsForm
 from .base import StepPage
@@ -56,10 +58,12 @@ class ResultsStep(StepPage):
     hint = "The assay's own results, from the measurements and the settings below."
     action_clicked = Signal(str)  # action id
     apply_gates_clicked = Signal()
+    add_sample_clicked = Signal(str)  # role id
+    remove_sample_clicked = Signal(str)  # sample id
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.section("Results")
+        self.lbl_results = self.section("Results")
         self.cards_box = QWidget()
         self.cards = QGridLayout(self.cards_box)
         self.cards.setContentsMargins(0, 0, 0, 0)
@@ -79,6 +83,35 @@ class ResultsStep(StepPage):
         self.lbl_action = BioCaptionLabel("")
         self.body.addWidget(self.lbl_action)
 
+        # The experiment: images added with a role, and what they add up to.
+        self.experiment_box = QWidget()
+        experiment = QVBoxLayout(self.experiment_box)
+        experiment.setContentsMargins(0, 6, 0, 0)
+        experiment.setSpacing(8)
+        experiment.addWidget(SubtitleLabel("Experiment"))
+        self.lbl_experiment = BioCaptionLabel("")
+        self.lbl_experiment.setWordWrap(True)
+        experiment.addWidget(self.lbl_experiment)
+        self.add_layout = QVBoxLayout()
+        experiment.addLayout(self.add_layout)
+        self.samples = BioListWidget()
+        self.samples.setMaximumHeight(130)
+        self.samples.setToolTip("The images in this experiment. Select one to remove it.")
+        experiment.addWidget(self.samples)
+        self.btn_remove = SecondaryButton("🗑 Remove from experiment")
+        self.btn_remove.clicked.connect(self._on_remove)
+        experiment.addWidget(self.btn_remove)
+        self.experiment_cards_box = QWidget()
+        self.experiment_cards = QGridLayout(self.experiment_cards_box)
+        self.experiment_cards.setContentsMargins(0, 0, 0, 0)
+        self.experiment_cards.setSpacing(8)
+        experiment.addWidget(self.experiment_cards_box)
+        self.lbl_note = BioCaptionLabel("")
+        self.lbl_note.setWordWrap(True)
+        experiment.addWidget(self.lbl_note)
+        self._experiment_cards: list[ResultCard] = []
+        self.body.addWidget(self.experiment_box)
+
         self.section("Settings")
         self.form = ParamsForm()
         self.body.addWidget(self.form)
@@ -93,10 +126,7 @@ class ResultsStep(StepPage):
         """Rebuild the settings, actions and citations for `assay` (``analysis.assays.Assay``)."""
         analysis = assay.analysis
         self.form.set_params(analysis.parameters() if analysis else [])
-        while self.actions_layout.count():
-            item = self.actions_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        _clear(self.actions_layout)
         for action, text, tip in analysis.actions if analysis else ():
             button = SecondaryButton(text)
             button.setToolTip(tip)
@@ -107,6 +137,19 @@ class ResultsStep(StepPage):
             item = self.citation_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        roles = analysis.roles if analysis else ()
+        self.experiment_box.setVisible(bool(roles))
+        self.lbl_results.setText("This image" if roles else "Results")
+        _clear(self.add_layout)
+        for role in roles:
+            button = SecondaryButton(f"➕ Add this image as {role.label}")
+            button.setToolTip(role.help)
+            button.clicked.connect(lambda _c=False, r=role.id: self.add_sample_clicked.emit(r))
+            self.add_layout.addWidget(button)
+        self.lbl_experiment.setText(
+            "Analyse each image, then add it here. Its measurements are kept, so load the "
+            "next image with 🔄 Next image (or 📷 Load photo) and carry on."
+        )
         keys = tuple(dict.fromkeys((*assay.citations, *(analysis.citations if analysis else ()))))
         if keys:
             self.citation_layout.addWidget(CitationLabel(assay.name, keys, prefix="Method: "))
@@ -124,9 +167,38 @@ class ResultsStep(StepPage):
             self._cards.append(card)
         self.lbl_empty.setVisible(not values)
 
+    def show_experiment(self, samples: list, comparison) -> None:
+        """`samples`: ``experiment.Sample``s; `comparison`: their ``Comparison`` (or None)."""
+        self.samples.clear()
+        for s in samples:
+            item = QListWidgetItem(
+                f"{s.name}  ·  {len(s.table)} {'objects' if len(s.table) != 1 else 'object'}"
+                + (f"  ·  {s.image}" if s.image else "")
+            )
+            item.setData(Qt.ItemDataRole.UserRole, s.id)
+            self.samples.addItem(item)
+        self.samples.setVisible(bool(samples))
+        self.btn_remove.setVisible(bool(samples))
+        for card in self._experiment_cards:
+            self.experiment_cards.removeWidget(card)
+            card.hide()
+            card.deleteLater()
+        self._experiment_cards = []
+        for i, value in enumerate(comparison.values if comparison else []):
+            card = ResultCard()
+            card.show_value(value)
+            self.experiment_cards.addWidget(card, i // 2, i % 2, Qt.AlignmentFlag.AlignTop)
+            self._experiment_cards.append(card)
+        self.lbl_note.setText(comparison.note if comparison else "")
+
+    def _on_remove(self) -> None:
+        item = self.samples.currentItem()
+        if item is not None:
+            self.remove_sample_clicked.emit(item.data(Qt.ItemDataRole.UserRole))
+
     def apply_theme(self) -> None:
         self.form.apply_theme()
-        for card in self._cards:
+        for card in (*self._cards, *self._experiment_cards):
             card.apply_theme()
 
 
@@ -150,3 +222,10 @@ def format_value(value) -> str:
 
 def _superscript(n: int) -> str:
     return str(n).translate(str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹"))
+
+
+def _clear(layout) -> None:
+    while layout.count():
+        item = layout.takeAt(0)
+        if item.widget():
+            item.widget().deleteLater()

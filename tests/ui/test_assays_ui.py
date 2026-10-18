@@ -101,17 +101,49 @@ def test_hemocytometer_area_and_grid_calibration(qtbot, monkeypatch, tmp_path):
     p.cleanup()
 
 
-def test_transfection_control_button(qtbot, monkeypatch, tmp_path):
+def _two_channel(p, tmp_path, prefix, gfp_level):
+    """Load `prefix`_DAPI.png and `prefix`_GFP.png: four cells, GFP at `gfp_level`."""
+    import numpy as np
+
+    discs = img.isolated_discs()
+    _load(p, tmp_path, f"{prefix}_DAPI.png", discs)
+    gfp = (discs > discs.mean()).astype(np.float32) * gfp_level + 10
+    _load(p, tmp_path, f"{prefix}_GFP.png", gfp.clip(0, 255).astype(np.uint8))
+
+
+def test_transfection_experiment_control_then_sample(qtbot, monkeypatch, tmp_path):
     p = _panel(qtbot, monkeypatch)
     p.set_assay("transfection")
-    _load(p, tmp_path, "GFP.png", img.isolated_discs())
-    assert p.session.assay_settings["reporter_channel"] == "GFP.png"
-    _segment(p, qtbot, "otsu", {"target_channel": "GFP.png", "min_area_px": 50})
+    assert p.results.isTabVisible(p.results.indexOf(p.results.compare)) is not False
 
-    p.results_step.action_clicked.emit("set_control")
-    assert p.session.assay_settings["cutoff"] > 0
-    assert [g.name for g in p.session.gates] == ["Positive"]
-    assert "control cells" in p.results_step.lbl_action.text()
+    _two_channel(p, tmp_path, "ctrl", 20)
+    assert p.session.assay_settings["reporter_channel"] == "ctrl_GFP.png"
+    _segment(p, qtbot, "otsu", {"target_channel": "ctrl_DAPI.png", "min_area_px": 50})
+    p.results_step.add_sample_clicked.emit("control")
+    assert [s.name for s in p.session.samples] == ["Negative control"]
+    assert p.session.assay_settings["cutoff"] > 0  # set from the control
+
+    p.channel_manager.btn_next.click()  # clear the control's images, keep the experiment
+    assert not p.image_set.channels and not p.state.cells
+    _two_channel(p, tmp_path, "sirna", 200)
+    _segment(p, qtbot, "otsu", {"target_channel": "sirna_DAPI.png", "min_area_px": 50})
+    monkeypatch.setattr(main_panel, "get_text", lambda *a, **k: "siRNA 1")
+    p.results_step.add_sample_clicked.emit("sample")
+
+    names = [c.lbl_name.text() for c in p.results_step._experiment_cards]
+    assert names[:3] == ["Cut-off", "Control: positive", "siRNA 1: positive"]
+    values = {c.lbl_name.text(): c.lbl_value.text() for c in p.results_step._experiment_cards}
+    assert values["siRNA 1: positive"] == "100 %"
+    assert p.results.compare.table.rowCount() == 2
+
+    restored = main_panel.CytoMetricsPanel()  # the experiment is saved with the analysis
+    qtbot.addWidget(restored)
+    restored.set_state(type(p.state).from_dict(p.get_state().to_dict()))
+    assert [s.name for s in restored.session.samples] == ["Negative control", "siRNA 1"]
+
+    p.undo()
+    assert [s.name for s in p.session.samples] == ["Negative control"]
+    restored.cleanup()
     p.cleanup()
 
 
