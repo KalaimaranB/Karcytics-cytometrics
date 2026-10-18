@@ -145,3 +145,47 @@ def test_spheroid_volume_card(qtbot, monkeypatch, tmp_path):
     values = {c.lbl_name.text(): c.lbl_value.text() for c in p.results_step._cards}
     assert values["Volume"].endswith("px³")
     p.cleanup()
+
+
+def _colour_plate(tmp_path, name, seed=0):
+    """The plate photo in colour: amber agar, cream colonies (most contrast in blue)."""
+    import numpy as np
+
+    grey, _n = img.plate_photo(seed=seed)
+    g = grey.astype(np.float32) / 255
+    rgb = np.dstack([180 + 40 * g, 120 + 90 * g, 40 + 200 * g])
+    rgb += np.random.default_rng(seed).normal(0, 3, rgb.shape)  # each colour has its own noise
+    rgb = rgb.clip(0, 255).astype("uint8")
+    path = tmp_path / name
+    Image.fromarray(rgb).save(path)
+    return str(path)
+
+
+def test_photo_assays_load_one_photo_and_pick_its_colour(qtbot, monkeypatch, tmp_path):
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("colonies")
+    cm = p.channel_manager
+    assert cm.photo_mode and not cm.table.isVisibleTo(p) and cm.photo_box.isVisibleTo(p)
+    assert "plate" in p.load_step.lbl_hint.text()
+
+    cm.ingest_path(_colour_plate(tmp_path, "plate.png"))
+    assert cm.combo_analyse.itemText(0) == "Automatic (Blue)"
+    assert p.params_form.values()["target_channel"] == "plate.png (Blue)"
+    assert p.params_form._widgets["target_channel"].isHidden()  # set by the Load step
+
+    cm.combo_analyse.setCurrentIndex(cm.combo_analyse.findData("plate.png (Green)"))
+    assert p.params_form.values()["target_channel"] == "plate.png (Green)"
+
+    _segment(p, qtbot, "colonies", p.params_form.values())
+    assert p.state.cells
+    cm.ingest_path(_colour_plate(tmp_path, "plate2.png", seed=1))  # the next plate replaces it
+    assert [c.name for c in p.image_set.channels] == [
+        f"plate2.png ({c})" for c in ("Red", "Green", "Blue")
+    ]
+    assert not p.state.cells
+    assert p.params_form.values()["target_channel"].startswith("plate2.png")
+
+    p.set_assay("cells")  # back to stains: the table and the channel picker return
+    assert not cm.photo_mode and cm.table.isVisibleTo(p)
+    assert not p.params_form._widgets["target_channel"].isHidden()
+    p.cleanup()

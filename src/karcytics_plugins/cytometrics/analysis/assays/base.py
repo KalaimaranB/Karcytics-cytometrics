@@ -45,6 +45,9 @@ STEP_LABELS = {
     "batch": "Batch",
 }
 STANDARD_STEPS = tuple(s for s in ALL_STEPS if s != "results")
+# What the Load step asks for: one file per stain (fluorescence), or one photo whose colour
+# channels are only a means to an end (a plate, a hemocytometer, a well).
+FLUORESCENCE, PHOTO = "fluorescence", "photo"
 
 
 @dataclass(frozen=True)
@@ -156,6 +159,8 @@ class Assay:
     analysis: AssayAnalysis | None = None
     citations: tuple[str, ...] = ()  # shown on the picker card and in the Results step
     noun: str = "Cell"  # what one object is called in the table and the inspector ("Colony 3")
+    image_kind: str = FLUORESCENCE  # FLUORESCENCE or PHOTO: how the Load step looks
+    load_hint: str = ""  # what to load, shown in the Load step (empty: the general text)
 
     def default_target(self, channel_names: list[str]) -> str | None:
         """The channel to segment by default, from the stain names (None: keep the user's)."""

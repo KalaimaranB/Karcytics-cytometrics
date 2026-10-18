@@ -34,6 +34,7 @@ class ParamsForm(QWidget):
         # over to a parameter with the same default (another segmenter's "Max Area" of 1e6 px²
         # for colonies is not the cells' 5000 px²). Values set explicitly carry over anywhere.
         self._memory_defaults: dict[str, Any] = {}
+        self._hidden: set[str] = set()  # keys set elsewhere (e.g. the channel of a photo)
         self._channels: list[str] = []
         self._scale = 0.0
 
@@ -81,6 +82,7 @@ class ParamsForm(QWidget):
                 grid.addWidget(widget, r, 1)
             rows[p.advanced] = r + 1
 
+        self._apply_hidden()
         has_advanced = rows[True] > 0
         self.btn_advanced.setVisible(has_advanced)
         self._advanced.setVisible(has_advanced and self.btn_advanced.isChecked())
@@ -111,6 +113,17 @@ class ParamsForm(QWidget):
     def display_values(self) -> dict[str, Any]:
         """Every control's value as shown (sizes in the displayed unit)."""
         return {p.key: self._read(p) for p in self._params}
+
+    def set_hidden(self, keys: set[str]) -> None:
+        """Hide the controls of `keys`; their values are still read and written."""
+        self._hidden = set(keys)
+        self._apply_hidden()
+
+    def _apply_hidden(self) -> None:
+        for key, widget in self._widgets.items():
+            widget.setVisible(key not in self._hidden)
+            if key in self._labels:
+                self._labels[key].setVisible(key not in self._hidden)
 
     def set_display_values(self, values: dict[str, Any]) -> None:
         self._memory.update(values)

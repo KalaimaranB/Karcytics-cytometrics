@@ -19,7 +19,7 @@ from karcytics_sdk.plugin.citations import MethodStep
 from ..gating import Gate
 from ..segment.base import Param
 from ..units import area_unit, effective_scale, length_unit
-from .base import ActionResult, Assay, AssayAnalysis, AssayContext, ResultValue, register
+from .base import PHOTO, ActionResult, Assay, AssayAnalysis, AssayContext, ResultValue, register
 
 AREA = "AreaShape_Area"
 
@@ -173,6 +173,8 @@ CONFLUENCE = register(
         settings={"detect": "covered", "exclude_borders": False},
         measure={"background": "none"},
         noun="Patch",
+        image_kind=PHOTO,
+        load_hint="Load a phase-contrast or bright-field image of the dish. No stain needed.",
         analysis=Confluence(),
     )
 )
@@ -190,6 +192,9 @@ WOUND = register(
         settings={"detect": "gap", "exclude_borders": False},
         measure={"background": "none"},
         noun="Gap",
+        image_kind=PHOTO,
+        load_hint="Load the first time point (0 h) and press 📍 in Results; then load each later "
+        "time point to measure its closure.",
         analysis=Wound(),
         citations=("jonkman2014",),
     )

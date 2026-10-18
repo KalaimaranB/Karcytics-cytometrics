@@ -24,8 +24,9 @@ class StepPage(BioScrollArea):
         self.body.setContentsMargins(4, 4, 8, 4)
         self.body.setSpacing(10)
         self.setWidget(content)
-        if self.hint:
-            self.body.addWidget(BioCaptionLabel(self.hint))
+        self.lbl_hint = BioCaptionLabel(self.hint)
+        self.lbl_hint.setVisible(bool(self.hint))
+        self.body.addWidget(self.lbl_hint)
 
     def section(self, text: str) -> SubtitleLabel:
         label = SubtitleLabel(text)

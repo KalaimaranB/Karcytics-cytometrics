@@ -170,6 +170,8 @@ TRANSFECTION = register(
             "batch",
         ),
         measure={"background": "local"},
+        load_hint="Load a nuclear stain to find the cells and the reporter (GFP, mCherry, ...), as separate "
+        "files or one multi-channel file. Start with the untransfected control.",
         analysis=PercentPositive(),
         citations=("cpsam2025",),
     )

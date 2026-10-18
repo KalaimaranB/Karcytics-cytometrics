@@ -72,6 +72,7 @@ BACTERIA = register(
         settings={"exclude_borders": True, "min_area_px": 4.0},
         measure={"background": "none", "rods": True},
         noun="Bacterium",
+        load_hint="Load phase-contrast or fluorescence images of the bacteria, ideally at 60–100×.",
         analysis=BacteriaSummary(),
         citations=("cpsam2025",),
     )

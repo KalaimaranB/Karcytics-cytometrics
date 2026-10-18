@@ -28,6 +28,7 @@ from ..gating import Gate
 from ..segment.base import Param
 from ..units import is_calibrated
 from .base import (
+    PHOTO,
     ActionResult,
     Assay,
     AssayAnalysis,
@@ -300,6 +301,9 @@ HEMOCYTOMETER = register(
         steps=("load", "calibrate", "detect", "review", "gate", "results", "report", "batch"),
         settings={"exclude_borders": False},
         measure={"background": "local"},
+        image_kind=PHOTO,
+        load_hint="Load a bright-field image of the chamber with the grid lines in view, after mixing the "
+        "cells with trypan blue.",
         analysis=Viability(),
         citations=("cpsam2025", "strober2015"),
     )

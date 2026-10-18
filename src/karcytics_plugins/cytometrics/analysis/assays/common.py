@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
 import pandas as pd
 
@@ -58,3 +59,35 @@ def main_peak(values: np.ndarray, min_count: int = 20) -> float:
     grid = np.linspace(lo, hi, 512)
     density = gaussian_kde(values)(grid)
     return float(grid[int(np.argmax(density))])
+
+
+_CONTRAST_PX = 600  # contrast is judged on a copy at most this many pixels across
+
+
+def contrast(plane: np.ndarray) -> float:
+    """How strongly small things stand out in `plane`, in multiples of its noise.
+
+    Judged on the middle 60% (away from a dish's rim or the dark outside):
+    the 99th percentile of the detail (the image minus a blur of it) over the
+    pixel-to-pixel noise.
+    """
+    h, w = plane.shape
+    factor = min(1.0, _CONTRAST_PX / max(h, w))
+    image = plane.astype(np.float32)
+    if factor < 1:
+        size = (int(w * factor), int(h * factor))
+        image = np.asarray(cv2.resize(image, size, interpolation=cv2.INTER_AREA), np.float32)
+    h, w = image.shape
+    middle = image[int(h * 0.2) : int(h * 0.8), int(w * 0.2) : int(w * 0.8)]
+    if middle.size == 0:
+        return 0.0
+    detail = middle - cv2.GaussianBlur(middle, (0, 0), max(middle.shape) / 40)
+    noise = 1.4826 * float(np.median(np.abs(np.diff(middle, axis=1)))) / np.sqrt(2)
+    return float(np.percentile(np.abs(detail), 99)) / (noise + 1e-6)
+
+
+def best_contrast_channel(channels: list) -> str | None:
+    """The name of the channel (``model.Channel``) where objects stand out most."""
+    if not channels:
+        return None
+    return max(channels, key=lambda c: contrast(c.data)).name

@@ -164,6 +164,8 @@ NUCLEI = register(
         measure={"background": "local", "texture": True},
         target_stain="blue",
         noun="Nucleus",
+        load_hint="Load the nuclear stain (DAPI, Hoechst), plus any other channels to measure in the "
+        "nuclei. For the cell cycle, use images that aren't saturated.",
         analysis=CellCycle(),
         citations=("cpsam2025",),
     )

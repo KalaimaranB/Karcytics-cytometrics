@@ -15,6 +15,8 @@ from . import (  # noqa: F401  (registration side effect)
 )
 from .base import (
     ALL_STEPS,
+    FLUORESCENCE,
+    PHOTO,
     REGISTRY,
     STANDARD_STEPS,
     STEP_LABELS,
@@ -32,6 +34,8 @@ DEFAULT = "cells"
 
 __all__ = [
     "ALL_STEPS",
+    "FLUORESCENCE",
+    "PHOTO",
     "ActionResult",
     "Overlay",
     "DEFAULT",

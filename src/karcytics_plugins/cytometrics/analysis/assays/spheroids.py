@@ -16,7 +16,7 @@ from karcytics_sdk.plugin.citations import MethodStep
 
 from ..gating import Gate
 from ..units import area_unit, is_calibrated, length_unit
-from .base import Assay, AssayAnalysis, AssayContext, ResultValue, register, with_columns
+from .base import PHOTO, Assay, AssayAnalysis, AssayContext, ResultValue, register, with_columns
 
 VOLUME = "Spheroid_Volume"
 DIAMETER = "AreaShape_EquivalentDiameter"
@@ -123,6 +123,8 @@ SPHEROIDS = register(
         steps=("load", "calibrate", "detect", "review", "results", "report", "batch"),
         measure={"background": "none"},
         noun="Spheroid",
+        image_kind=PHOTO,
+        load_hint="Load a bright-field image of the well, from above. One spheroid per image works best.",
         analysis=SpheroidSize(),
         citations=("zanoni2016",),
     )

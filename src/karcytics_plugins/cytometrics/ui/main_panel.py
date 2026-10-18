@@ -42,8 +42,8 @@ from PySide6.QtWidgets import (
 )
 
 from ..analysis.assays import DEFAULT as DEFAULT_ASSAY
+from ..analysis.assays import PHOTO, STEP_LABELS, Assay
 from ..analysis.assays import REGISTRY as ASSAYS
-from ..analysis.assays import STEP_LABELS, Assay
 from ..analysis.assays.common import stain_channel
 from ..analysis.batch import Recipe, channel_tokens
 from ..analysis.export import write_cellpose_seg, write_imagej_rois
@@ -373,6 +373,8 @@ class CytoMetricsPanel(PluginBase):
         self.channel_manager.channels_changed.connect(self._update_calibrate_button_state)
         self.channel_manager.new_image_loaded.connect(self._apply_metadata_calibration)
         self.channel_manager.new_image_loaded.connect(self._apply_assay_target)
+        self.channel_manager.analysis_channel_changed.connect(self._set_target_channel)
+        self.channel_manager.image_replaced.connect(self._on_photo_replaced)
         self.canvas.load_requested.connect(self.channel_manager.prompt_add_channel)
         self.canvas.files_dropped.connect(self.channel_manager.ingest_paths)
 
@@ -464,6 +466,8 @@ class CytoMetricsPanel(PluginBase):
         self._assay = assay
         self.session.assay = assay
         self.results_step.set_assay(assay)
+        self.load_step.set_assay(assay)
+        self.params_form.set_hidden({"target_channel"} if assay.image_kind == PHOTO else set())
         if self.pipelines:
             self._fill_pipeline_combo()
             self._on_algorithm_changed()
@@ -495,14 +499,31 @@ class CytoMetricsPanel(PluginBase):
         return self._assay
 
     def _apply_assay_target(self, *_args) -> None:
-        """Pick the assay's stain (e.g. DAPI for nuclei) as the channel to segment."""
+        """Pick the channel to segment: the assay's stain (DAPI for nuclei), or for a photo
+        the colour chosen in the Load step.
+        """
         if self._assay is None:
             return
-        target = self._assay.default_target([c.name for c in self.image_set.channels])
+        if self._assay.image_kind == PHOTO:
+            target = self.channel_manager.analysis_channel()
+        else:
+            target = self._assay.default_target([c.name for c in self.image_set.channels])
         if target:
-            self._update_dropdowns()  # the new channel may not be offered yet
-            self._pending_values = {**self._pending_values, "target_channel": target}
-            self.params_form.set_display_values({"target_channel": target})
+            self._set_target_channel(target)
+
+    def _set_target_channel(self, name: str) -> None:
+        self._update_dropdowns()  # the new channel may not be offered yet
+        self._pending_values = {**self._pending_values, "target_channel": name}
+        self.params_form.set_display_values({"target_channel": name})
+
+    def _on_photo_replaced(self) -> None:
+        """A new photo replaced the old one: its objects went with it."""
+        self.session.probability = None
+        self.canvas.set_preview(None)
+        self.session.replace_cells([])
+        self._redraw_cells()
+        self._refresh_table()
+        self._update_probability_map()
 
     def _project_key(self) -> str | None:
         pm = getattr(self.window(), "project_manager", None)

@@ -167,5 +167,7 @@ What you pick in **What are you analysing?** sets up the steps, the algorithm an
 | **Scratch wound** | texture, keeping the open gaps | wound area, % open, mean width (area ÷ length), narrowest point, % closure | **📍 This is the start** on the first image; later images' closure is measured from it |
 | **Spheroids & organoids** | smoothing and threshold, keeping the largest objects | diameter, area, volume (π d³ / 6), circularity, solidity | how many spheroids per image; a warning when a spheroid is too irregular for the volume estimate |
 
+**Photo assays** (Colony counter, Hemocytometer, Confluence, Scratch wound, Spheroids) work on one photo at a time: **📷 Load photo…** shows it as it is, and loading the next one replaces it (and its objects). **Analyse using** picks the colour the detection looks at: *Automatic* takes the one where objects stand out most from the background (blue for cream colonies on yellow agar), or choose Red, Green or Blue yourself. The other assays load one image per stain, as in [Detect](#1-pick-an-algorithm-detect-step).
+
 Each object is named after the assay in the table and inspector ("Colony 3", "Spheroid 1"). The methods text and citations of each assay are added to every export.
 

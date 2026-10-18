@@ -22,18 +22,30 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..analysis.assays.common import best_contrast_channel
 from ..analysis.model import CHANNEL_COLORS, ImageSet
+
+AUTO = ""  # "Analyse using" choice: the channel with the most contrast
 
 
 class ChannelManagerWidget(QWidget):
-    """UI Component for adding images and assigning them to color channels."""
+    """UI Component for adding images and assigning them to color channels.
+
+    Two modes. Stains (the default): any number of files, each channel with
+    its colour and display contrast. Photo: one image (a plate, a chamber, a
+    well) shown as it is; loading another replaces it, and the colour
+    channel to analyse is picked automatically or by the user.
+    """
 
     channels_changed = Signal()
     new_image_loaded = Signal(str)
+    image_replaced = Signal()  # photo mode: the previous photo (and its objects) is gone
+    analysis_channel_changed = Signal(str)  # photo mode: the channel to analyse
 
     def __init__(self, image_set: ImageSet, parent=None):
         super().__init__(parent)
         self.image_set: ImageSet | None = image_set
+        self.photo_mode = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -43,6 +55,27 @@ class ChannelManagerWidget(QWidget):
         self.btn_add = PrimaryButton("➕ Add Image Channel")
         self.btn_add.clicked.connect(self._on_add_channel)
         layout.addWidget(self.btn_add)
+
+        # Photo mode: what's loaded, and which colour to analyse.
+        self.photo_box = QWidget()
+        photo = QVBoxLayout(self.photo_box)
+        photo.setContentsMargins(0, 4, 0, 0)
+        self.lbl_photo = BioCaptionLabel("No photo loaded yet.")
+        self.lbl_photo.setWordWrap(True)
+        photo.addWidget(self.lbl_photo)
+        row = QHBoxLayout()
+        self.lbl_analyse = QLabel("Analyse using:")
+        self.combo_analyse = BioComboBox()
+        self.combo_analyse.setToolTip(
+            "Which colour of the photo the detection looks at. Automatic picks the one where the "
+            "objects stand out most from the background."
+        )
+        self.combo_analyse.currentIndexChanged.connect(self._on_analyse_changed)
+        row.addWidget(self.lbl_analyse)
+        row.addWidget(self.combo_analyse, 1)
+        photo.addLayout(row)
+        self.photo_box.setVisible(False)
+        layout.addWidget(self.photo_box)
 
         self.table = BioTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["File", "Color"])
@@ -58,9 +91,12 @@ class ChannelManagerWidget(QWidget):
         layout.addWidget(self.table)
 
         # Display contrast of the selected channel (the canvas only; analysis uses all data).
-        layout.addWidget(SubtitleLabel("Display contrast"))
+        self.contrast_box = QWidget()
+        contrast = QVBoxLayout(self.contrast_box)
+        contrast.setContentsMargins(0, 0, 0, 0)
+        contrast.addWidget(SubtitleLabel("Display contrast"))
         self.lbl_contrast = BioCaptionLabel("Select a channel to adjust how it's displayed.")
-        layout.addWidget(self.lbl_contrast)
+        contrast.addWidget(self.lbl_contrast)
         row = QHBoxLayout()
         self.lbl_low, self.lbl_high = QLabel("Black:"), QLabel("White:")
         self.spin_low, self.spin_high = BioDoubleSpinBox(), BioDoubleSpinBox()
@@ -75,7 +111,52 @@ class ChannelManagerWidget(QWidget):
         self.btn_auto.clicked.connect(self._on_auto_contrast)
         for w in (self.lbl_low, self.spin_low, self.lbl_high, self.spin_high, self.btn_auto):
             row.addWidget(w)
-        layout.addLayout(row)
+        contrast.addLayout(row)
+        layout.addWidget(self.contrast_box)
+
+    # ── Photo mode ───────────────────────────────────────────────────────────
+
+    def set_photo_mode(self, photo: bool) -> None:
+        """One photo, shown as it is (True), or one file per stain (False)."""
+        self.photo_mode = photo
+        self.btn_add.setText("📷 Load photo…" if photo else "➕ Add Image Channel")
+        self.table.setVisible(not photo)
+        self.contrast_box.setVisible(not photo)
+        self.photo_box.setVisible(photo)
+        self._refresh_photo()
+
+    def analysis_channel(self) -> str | None:
+        """Photo mode: the channel to analyse (the automatic choice resolved)."""
+        channels = self.image_set.channels if self.image_set else []
+        chosen = self.combo_analyse.currentData()
+        if chosen and any(c.name == chosen for c in channels):
+            return chosen
+        return best_contrast_channel(channels)
+
+    def _refresh_photo(self) -> None:
+        channels = self.image_set.channels if self.image_set else []
+        if not channels:
+            self.lbl_photo.setText("No photo loaded yet.")
+        else:
+            h, w = channels[0].data.shape
+            kind = "colour" if len(channels) > 1 else "greyscale"
+            self.lbl_photo.setText(f"<b>{Path(channels[0].path).name}</b> · {w} × {h} px · {kind}")
+        current = self.combo_analyse.currentData()
+        self.combo_analyse.blockSignals(True)
+        self.combo_analyse.clear()
+        best = best_contrast_channel(channels)
+        self.combo_analyse.addItem(f"Automatic ({_colour(best)})" if best else "Automatic", AUTO)
+        for c in channels:
+            self.combo_analyse.addItem(_colour(c.name), c.name)
+        self.combo_analyse.setCurrentIndex(max(self.combo_analyse.findData(current), 0))
+        self.combo_analyse.blockSignals(False)
+        self.lbl_analyse.setVisible(len(channels) > 1)
+        self.combo_analyse.setVisible(len(channels) > 1)
+
+    def _on_analyse_changed(self, *_args) -> None:
+        channel = self.analysis_channel()
+        if channel:
+            self.analysis_channel_changed.emit(channel)
 
     def _apply_theme_styles(self) -> None:
         """Re-applies theme-aware styles when the active theme changes.
@@ -89,7 +170,7 @@ class ChannelManagerWidget(QWidget):
             f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; gridline-color: {Colors.BORDER};"
         )
         combo_style = f"background: {Colors.BG_DARK}; color: {Colors.FG_PRIMARY};"
-        for label in (self.lbl_low, self.lbl_high):
+        for label in (self.lbl_low, self.lbl_high, self.lbl_analyse):
             label.setStyleSheet(f"color: {Colors.FG_PRIMARY};")
         for row in range(self.table.rowCount()):
             combo = self.table.cellWidget(row, 1)
@@ -150,6 +231,10 @@ class ChannelManagerWidget(QWidget):
                 return  # Abort if we can't manage the asset safely
 
         assert self.image_set is not None
+        if self.photo_mode and self.image_set.channels:  # one photo at a time
+            self.image_set.clear()
+            self.clear_ui()
+            self.image_replaced.emit()
         palette = ["gray", "green", "magenta", "blue", "red"]
         color = palette[len(self.image_set.channels) % len(palette)]
         try:
@@ -160,6 +245,8 @@ class ChannelManagerWidget(QWidget):
 
         for ch in added:
             self._add_row_to_ui(ch.name, ch.color)
+        if self.photo_mode:
+            self._refresh_photo()
         self.new_image_loaded.emit(str(final_path))
         self.channels_changed.emit()
 
@@ -270,9 +357,19 @@ class ChannelManagerWidget(QWidget):
         self.clear_ui()
         for ch in self.image_set.channels if self.image_set else []:
             self._add_row_to_ui(ch.name, ch.color)
+        self._refresh_photo()
 
     def cleanup(self) -> None:
         """Release UI resources. Called when the plugin panel is closed."""
         self.table.blockSignals(True)
         self.clear_ui()
         self.image_set = None  # Release reference to data model
+
+
+def _colour(channel_name: str | None) -> str:
+    """The colour in a channel name: "plate.jpg (Blue)" → "Blue" (other names unchanged)."""
+    if not channel_name:
+        return ""
+    if channel_name.endswith(")") and "(" in channel_name:
+        return channel_name[channel_name.rindex("(") + 1 : -1]
+    return channel_name

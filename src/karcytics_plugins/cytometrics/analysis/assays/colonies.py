@@ -14,7 +14,7 @@ from karcytics_sdk.plugin.citations import MethodStep
 from ..gating import Gate
 from ..segment.base import Param
 from ..units import is_calibrated, length_unit
-from .base import Assay, AssayAnalysis, AssayContext, Overlay, ResultValue, register
+from .base import PHOTO, Assay, AssayAnalysis, AssayContext, Overlay, ResultValue, register
 
 COUNTABLE = (30, 300)
 
@@ -126,7 +126,9 @@ COLONIES = register(
         settings={"exclude_borders": False},
         measure={"background": "none"},
         noun="Colony",
-        target_stain="blue",  # colonies stand out most in blue, on yellow or blood agar alike
+        image_kind=PHOTO,
+        load_hint="Load a photo of the plate, taken from above against a dark background. Colour or "
+        "greyscale (JPG, PNG, TIFF).",
         analysis=ColonyCount(),
         citations=("opencfu2013",),
     )
