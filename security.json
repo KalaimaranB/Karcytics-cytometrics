@@ -33,9 +33,16 @@
         "src/karcytics_plugins/cytometrics/report.py": "eaab159ea3612456fda46fef7d257d56d93fa8087582d49695f1d859776ee515",
         "src/karcytics_plugins/cytometrics/ui/__init__.py": "79d6e5e8b25080fa220507c98183def79a99ded6f19509eca7225813ff536f94",
         "src/karcytics_plugins/cytometrics/ui/channel_manager.py": "7ea66e3a37197966896e6450a88427bed0d3835521572b41196a45ac003f3b8e",
+        "src/karcytics_plugins/cytometrics/ui/dialogs/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "src/karcytics_plugins/cytometrics/ui/dialogs/model_manager.py": "cc95a34e925e874f88b7b34c1377d32a9abbe56b3a58cd7bae27d184df97dbf6",
         "src/karcytics_plugins/cytometrics/ui/image_canvas.py": "47ce7e12148eadd6c650d09c3316ae971474dc3b432509bf97870d683bf03224",
-        "src/karcytics_plugins/cytometrics/ui/main_panel.py": "5ad73448d5f017f01eede66261ef5a7f1da37a50a4f82e693a15f19b286e46ce",
+        "src/karcytics_plugins/cytometrics/ui/main_panel.py": "d2492d37bf2c9f5a6003c1bd6ff7dd18a610713345ea9573d48b7d5ecaa6261d",
         "src/karcytics_plugins/cytometrics/ui/params_form.py": "11a2598bb83468fc5f4976ec0f9638b8301acb466381dc9b4d28af7215dd2f0c",
+        "src/karcytics_plugins/cytometrics/ui/widgets/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "src/karcytics_plugins/cytometrics/ui/widgets/hardware_monitor.py": "dd975c588412d28ce8080d82a98da38056384ad3a5223b584693744d58a0dd9e",
+        "src/karcytics_plugins/cytometrics/ui/widgets/histogram.py": "bd7e668d76597d71b3ddfb72f5dbcb906e01e76e93a6f34e415d0eb53c6dd621",
+        "src/karcytics_plugins/cytometrics/ui/widgets/scanning_indicator.py": "17ffbc4db0582907884e22a1cc8f12b8144350295dcd9905e755beec0b1e671f",
+        "src/karcytics_plugins/cytometrics/ui/widgets/table_items.py": "d8a9a6c709725dd5666c1704b6720b009f4fd1ce8a073a3f100a33a6ea5b1618",
         "src/karcytics_plugins/cytometrics/ui/workers.py": "eb0d73812dba6cd16018c8a327b36e0a46863c833e54275ee2826718b035ac5c",
         "src/karcytics_plugins/cytometrics/ui_daemon.py": "a720d9ba4141e7444878956dc193216eab4b6d7541bff3a9f2700633e9f5db9a"
     }
