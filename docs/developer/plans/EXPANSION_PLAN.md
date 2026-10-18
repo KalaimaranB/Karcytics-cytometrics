@@ -1,6 +1,6 @@
 # Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench
 
-**Status:** Phases 0 and 2 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 3. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
+**Status:** Phases 0, 2 and 3 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Next: Phase 4. Resume from the first unchecked checkpoint in [Phases and checkpoints](#5-phases-and-checkpoints).
 
 **Commits:** everything goes directly on `main` in both `Karcytics-cytometrics` and `Karcytics-SDK`. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.
 
@@ -137,7 +137,7 @@ karcytics_plugins/cytometrics
 - [x] 3.4 Per-object **confidence** (mean cell probability inside the mask) from `flows`; confidence heat-map layer; "review uncertain" list. **Done:** Conf. column, mean confidence in the stats, outlines coloured red→amber→green, a cyan cell-probability overlay, and **Next uncertain ▸** (least confident first, centres the canvas). Known layout glitch for 5.8: the histogram overlaps the Export header in a short window.
 - [x] 3.5 Fix the O(cells × pixels) loop (`scipy.ndimage.find_objects` / `skimage.measure.regionprops`).
 - [x] 3.6 Export ImageJ ROIs and `_seg.npy` (Cellpose GUI/Fiji/QuPath interop). **Done** in `analysis/export.py`, from the current cells (deletions and hand-drawn cells included): ROIs via `roifile` (BSD-3), `_seg.npy` with `masks`, `outlines`, `ismanual`, `filename` (flows omitted; optional for the GUI). Default names follow the image (`<image>_rois.zip`, `<image>_seg.npy`).
-- [ ] 3.7 Optional Cellpose3 `denoise` pre-step. Benchmark on synthetic noise first; adopt only if it helps Cellpose-SAM.
+- [~] 3.7 ~~Optional Cellpose3 `denoise` pre-step.~~ **Dropped:** Cellpose 4.2's `denoise.py` contains only the degradation helpers (`add_noise`) used to augment training; the restoration models (`DenoiseModel`, `CellposeDenoiseModel`) no longer exist, so there is nothing to adopt. Revisit only if a later Cellpose release brings them back.
 - [x] 3.8 `params_form.py`: controls generated from `parameters()` (basic/advanced). Delete the display-name string matching. **Done:** `Param` declares kind, range, unit (`length`/`area`, shown in µm or px, passed in px), `advanced`, `enabled_by`, help (tooltips). Values are remembered by key across algorithm switches. `ui_params` v2 = `{pipeline: id, values}`; v1 keys are migrated on load.
 - [x] 3.9 Each segmenter shows its citations ("Powered by …") in the Detect step.
 
@@ -249,6 +249,8 @@ All DOI entries were checked against Crossref on 2026-10-17; `meyer1992` against
 | Real test images | — | — | only synthetic or CC0/CC-BY sets with the license recorded in `tests/data/LICENSES.md` |
 
 ## 8. Decision log
+- 2026-10-17: 3.7 (Cellpose3 denoise) dropped: removed from Cellpose 4.2 (only training-augmentation code remains).
+- 2026-10-17: Phase 3 keeps outline-polygon measurements so the golden values only move once, in 4.1.
 - 2026-10-17: the security-ledger verifier stays a per-repo stdlib script (CI runs it before installing anything); only the license check moved into the SDK CLI.
 - 2026-10-17: western-blot's local `main` fast-forwarded to `fix/theme-following` (one commit, no divergence) so its canvas migration could go on `main`.
 - 2026-10-17: one plugin with modes (Assays); pandas for `ObjectTable`; gating stays local (flow independent); SDK hosts only code shared across plugins; all commits on `main` in cytometrics and the SDK; only models whose code **and** weights licenses are confirmed; citations shown in-app and written into every export.
