@@ -14,6 +14,7 @@ import math
 import pandas as pd
 from karcytics_sdk.plugin.citations import MethodStep
 
+from ..experiment import Comparison, Plot, Role, Sample, by_condition
 from ..gating import Gate
 from ..units import area_unit, is_calibrated, length_unit
 from .base import PHOTO, Assay, AssayAnalysis, AssayContext, ResultValue, register, with_columns
@@ -27,8 +28,44 @@ def volume_unit(scale: float) -> str:
     return "µm³" if is_calibrated(scale) else "px³"
 
 
+CONDITION = "condition"
+
+
 class SpheroidSize(AssayAnalysis):
     citations = ("zanoni2016",)
+    roles = (
+        Role(
+            CONDITION,
+            "image of a condition",
+            named=True,
+            groups=True,
+            help="Name the condition (Control, Drug A, ...). Images with the same name are "
+            "replicates and are averaged.",
+        ),
+    )
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        diameter, _ = by_condition(samples, "Diameter", "diameter", length_unit(context.scale))
+        volume, points = by_condition(samples, "Volume", "volume", volume_unit(context.scale))
+        rows = [
+            {
+                "Image": s.name,
+                "Spheroids": s.results.get("Spheroids"),
+                f"Diameter ({length_unit(context.scale)})": s.results.get("Diameter"),
+                f"Volume ({volume_unit(context.scale)})": s.results.get("Volume"),
+                "Circularity": s.results.get("Circularity"),
+            }
+            for s in samples
+        ]
+        return Comparison(
+            values=diameter + volume,
+            table=pd.DataFrame(rows),
+            plot=Plot("bars", label=f"Volume ({volume_unit(context.scale)})", points=points),
+            note="Per condition: the mean of its images (one spheroid per image: its own value; "
+            "several: their median).",
+        )
 
     def derive(self, df: pd.DataFrame, settings: dict, context: AssayContext) -> pd.DataFrame:
         if DIAMETER not in df:

@@ -5,15 +5,23 @@ its integrated nuclear-stain intensity (DAPI, Hoechst). The most frequent
 content, the G1 peak, is taken as 2N, so G2/M nuclei sit near 4N. Nuclei are
 then staged with gates on the normalised content, which the user can move
 in the Gate step.
+
+In an experiment, untreated (control) and treated images are compared: each
+image's DNA content is normalised to its own G1 peak when it is added, and
+the profiles are overlaid with the phase boundaries, with the share of
+nuclei in each phase per image.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from karcytics_sdk.plugin.citations import MethodStep
 
 from .. import gating
+from ..experiment import Comparison, Plot, Role, Sample, Series, colors_for
 from ..gating import Gate
 from ..segment.base import Param
 from .base import Assay, AssayAnalysis, AssayContext, ResultValue, register, with_columns
@@ -30,10 +38,74 @@ PHASES = (
 )
 
 
+CONTROL, SAMPLE = "control", "sample"
+
+
 class CellCycle(AssayAnalysis):
     channel_stains = {"dna_channel": "blue"}
     citations = ("roukos2015",)
     suggests_gates = True
+    roles = (
+        Role(CONTROL, "control", help="Untreated cells: the profile the others are compared with."),
+        Role(
+            SAMPLE, "treated sample", named=True, help="Treated cells, compared with the control."
+        ),
+    )
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        colors = colors_for(samples, (CONTROL,))
+        rows, series = [], []
+        for s in samples:
+            dna = pd.to_numeric(s.table.get(DNA, pd.Series(dtype=float)), errors="coerce")
+            dna = dna.to_numpy(float)
+            dna = dna[np.isfinite(dna)]
+            row: dict[str, Any] = {
+                "Image": s.name,
+                "Role": "control" if s.role == CONTROL else "treated",
+            }
+            row["Nuclei"] = int(dna.size)
+            for name, lo, hi, _color in PHASES:
+                row[f"% {name}"] = percent((dna >= lo) & (dna < hi)) if dna.size else float("nan")
+            rows.append(row)
+            series.append(Series(s.name, dna, colors[s.id]))
+        table = pd.DataFrame(rows)
+        controls = table[table["Role"] == "control"]
+        values = []
+        for row in rows:
+            if row["Role"] != "treated":
+                continue
+            for phase in ("G2/M", "Sub-G1"):
+                column = f"% {phase}"
+                base = float(controls[column].mean()) if len(controls) else float("nan")
+                change = (
+                    f"control {base:.1f}% ({row[column] - base:+.1f} points)"
+                    if len(controls)
+                    else ""
+                )
+                values.append(
+                    ResultValue(
+                        f"{phase}_{row['Image']}",
+                        f"{row['Image']}: {phase}",
+                        row[column],
+                        "%",
+                        change,
+                    )
+                )
+        if not len(controls):
+            note = "Add an untreated image as the control to compare the treated ones with it."
+        elif len(table) == len(controls):
+            note = "Now analyse a treated image and add it as a treated sample."
+        else:
+            note = "Each image's DNA content is normalised to its own G1 peak (2N)."
+        bounds = [(lo, name) for name, lo, _hi, _c in PHASES if lo > 0]
+        return Comparison(
+            values=values,
+            table=table,
+            plot=Plot("histogram", label="DNA content (N)", series=series, lines=bounds),
+            note=note,
+        )
 
     def parameters(self) -> list[Param]:
         return [

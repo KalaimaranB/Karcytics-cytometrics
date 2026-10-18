@@ -3,6 +3,12 @@
 CFU/mL = colonies × dilution factor ÷ volume plated (mL). Plates with
 30–300 colonies are the countable range (Breed & Dotterrer 1916): fewer is
 statistically unreliable, more and colonies merge and compete.
+
+In an experiment, the plates of a dilution series are added, each with its
+own dilution and volume. Only plates in the countable range are used, and
+they are pooled: CFU/mL = Σ colonies ÷ Σ (volume plated ÷ dilution), which
+weights each plate by how much sample it holds. With no plate in range, the
+one closest to it is used, with a warning.
 """
 
 from __future__ import annotations
@@ -11,6 +17,7 @@ import numpy as np
 import pandas as pd
 from karcytics_sdk.plugin.citations import MethodStep
 
+from ..experiment import Comparison, Plot, Role, Sample
 from ..gating import Gate
 from ..segment.base import Param
 from ..units import is_calibrated, length_unit
@@ -19,8 +26,77 @@ from .base import PHOTO, Assay, AssayAnalysis, AssayContext, Overlay, ResultValu
 COUNTABLE = (30, 300)
 
 
+PLATE = "plate"
+
+
 class ColonyCount(AssayAnalysis):
     citations = ("opencfu2013", "breed1916")
+    roles = (
+        Role(
+            PLATE,
+            "plate",
+            fields=("dilution_factor", "volume_ul"),
+            help="Set this plate's dilution and volume below first: they're kept with it.",
+        ),
+    )
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        lo, hi = COUNTABLE
+        rows = []
+        for s in samples:
+            n = int(s.results.get("Colonies") or len(s.table))
+            dilution = float(s.fields.get("dilution_factor") or 1)
+            volume_ml = float(s.fields.get("volume_ul") or 100) / 1000
+            rows.append(
+                {
+                    "Plate": s.name,
+                    "Colonies": n,
+                    "Dilution": dilution,
+                    "Volume (µL)": volume_ml * 1000,
+                    "CFU / mL": n * dilution / volume_ml if volume_ml else float("nan"),
+                    "Countable": lo <= n <= hi,
+                }
+            )
+        table = pd.DataFrame(rows)
+        used = table[table["Countable"]]
+        warning = ""
+        if not len(used):  # nothing in range: the plate nearest to it
+            distance = np.where(
+                table["Colonies"] < lo, lo - table["Colonies"], table["Colonies"] - hi
+            )
+            used = table.iloc[[int(np.argmin(distance))]]
+            warning = f"no plate has {lo}–{hi} colonies: plate another dilution"
+        sample_ml = float((used["Volume (µL)"] / 1000 / used["Dilution"]).sum())
+        cfu = float(used["Colonies"].sum()) / sample_ml if sample_ml else float("nan")
+        table["Used"] = np.where(table.index.isin(used.index), "✓", "")
+        table = table.drop(columns="Countable")
+        values = [
+            ResultValue(
+                "CFU_per_mL",
+                "CFU / mL",
+                cfu,
+                "CFU/mL",
+                f"Σ colonies ÷ Σ (volume ÷ dilution) over {len(used)} plate(s) in range.",
+                warning,
+            ),
+            ResultValue("Plates", "Plates used", f"{len(used)} of {len(table)}"),
+        ]
+        points = pd.DataFrame({"group": table["Plate"], "value": table["Colonies"]})
+        return Comparison(
+            values=values,
+            table=table,
+            plot=Plot("bars", label="Colonies", points=points, band=(lo, hi)),
+            note=f"Plates with {lo}–{hi} colonies are counted (Breed & Dotterrer 1916).",
+            methods=[
+                MethodStep(
+                    f"CFU/mL was calculated from {len(used)} plate(s) with {lo}–{hi} colonies as "
+                    "the total colonies divided by the total sample plated (volume ÷ dilution)",
+                    ("breed1916",),
+                )
+            ],
+        )
 
     def parameters(self) -> list[Param]:
         return [

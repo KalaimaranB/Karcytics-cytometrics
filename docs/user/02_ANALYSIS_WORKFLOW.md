@@ -159,15 +159,26 @@ What you pick in **What are you analysing?** sets up the steps, the algorithm an
 |---|---|---|---|
 | **Cells** | Cellpose-SAM | size, shape, intensity of every channel | |
 | **Nuclei & cell cycle** | Cellpose-SAM on the DNA stain | DNA content (2N = the G1 peak), % Sub-G1, G1, S, G2/M, >4N | ✨ adds a gate per phase; set the G1 peak by hand if the automatic one is wrong |
-| **Transfection / % positive** | Cellpose-SAM | % positive, the cut-off, mean of positive cells | load an untransfected control and press **🎯 Use this image as the negative control**: the cut-off is a percentile (default 99th) of its reporter intensity |
-| **Hemocytometer & viability** | Cellpose-SAM | counted, live, dead, % viable, live and total cells/mL | **⬚ Draw the counting area** (cells whose centre is inside count); **📐 Calibrate from the grid** (pick the grid line spacing); dilution, chamber depth; dead = darker than the cut-off (trypan blue) |
-| **Colony counter** | finds the plate, evens out the lighting, splits touching colonies | colonies, CFU/mL (warns outside 30–300), median diameter, % of the plate covered | dilution factor and volume plated |
+| **Transfection / % positive** | Cellpose-SAM | % positive, the cut-off, mean of positive cells | add an untransfected image as the negative control (the cut-off is a percentile, default 99th, of its reporter intensity), then each sample |
+| **Hemocytometer & viability** | Cellpose-SAM | counted, live, dead, % viable, live and total cells/mL | **⬚ Draw the counting area** (cells whose centre is inside count) and add each square you count to the experiment; **📐 Calibrate from the grid** (pick the grid line spacing); dilution, chamber depth; dead = darker than the cut-off (trypan blue) |
+| **Colony counter** | finds the plate, evens out the lighting, splits touching colonies | colonies, CFU/mL (warns outside 30–300), median diameter, % of the plate covered | dilution factor and volume plated; add each plate of a dilution series and the countable ones (30–300) are pooled |
 | **Bacteria** | Cellpose-SAM | length, width and curvature along each cell's midline, % dividing | ✨ adds a Dividing gate |
 | **Confluence** | texture (cells are textured, the dish smooth) | % of the image covered | texture window about one cell wide; sensitivity |
-| **Scratch wound** | texture, keeping the open gaps | wound area, % open, mean width (area ÷ length), narrowest point, % closure | **📍 This is the start** on the first image; later images' closure is measured from it |
+| **Scratch wound** | texture, keeping the open gaps | wound area, % open, mean width (area ÷ length), narrowest point, % closure | add the first image as the start; later images (named by time or condition) are measured against it |
 | **Spheroids & organoids** | smoothing and threshold, keeping the largest objects | diameter, area, volume (π d³ / 6), circularity, solidity | how many spheroids per image; a warning when a spheroid is too irregular for the volume estimate |
 
 **Photo assays** (Colony counter, Hemocytometer, Confluence, Scratch wound, Spheroids) work on one photo at a time: **📷 Load photo…** shows it as it is, and loading the next one replaces it (and its objects). **Analyse using** picks the colour the detection looks at: *Automatic* takes the one where objects stand out most from the background (blue for cream colonies on yellow agar), or choose Red, Green or Blue yourself. The other assays load one image per stain, as in [Detect](#1-pick-an-algorithm-detect-step).
+
+**Experiments.** Most results come from more than one image: a sample against its negative control, the squares of a hemocytometer, the plates of a dilution series, treated against untreated cells, replicate fields of each condition. Analyse an image, then in **Results › Experiment** add it with its role (**➕ Add this image as …**); load the next image (**🔄 Next image** for stains, **📷 Load photo** for photos), analyse it and add it too. The experiment's results appear as cards under the images, and the **Compare** tab under the steps overlays their distributions (or shows them as bars) with a row per image. Only the measurements are kept, so settings such as the cut-off percentile can still be changed; the experiment is saved with the analysis, and its method is added to the methods text. For many images analysed the same way, use the Batch step.
+
+| Assay | Roles in the experiment | What's compared |
+|---|---|---|
+| Transfection | negative control(s), named samples | cut-off from the pooled controls; % positive, mean of positives and median fold change per sample |
+| Nuclei & cell cycle | control, treated samples | DNA-content profiles overlaid; % in each phase, change from the control |
+| Hemocytometer | counted squares | cells/mL from all cells ÷ all volume counted; precision ±1/√N; a warning when squares differ more than chance (χ²) |
+| Colony counter | plates (each with its dilution and volume) | CFU/mL from the plates with 30–300 colonies: Σ colonies ÷ Σ (volume ÷ dilution) |
+| Scratch wound | the start (0 h), later images | closure of each later image against the start |
+| Bacteria, Confluence, Spheroids | images of named conditions | replicates (same name) averaged with SD; lengths overlaid (bacteria), bars (confluence, volume) |
 
 Each object is named after the assay in the table and inspector ("Colony 3", "Spheroid 1"). The methods text and citations of each assay are added to every export.
 

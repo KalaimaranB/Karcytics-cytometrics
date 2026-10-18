@@ -12,6 +12,13 @@ a Neubauer chamber), 1 mm³ = 1 µL. The counting area is a box the user
 drags; a cell counts when its centre is inside it, which splits cells on the
 box's edges fairly, like the usual "count two edges, not the other two" rule.
 
+In an experiment, several squares (or fields) are counted and added: the
+concentration is all the cells counted over all the volume counted (the
+same as averaging the squares, weighted by their size). Counting is
+Poisson: N cells give a precision of about ±1/√N (100 cells: ±10%), and
+squares that differ by more than chance allows (index of dispersion,
+χ² test) suggest the cells weren't evenly mixed.
+
 The scale can be set from the grid itself: the spacing of the grid lines is
 found from the image's line profiles (the distance at which they first
 repeat), and the user says what that spacing is (e.g. 0.25 mm).
@@ -22,8 +29,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from karcytics_sdk.plugin.citations import MethodStep
+from scipy.stats import chi2
 
 from .. import gating
+from ..experiment import Comparison, Plot, Role, Sample
 from ..gating import Gate
 from ..segment.base import Param
 from ..units import is_calibrated
@@ -40,6 +49,8 @@ from .base import (
 )
 from .common import intensity_column, percent
 
+_UNEVEN_P = 0.05  # squares this unlikely under Poisson counting are flagged
+
 DARKNESS = "Viability_Darkness"
 _BOX_VALUES = 4
 _MIN_REPEAT = 0.3  # a grid's line profile matches itself this well one spacing along
@@ -53,9 +64,20 @@ SQUARES = (
 )
 
 
+SQUARE = "square"
+
+
 class Viability(AssayAnalysis):
     citations = ("strober2015",)
     suggests_gates = True
+    roles = (
+        Role(
+            SQUARE,
+            "counted square",
+            help="Draw the counting area over one square (or field), then add it. Add each "
+            "square you count; the concentration uses them all.",
+        ),
+    )
     channel_stains = {"stain_channel": "red"}  # trypan blue absorbs red light most
     actions = (
         (
@@ -180,6 +202,10 @@ class Viability(AssayAnalysis):
             area_mm2 = (x1 - x0) * (y1 - y0) * (context.scale / 1000) ** 2
             volume_ml = area_mm2 * float(settings.get("depth_um", 100)) / 1000 / 1000
         dilution = float(settings.get("dilution_factor", 2))
+        if volume_ml > 0:
+            out.append(
+                ResultValue("Volume", "Volume counted", volume_ml * 1000, "µL", "Area × depth.")
+            )
         for key, label, count in (
             ("LivePerML", "Live cells / mL", n - n_dead),
             ("TotalPerML", "Total cells / mL", n),
@@ -195,6 +221,76 @@ class Viability(AssayAnalysis):
                 )
             )
         return out
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        counts = np.array([float(s.results.get("Counted") or 0) for s in samples])
+        dead = np.array([float(s.results.get("Dead") or 0) for s in samples])
+        volumes = np.array([float(s.results.get("Volume") or np.nan) for s in samples])  # µL
+        dilution = float(settings.get("dilution_factor", 2))
+        total, total_dead = float(counts.sum()), float(dead.sum())
+        rows = [
+            {
+                "Image": s.name,
+                "Counted": int(c),
+                "Dead": int(d),
+                "Viability %": 100 * (c - d) / c if c else float("nan"),
+                "Volume (µL)": v,
+                "Cells / µL": c / v if v > 0 else float("nan"),
+            }
+            for s, c, d, v in zip(samples, counts, dead, volumes, strict=True)
+        ]
+        values = [
+            ResultValue("Squares", "Squares counted", len(samples)),
+            ResultValue("Counted", "Cells counted", int(total), "", "All squares together."),
+            ResultValue(
+                "Viability",
+                "Viability",
+                100 * (total - total_dead) / total if total else float("nan"),
+                "%",
+            ),
+        ]
+        measured = np.isfinite(volumes) & (volumes > 0)
+        warning = ""
+        if not measured.all():
+            warning = "draw the counting area and calibrate for every square"
+        elif total and len(counts) > 1:
+            dispersion = float(((counts - counts.mean()) ** 2).sum() / counts.mean())
+            if chi2.sf(dispersion, len(counts) - 1) < _UNEVEN_P:
+                warning = "squares differ more than chance: mix the cells and recount"
+        per_ul = total / volumes[measured].sum() if measured.any() else float("nan")
+        live_per_ul = (
+            (total - total_dead) / volumes[measured].sum() if measured.any() else float("nan")
+        )
+        precision = 100 / np.sqrt(total) if total else float("nan")
+        for key, label, value in (
+            ("LivePerML", "Live cells / mL", live_per_ul),
+            ("TotalPerML", "Total cells / mL", per_ul),
+        ):
+            values.append(
+                ResultValue(
+                    key,
+                    label,
+                    value * 1000 * dilution if measured.all() else float("nan"),
+                    "cells/mL",
+                    f"All cells counted ÷ all volume counted × {dilution:g} (dilution). Counting "
+                    f"precision about ±{precision:.0f}% (1/√N).",
+                    warning,
+                )
+            )
+        note = (
+            "Count more squares for a more precise answer: ±10% needs about 100 cells."
+            if total < 100  # noqa: PLR2004
+            else f"{int(total)} cells counted: precision about ±{precision:.0f}%."
+        )
+        points = pd.DataFrame({"group": [s.name for s in samples], "value": counts})
+        return Comparison(
+            values=values,
+            table=pd.DataFrame(rows),
+            plot=Plot("bars", label="Cells counted", points=points),
+            note=note,
+        )
 
     def overlays(self, settings: dict, context: AssayContext) -> list[Overlay]:
         box = self._area(settings)

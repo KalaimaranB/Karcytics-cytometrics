@@ -158,10 +158,18 @@ def test_scratch_wound_start_and_closure(qtbot, monkeypatch, tmp_path):
     assert len(p.state.cells) == 1
     assert p.state.extras["wound"]["direction"] == "vertical"
 
-    p.results_step.action_clicked.emit("set_start")
+    p.results_step.add_sample_clicked.emit("start")
     assert p.session.assay_settings["start_area_px"] > 0
     values = {c.lbl_name.text(): c.lbl_value.text() for c in p.results_step._cards}
     assert values["Closure"] == "0 %"
+    assert [
+        b.text()
+        for b in p.results_step.findChildren(type(p.results_step.btn_remove))
+        if b.text().startswith("➕")
+    ] == [
+        "➕ Add this image as the start (0 h)",
+        "➕ Add this image as a later image",
+    ]
     p.cleanup()
 
 

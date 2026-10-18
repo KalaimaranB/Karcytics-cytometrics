@@ -302,27 +302,114 @@ def test_confluence_is_the_covered_fraction():
     assert values["Confluence"] == pytest.approx(75, abs=4)  # 300 of 400 columns have cells
 
 
-def test_wound_width_and_closure():
+def _results(analysis, df, settings, context):
+    return {r.key: r.value for r in analysis.results(df, [], settings, context)}
+
+
+def _added(name, role, analysis, df, settings, context, fields=None):
+    """A Sample as the panel adds it: the table and the image's own results."""
+    from karcytics_plugins.cytometrics.analysis.experiment import Sample
+
+    return Sample(
+        name, role, df, fields=fields or {}, results=_results(analysis, df, settings, context)
+    )
+
+
+def test_wound_width_and_closure_against_the_start():
     from fixtures import images as img
 
     analysis = REGISTRY["wound"].analysis
     start = _texture(img.scratch_photo(width=100), "gap")
     start_df = _table(start, img.scratch_photo(width=100), scale=2.0)
-    context = AssayContext(2.0, (300, 400), start.extras)
-    action = analysis.run_action("set_start", start_df, {}, context)
-    first = {r.key: r.value for r in analysis.results(start_df, [], action.settings, context)}
-    assert first["MeanWidth"] == pytest.approx(200, rel=0.1)  # 100 px at 2 µm/px
-    assert first["Closure"] == pytest.approx(0, abs=0.5)
+    start_ctx = AssayContext(2.0, (300, 400), start.extras)
+    assert _results(analysis, start_df, {}, start_ctx)["MeanWidth"] == pytest.approx(200, rel=0.1)
 
     later = _texture(img.scratch_photo(width=50, bridge=True, seed=1), "gap")
     later_df = _table(later, img.scratch_photo(width=50, bridge=True, seed=1), scale=2.0)
-    context = AssayContext(2.0, (300, 400), later.extras)
-    values = {r.key: r.value for r in analysis.results(later_df, [], action.settings, context)}
-    assert values["Closure"] == pytest.approx(100 * (1 - 50 * 280 / (100 * 300)), abs=6)
-    assert values["MinWidth"] == 0  # cells have bridged it
-    assert "nan" in str(
-        next(r for r in analysis.results(later_df, [], {}, context) if r.key == "Closure").value
+    later_ctx = AssayContext(2.0, (300, 400), later.extras)
+    assert _results(analysis, later_df, {}, later_ctx)["MinWidth"] == 0  # cells bridged it
+
+    samples = [
+        _added("0 h", "start", analysis, start_df, {}, start_ctx),
+        _added("24 h", "later", analysis, later_df, {}, later_ctx),
+    ]
+    comparison = analysis.compare(samples, {}, later_ctx)
+    (closure,) = comparison.values
+    assert closure.value == pytest.approx(100 * (1 - 50 * 280 / (100 * 300)), abs=6)
+    settings = comparison.settings  # the start's area, for the image open now
+    assert _results(analysis, later_df, settings, later_ctx)["Closure"] == pytest.approx(
+        closure.value, abs=0.5
     )
+
+
+def test_hemocytometer_pools_squares_and_flags_uneven_ones():
+    from karcytics_plugins.cytometrics.analysis.experiment import Sample
+
+    analysis = REGISTRY["hemocytometer"].analysis
+    square = lambda n, dead: Sample(  # noqa: E731
+        f"Square {n}", "square", pd.DataFrame(), results={"Counted": n, "Dead": dead, "Volume": 0.1}
+    )
+    even = analysis.compare(
+        [square(50, 5), square(54, 6), square(46, 4)], {"dilution_factor": 2}, AssayContext()
+    )
+    values = {v.key: v for v in even.values}
+    assert values["TotalPerML"].value == pytest.approx(150 / 0.3 * 1000 * 2)
+    assert values["Viability"].value == pytest.approx(100 * 135 / 150)
+    assert not values["TotalPerML"].warning
+    uneven = analysis.compare([square(20, 0), square(90, 0), square(40, 0)], {}, AssayContext())
+    assert "mix" in {v.key: v for v in uneven.values}["TotalPerML"].warning
+
+
+def test_colony_series_uses_the_countable_plates():
+    from karcytics_plugins.cytometrics.analysis.experiment import Sample
+
+    analysis = REGISTRY["colonies"].analysis
+
+    def plate(n, d):
+        fields = {"dilution_factor": 10**d, "volume_ul": 100}
+        return Sample(f"1e-{d}", "plate", pd.DataFrame(), fields=fields, results={"Colonies": n})
+
+    plates = [plate(1200, 5), plate(150, 6), plate(130, 6), plate(14, 7)]
+    comparison = analysis.compare(plates, {}, AssayContext())
+    cfu = {v.key: v for v in comparison.values}["CFU_per_mL"]
+    assert cfu.value == pytest.approx((150 + 130) / (2 * 0.1 / 1e6))  # the two 10⁻⁶ plates
+    assert comparison.table["Used"].tolist() == ["", "✓", "✓", ""]
+    assert not cfu.warning
+    lonely = analysis.compare([plates[0]], {}, AssayContext())
+    assert "no plate" in {v.key: v for v in lonely.values}["CFU_per_mL"].warning
+
+
+def test_conditions_average_their_replicate_images():
+    from karcytics_plugins.cytometrics.analysis.experiment import Sample
+
+    analysis = REGISTRY["confluence"].analysis
+    field = lambda name, c: Sample(name, "condition", pd.DataFrame(), results={"Confluence": c})  # noqa: E731
+    comparison = analysis.compare(
+        [field("Control", 80), field("Control", 90), field("Drug", 40)], {}, AssayContext()
+    )
+    by_key = {v.key: v for v in comparison.values}
+    assert by_key["Confluence_Control"].value == 85
+    assert "n = 2" in by_key["Confluence_Control"].help
+    assert by_key["Confluence_Drug"].value == 40
+    assert comparison.plot.kind == "bars" and len(comparison.plot.points) == 3
+
+
+def test_cell_cycle_compares_treated_with_control(nuclei_table):
+    analysis = REGISTRY["nuclei"].analysis
+    settings = {"dna_channel": "DAPI", "g1_peak": 0}
+    control = analysis.derive(nuclei_table, settings, AssayContext())
+    treated = control.copy()
+    treated["CellCycle_DNAContent"] = np.where(
+        treated.index < 200, 4.0, treated["CellCycle_DNAContent"]
+    )
+    samples = [
+        _added("Control", "control", analysis, control, settings, AssayContext()),
+        _added("Nocodazole", "sample", analysis, treated, settings, AssayContext()),
+    ]
+    comparison = analysis.compare(samples, settings, AssayContext())
+    g2 = {v.key: v for v in comparison.values}["G2/M_Nocodazole"]
+    assert g2.value > 50 and "control" in g2.help
+    assert [line[1] for line in comparison.plot.lines] == ["G1", "S", "G2/M", ">4N"]
 
 
 # ── Spheroids ────────────────────────────────────────────────────────────────

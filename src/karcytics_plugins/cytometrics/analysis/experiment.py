@@ -36,6 +36,7 @@ class Role:
     fields: tuple[str, ...] = ()  # assay settings recorded with each image (a plate's dilution)
     help: str = ""
     named: bool = False  # ask for a name (a condition: "siRNA 1"); else numbered
+    groups: bool = False  # images with the same name are replicates of one condition
 
 
 @dataclass
@@ -120,7 +121,15 @@ class Comparison:
 
 
 def default_name(role: Role, samples: list[Sample]) -> str:
-    """A name for the next image of `role`: "Negative control", then "Negative control 2"."""
+    """A name for the next image of `role`: "Negative control", then "Negative control 2".
+
+    For a role whose images are grouped by name, the last name used, so replicates
+    of one condition are quick to add.
+    """
+    if role.groups:
+        previous = [s.name for s in samples if s.role == role.id]
+        if previous:
+            return previous[-1]
     base = role.label[:1].upper() + role.label[1:]
     taken = {s.name for s in samples}
     if base not in taken:
@@ -129,6 +138,45 @@ def default_name(role: Role, samples: list[Sample]) -> str:
     while f"{base} {n}" in taken:
         n += 1
     return f"{base} {n}"
+
+
+def by_condition(
+    samples: list[Sample], value: str, label: str, unit: str = "", digits: str = ".3g"
+) -> tuple[list, pd.DataFrame]:
+    """Per condition (sample name): the mean of each image's result `value`, with SD and n.
+
+    Returns the headline ``ResultValue``s and the points for a bar plot.
+    """
+    from .assays.base import ResultValue  # the assays package imports this module
+
+    points = pd.DataFrame(
+        {
+            "group": [s.name for s in samples],
+            "value": [_float(s.results.get(value)) for s in samples],
+        }
+    )
+    values = []
+    for name, group in points.groupby("group", sort=False)["value"]:
+        finite = group.dropna()
+        sd = float(finite.std(ddof=1)) if len(finite) > 1 else float("nan")
+        spread = f" ± {sd:{digits}} (SD, n = {len(finite)})" if len(finite) > 1 else " (one image)"
+        values.append(
+            ResultValue(
+                f"{value}_{name}",
+                f"{name}: {label}",
+                float(finite.mean()) if len(finite) else float("nan"),
+                unit,
+                f"Mean of the images named {name}{spread}.",
+            )
+        )
+    return values, points
+
+
+def _float(v: Any) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return float("nan")
 
 
 def field_params(params: list[Param], role: Role) -> list[Param]:

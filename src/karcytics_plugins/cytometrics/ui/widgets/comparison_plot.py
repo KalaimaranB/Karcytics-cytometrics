@@ -28,6 +28,8 @@ class ComparisonPlot(QWidget):
         self._error = "SEM"
         self.axis = Axis()
         self.empty_text = "Run a batch with conditions to compare them"
+        self.band: tuple[float, float] | None = None  # a shaded range of values (e.g. countable)
+        self.band_label = ""
 
     def set_data(
         self,
@@ -81,6 +83,19 @@ class ComparisonPlot(QWidget):
         )
         p.restore()
 
+        if self.band is not None:
+            y0, y1 = (self.axis.to_screen(v) for v in self.band)
+            top, bottom = max(min(y0, y1), r.top()), min(max(y0, y1), r.bottom())
+            if bottom > top:
+                shade = QColor(Colors.ACCENT_PRIMARY)
+                shade.setAlpha(25)
+                p.fillRect(QRectF(r.left(), top, r.width(), bottom - top), shade)
+                p.setPen(QColor(Colors.FG_SECONDARY))
+                p.drawText(
+                    QRectF(r.left() + 4, top + 2, r.width() - 8, 14),
+                    Qt.AlignmentFlag.AlignRight,
+                    self.band_label,
+                )
         groups = list(self._summary[self._by])
         slot = r.width() / max(1, len(groups))
         zero = self.axis.to_screen(0.0)

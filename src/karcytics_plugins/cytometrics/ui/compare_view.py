@@ -43,6 +43,8 @@ class CompareView(QWidget):
             self.plots.setCurrentWidget(self.bars)
             points = plot.points
             summary = _summary(points)
+            self.bars.band = plot.band
+            self.bars.band_label = f"{plot.band[0]:g}–{plot.band[1]:g}" if plot.band else ""
             self.bars.set_data(summary, points, GROUP, VALUE, plot.label, "SD")
         else:
             self.plots.setCurrentWidget(self.histogram)

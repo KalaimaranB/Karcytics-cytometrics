@@ -7,8 +7,8 @@ the wound's length) and its closure relative to the start,
 
     closure = (area at the start − area now) ÷ area at the start × 100%.
 
-The start's area is set with "This is the start" on the first image (or
-typed in); every later image's closure is measured from it.
+The first image is added to the experiment as the start; each later image
+added (named by its time or condition) is measured against it.
 """
 
 from __future__ import annotations
@@ -16,10 +16,11 @@ from __future__ import annotations
 import pandas as pd
 from karcytics_sdk.plugin.citations import MethodStep
 
+from ..experiment import Comparison, Plot, Role, Sample, by_condition
 from ..gating import Gate
 from ..segment.base import Param
 from ..units import area_unit, effective_scale, length_unit
-from .base import PHOTO, ActionResult, Assay, AssayAnalysis, AssayContext, ResultValue, register
+from .base import PHOTO, Assay, AssayAnalysis, AssayContext, ResultValue, register
 
 AREA = "AreaShape_Area"
 
@@ -35,8 +36,33 @@ def _image_px(context: AssayContext) -> float:
     return float(context.shape[0] * context.shape[1]) if context.shape else float("nan")
 
 
+CONDITION, START, LATER = "condition", "start", "later"
+
+
 class Confluence(AssayAnalysis):
     citations = ()
+    roles = (
+        Role(
+            CONDITION,
+            "image of a condition",
+            named=True,
+            groups=True,
+            help="Name the condition (Control, Drug A, ...). Images with the same name are "
+            "replicates and are averaged.",
+        ),
+    )
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        values, points = by_condition(samples, "Confluence", "confluence", "%", ".1f")
+        rows = [{"Image": s.name, "Confluence %": s.results.get("Confluence")} for s in samples]
+        return Comparison(
+            values=values,
+            table=pd.DataFrame(rows),
+            plot=Plot("bars", label="Confluence (%)", points=points),
+            note="Per condition: the mean confluence of its images (fields).",
+        )
 
     def results(
         self, df: pd.DataFrame, gates: list[Gate], settings: dict, context: AssayContext
@@ -61,13 +87,59 @@ class Confluence(AssayAnalysis):
 
 class Wound(AssayAnalysis):
     citations = ("jonkman2014",)
-    actions = (
-        (
-            "set_start",
-            "📍 This is the start (0 h)",
-            "Remember this image's wound area: later images' closure is measured from it.",
+    roles = (
+        Role(
+            START,
+            "the start (0 h)",
+            many=False,
+            help="The scratch as it was made: later images' closure is measured from it.",
+        ),
+        Role(
+            LATER,
+            "a later image",
+            named=True,
+            groups=True,
+            help="Name it by its time or condition (12 h, Drug A 24 h, ...). Images with the "
+            "same name are averaged.",
         ),
     )
+
+    def compare(
+        self, samples: list[Sample], settings: dict, context: AssayContext
+    ) -> Comparison | None:
+        start = next((s for s in samples if s.role == START), None)
+        start_area = float(start.results.get("WoundArea") or 0) if start else 0.0
+        later = [s for s in samples if s.role == LATER]
+        for s in later:  # closure from each image's own area against the start's
+            area = float(s.results.get("WoundArea") or 0)
+            s.results["Closure"] = 100 * (start_area - area) / start_area if start_area else None
+        values, points = by_condition(later, "Closure", "closure", "%", ".1f")
+        rows = [
+            {
+                "Image": s.name,
+                "Role": "start" if s.role == START else "later",
+                f"Wound area ({area_unit(context.scale)})": s.results.get("WoundArea"),
+                f"Mean width ({length_unit(context.scale)})": s.results.get("MeanWidth"),
+                "Closure %": 0.0 if s.role == START else s.results.get("Closure"),
+            }
+            for s in samples
+        ]
+        derived = {}
+        if start_area:
+            derived["start_area_px"] = round(start_area / effective_scale(context.scale) ** 2)
+        if not start:
+            note = "Add the first image (0 h) as the start."
+        elif not later:
+            note = "Now load a later image of the same scratch and add it."
+        else:
+            note = "Closure: (area at the start − area now) ÷ area at the start."
+        return Comparison(
+            values=values,
+            table=pd.DataFrame(rows),
+            plot=Plot("bars", label="Closure (%)", points=points),
+            settings=derived,
+            note=note,
+        )
 
     def parameters(self) -> list[Param]:
         return [
@@ -80,7 +152,7 @@ class Wound(AssayAnalysis):
                 1e12,
                 decimals=0,
                 special_value_text="Not set",
-                help="The open area at 0 h. Set it with 📍 on the first image, or type it in.",
+                help="The open area at 0 h: set by the start image in the experiment, or typed in.",
             )
         ]
 
@@ -133,21 +205,10 @@ class Wound(AssayAnalysis):
                 100 * (start - area_px) / start if start > 0 else float("nan"),
                 "%",
                 "(Area at the start − area now) ÷ area at the start.",
-                "" if start > 0 else "set the start (📍) on the first image",
+                "" if start > 0 else "add the first image to the experiment as the start",
             )
         )
         return out
-
-    def run_action(self, action, df, settings, context, box=None) -> ActionResult:
-        if action != "set_start":
-            return ActionResult()
-        area_px = _area_px(df, context.scale)
-        if area_px <= 0:
-            raise ValueError("No wound detected in this image yet.")
-        return ActionResult(
-            settings={"start_area_px": round(area_px)},
-            message=f"Start set: {area_px:,.0f} px² open.",
-        )
 
     def methods(self, settings: dict, context: AssayContext) -> list[MethodStep]:
         return [
@@ -193,8 +254,8 @@ WOUND = register(
         measure={"background": "none"},
         noun="Gap",
         image_kind=PHOTO,
-        load_hint="Load the first time point (0 h) and press 📍 in Results; then load each later "
-        "time point to measure its closure.",
+        load_hint="Load the scratch as it was made (0 h), detect it and add it as the start in "
+        "Results; then load each later image and add it too.",
         analysis=Wound(),
         citations=("jonkman2014",),
     )
