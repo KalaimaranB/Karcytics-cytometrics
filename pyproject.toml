@@ -9,7 +9,7 @@ authors = [
   { name = "Kalaimaran Balasothy" },
 ]
 dependencies = [
-    "karcytics-sdk>=3.0.0",
+    "karcytics-sdk>=3.2.0",
     "torch>=2.0",
     "torchvision>=0.15",
     "cellpose>=4.0",  # Cellpose-SAM (cpsam) needs v4
@@ -38,7 +38,7 @@ dev = [
 [tool.karcytics.plugin]
 id = "cytometrics"
 display_name = "CytoMetrics"
-min_core_version = "2.0.0"
+min_core_version = "2.1.0"
 entry_point = "karcytics_plugins.cytometrics:initialize"
 process_model = "isolated"
 is_beta = true

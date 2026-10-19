@@ -16,6 +16,12 @@ def test_panel_constructs(qtbot):
     assert panel.plugin_id == "cytometrics"
     assert panel.page_stack.currentWidget() is panel.mode_picker  # asks what you're analysing
     assert set(panel.mode_picker.cards) == set(ASSAYS)
+    assert panel.dev_banner.isHidden()
+    panel.set_assay("cells")
+    assert not panel.dev_banner.isHidden()
+    assert "in development" in panel.lbl_dev_banner.text()
+    panel.show_mode_picker()
+    assert panel.dev_banner.isHidden()
 
 
 @pytest.mark.ui
@@ -49,12 +55,14 @@ def test_panel_live_updates_on_theme_change(qtbot):
     dark_border = DynamicColors.BORDER
     dark_warning = DynamicColors.ACCENT_WARNING
     assert dark_warning in panel.calibrate_step.lbl_units_note.styleSheet()
+    assert dark_warning in panel.lbl_dev_banner.styleSheet()
 
     theme_manager.set_theme("light")
     try:
         assert DynamicColors.BG_DARKEST != dark_border or DynamicColors.BORDER != dark_border
         assert DynamicColors.BG_DARKEST in panel.table.styleSheet()
         assert DynamicColors.ACCENT_WARNING in panel.calibrate_step.lbl_units_note.styleSheet()
+        assert DynamicColors.ACCENT_WARNING in panel.lbl_dev_banner.styleSheet()
         assert DynamicColors.BORDER in panel.report_step.methods_text.styleSheet()
         assert DynamicColors.BG_DARKEST in channel_table.styleSheet()
         assert DynamicColors.BG_DARK in combo.styleSheet()

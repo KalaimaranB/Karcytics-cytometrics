@@ -68,6 +68,7 @@ def main() -> None:
         window_title="CytoMetrics",
         window_size=(1400, 900),
         plugin_id="cytometrics",
+        icon_path=Path(__file__).parent / "icon.png",
     )
 
 

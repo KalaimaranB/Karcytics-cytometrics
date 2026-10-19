@@ -61,9 +61,9 @@
         "src/karcytics_plugins/cytometrics/ui/dialogs/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "src/karcytics_plugins/cytometrics/ui/dialogs/model_center.py": "db09cf5701077b8860e8a365f712fa661cac8939e8814bc53dfb64a8a9abcd4f",
         "src/karcytics_plugins/cytometrics/ui/gating.py": "22ffc8a317bbdc8169b9ada7a16204115c7e23a04f32c7c7f35bd275e5d4dc41",
-        "src/karcytics_plugins/cytometrics/ui/image_canvas.py": "cbeb585a537cda78f0089802d6ad87598132abfa9b8cd21b5b513dba60283e0d",
+        "src/karcytics_plugins/cytometrics/ui/image_canvas.py": "342638789d55893443ef35222da1f388db10cd219b0e4f2000d9db1907ef1b85",
         "src/karcytics_plugins/cytometrics/ui/labels.py": "17bf5e33da731e2923a5c9a4436bfce50ad2978600dbd6b9d86103aae313d7db",
-        "src/karcytics_plugins/cytometrics/ui/main_panel.py": "f09bdf5d0bd258c275eeb0b38844fcf6fefdec076c9e09b88fe88b73f837ff0c",
+        "src/karcytics_plugins/cytometrics/ui/main_panel.py": "dc43ae5af5426eabd8df7aa91d3927a18cf73d6679961eba3388078e1a47c8fe",
         "src/karcytics_plugins/cytometrics/ui/mode_picker.py": "39739127495cad79a8c55206176808f44ea85fc2b33911fdc1b1520f7b23e911",
         "src/karcytics_plugins/cytometrics/ui/params_form.py": "51d231acf54f606b475f027282979ef2f23b776006d2bd0aa888a23cba36cf21",
         "src/karcytics_plugins/cytometrics/ui/results_dock.py": "b717b3b6ef41cef3b328f06011ae17e313d9dc1d078b065d13ccb3d6f6c0d576",
@@ -92,6 +92,6 @@
         "src/karcytics_plugins/cytometrics/ui/widgets/step_bar.py": "69800d0d6ef409ad97efe69ced30243a23c512f2f5e82d33b126dbde63a6ae18",
         "src/karcytics_plugins/cytometrics/ui/widgets/table_items.py": "8c8314ad3d617f944f485a58978c5cd3a63eee442682dd4bc29be815d8750e8e",
         "src/karcytics_plugins/cytometrics/ui/workers.py": "293d0bb5e340cb4492876275f53afb29e26b6f3127a225021bbbf5a41ca14c2f",
-        "src/karcytics_plugins/cytometrics/ui_daemon.py": "a720d9ba4141e7444878956dc193216eab4b6d7541bff3a9f2700633e9f5db9a"
+        "src/karcytics_plugins/cytometrics/ui_daemon.py": "6de1482180f4e81f4d89905d73c3504b05a0bafbaa3a541e2d4237e7a4aee4fd"
     }
 }

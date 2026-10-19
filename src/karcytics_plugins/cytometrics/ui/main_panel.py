@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QInputDialog,
+    QLabel,
     QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
@@ -222,10 +223,28 @@ class CytoMetricsPanel(PluginBase):
 
                 gc.collect()
 
+    def _create_dev_banner(self) -> QWidget:
+        banner = QWidget()
+        banner.setObjectName("DevBanner")
+        layout = QHBoxLayout(banner)
+        layout.setContentsMargins(16, 6, 16, 6)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.lbl_dev_banner = QLabel("⚠️ This module is still in development.")
+        self.lbl_dev_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.lbl_dev_banner)
+        return banner
+
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        self.dev_banner = self._create_dev_banner()
+        self.dev_banner.hide()
+        main_layout.addWidget(self.dev_banner)
 
         # Two pages: the full-panel assay picker, and the workspace (steps, results, canvas).
         self.page_stack = QStackedWidget()
@@ -366,6 +385,7 @@ class CytoMetricsPanel(PluginBase):
         """Connect the step pages, canvas and table to the panel."""
         self.btn_assay.clicked.connect(self._show_assay_menu)
         self.mode_picker.assay_chosen.connect(self._on_assay_chosen)
+        self.page_stack.currentChanged.connect(self._on_page_changed)
         self.stepper.step_changed.connect(self._on_step_changed)
         self.btn_save_session.clicked.connect(self._on_save_workflow)
         self.btn_load_session.clicked.connect(self._on_load_workflow)
@@ -439,6 +459,10 @@ class CytoMetricsPanel(PluginBase):
         self.results.inspector.flag_toggled.connect(self._on_flag_toggled)
 
     # ── Assays and steps ─────────────────────────────────────────────────
+
+    def _on_page_changed(self) -> None:
+        is_mode_picker = self.page_stack.currentWidget() is self.mode_picker
+        self.dev_banner.setVisible(not is_mode_picker)
 
     def show_mode_picker(self) -> None:
         """The full-panel assay picker (the workspace stays as it is behind it)."""
@@ -600,6 +624,12 @@ class CytoMetricsPanel(PluginBase):
         self.stepper.apply_theme()
         self.status_bar.apply_theme()
         self.results.apply_theme()
+        self.dev_banner.setStyleSheet(
+            f"#DevBanner {{ background-color: {Colors.BG_DARK}; border-bottom: 1px solid {Colors.BORDER}; }}"
+        )
+        self.lbl_dev_banner.setStyleSheet(
+            f"color: {Colors.ACCENT_WARNING}; font-size: 12px; font-weight: bold; background: transparent;"
+        )
         # lbl_ai_status's colour depends on the load state as well as the theme.
         if self.pipelines:
             self._refresh_ai_status_label()
@@ -707,7 +737,7 @@ class CytoMetricsPanel(PluginBase):
             # Keep the user's zoom when only colours or visibility changed.
             self.canvas.set_array(composite, keep_view=self.canvas.has_image)
         else:
-            self.canvas.clear_image()  # back to "Load an image to begin"
+            self.canvas.clear_image()
 
         self._update_dropdowns()
         self.state_changed.emit()

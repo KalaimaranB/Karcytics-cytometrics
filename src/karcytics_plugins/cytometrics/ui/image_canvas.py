@@ -94,12 +94,7 @@ class MultiChannelCanvas(ImageView):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(500)
-        self.set_empty_state(
-            "Load an image to begin",
-            icon="🔬",
-            button_text="➕ Load Image",
-            hint="or drag & drop an image file here",
-        )
+        self.set_empty_state("Image will appear here once loaded")
         self.accept_dropped_files(_SUPPORTED_EXTENSIONS)
         self.calibration_line_drawn.connect(self._on_calibration_finished)
 
