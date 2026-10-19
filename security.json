@@ -1,7 +1,7 @@
 {
     "security_version": 1,
     "plugin_id": "cytometrics",
-    "manifest_hash": "8c30da83aa5a6cbe53be2eed31f756fe08b3227d142f9365d808f6f6d8f539e5",
+    "manifest_hash": "0cef7eb585464911995ba39cafc0527b05c5b7c680b7a83cf89b3fde09260969",
     "exclusions": [
         "tests"
     ],
