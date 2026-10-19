@@ -1,7 +1,7 @@
 {
     "security_version": 1,
     "plugin_id": "cytometrics",
-    "manifest_hash": "5dde9b4447d3c7c93bc12d72c3e08c1baba5862ba61ba91a267716d368e46b21",
+    "manifest_hash": "8c30da83aa5a6cbe53be2eed31f756fe08b3227d142f9365d808f6f6d8f539e5",
     "exclusions": [
         "tests"
     ],
@@ -52,6 +52,8 @@
         "src/karcytics_plugins/cytometrics/analysis/state.py": "cceded1e4d38dbbd5d01edeade892a5d2479daa7ae4e77fda0af4ba0fd5769cb",
         "src/karcytics_plugins/cytometrics/analysis/units.py": "92869369cb4c36306056954bf97dc2ef08b75ddbe3527117e1316dfd405c9df1",
         "src/karcytics_plugins/cytometrics/citations.py": "e4a10cbd07fc811013ffe8c240338b9fc59837038650756a374009c605cc7560",
+        "src/karcytics_plugins/cytometrics/icon.png": "34828a658e7e209868a2773880af61a0d91665a55d24b1813ae26b60a963c197",
+        "src/karcytics_plugins/cytometrics/logo_backup.png": "d9f7e828e8dcdb7f7ce617e531ef27e37b215e3b66e8a1db5f6c9428467c26d8",
         "src/karcytics_plugins/cytometrics/report.py": "3a5eb805319cdb6a20efe2ca9eb1a9bb1b8aafe8f1b698eb0232aebfebcc5bd5",
         "src/karcytics_plugins/cytometrics/ui/__init__.py": "79d6e5e8b25080fa220507c98183def79a99ded6f19509eca7225813ff536f94",
         "src/karcytics_plugins/cytometrics/ui/batch.py": "f26fe546c30bacb79aa10ada30875761b7bcef4150f019a4ab1d6235dd015211",
