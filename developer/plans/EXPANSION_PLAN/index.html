@@ -1,0 +1,1676 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the Karcytics CytoMetrics plugin.">
+      
+      
+        <meta name="author" content="Kalaimaran Balasothy">
+      
+      
+        <link rel="canonical" href="https://KalaimaranB.github.io/Karcytics-cytometrics/developer/plans/EXPANSION_PLAN/">
+      
+      
+        <link rel="prev" href="../../01_TESTING_AND_QA/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Expansion Plan - Karcytics CytoMetrics Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plan-grow-cytometrics-from-a-cell-outliner-into-an-image-cytometry-workbench" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Karcytics CytoMetrics Documentation" class="md-header__button md-logo" aria-label="Karcytics CytoMetrics Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Karcytics CytoMetrics Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Expansion Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/KalaimaranB/Karcytics-cytometrics" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Karcytics CytoMetrics
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Karcytics CytoMetrics Documentation" class="md-nav__button md-logo" aria-label="Karcytics CytoMetrics Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Karcytics CytoMetrics Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/KalaimaranB/Karcytics-cytometrics" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Karcytics CytoMetrics
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Welcome
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user/01_GETTING_STARTED/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user/02_ANALYSIS_WORKFLOW/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user/03_HOW_TO_CITE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Cite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../00_ARCHITECTURE_OVERVIEW/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../01_TESTING_AND_QA/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing & QA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expansion Plan
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expansion Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-findings-this-plan-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Findings this plan fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Findings this plan fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-dry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 DRY
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-kiss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 KISS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-solid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 SOLID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-correctness-and-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Correctness and performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-cellpose-capabilities-unused-installed-cellpose-4211" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Cellpose capabilities unused (installed: cellpose 4.2.1.1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-build-and-test-gap-vs-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Build and test gap vs. flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-ground-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Ground rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-target-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Target architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-phases-and-checkpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Phases and checkpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Phases and checkpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-0-build-and-test-parity-safety-net-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0: build and test parity, safety net (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-sdk-shared-foundations-karcytics-sdk-then-cytometrics-adopts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: SDK shared foundations (Karcytics-SDK, then cytometrics adopts)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-domain-model-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: domain model (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-segmenters-using-cellpose-fully-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: segmenters, using Cellpose fully (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-measurements-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: measurements (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-ui-overhaul-cytometrics-may-grow-as-we-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: UI overhaul (cytometrics, may grow as we go)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-image-cytometry-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: image cytometry (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-7-batch-and-conditions-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 7: batch and conditions (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-8-assay-framework-and-new-assays-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8: assay framework and new assays (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-9-time-and-interaction-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 9: time and interaction (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-citations-in-the-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Citations in the app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-model-and-dependency-license-ledger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Model and dependency license ledger
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-decision-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Decision log
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-findings-this-plan-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Findings this plan fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Findings this plan fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-dry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 DRY
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-kiss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 KISS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-solid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 SOLID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-correctness-and-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Correctness and performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-cellpose-capabilities-unused-installed-cellpose-4211" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Cellpose capabilities unused (installed: cellpose 4.2.1.1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-build-and-test-gap-vs-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Build and test gap vs. flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-ground-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Ground rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-target-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Target architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-phases-and-checkpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Phases and checkpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Phases and checkpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-0-build-and-test-parity-safety-net-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0: build and test parity, safety net (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-sdk-shared-foundations-karcytics-sdk-then-cytometrics-adopts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: SDK shared foundations (Karcytics-SDK, then cytometrics adopts)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-domain-model-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: domain model (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-segmenters-using-cellpose-fully-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: segmenters, using Cellpose fully (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-measurements-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: measurements (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-ui-overhaul-cytometrics-may-grow-as-we-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: UI overhaul (cytometrics, may grow as we go)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-image-cytometry-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: image cytometry (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-7-batch-and-conditions-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 7: batch and conditions (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-8-assay-framework-and-new-assays-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8: assay framework and new assays (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-9-time-and-interaction-cytometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 9: time and interaction (cytometrics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-citations-in-the-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Citations in the app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-model-and-dependency-license-ledger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Model and dependency license ledger
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-decision-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Decision log
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="plan-grow-cytometrics-from-a-cell-outliner-into-an-image-cytometry-workbench">Plan: grow CytoMetrics from a cell outliner into an image-cytometry workbench</h1>
+<p><strong>Status:</strong> Phases 0, 2–7 done; Phase 1 done except 1.7 (SDK release, waiting on the user). Phase 8 done except 8.10 (z-stacks, deferred). Paused before Phase 9 for the user's review. Resume from the first unchecked checkpoint in <a href="#5-phases-and-checkpoints">Phases and checkpoints</a>.</p>
+<p><strong>Commits:</strong> everything goes directly on <code>main</code> in both <code>Karcytics-cytometrics</code> and <code>Karcytics-SDK</code>. No branches. One commit per checkpoint group (at least one per phase), conventional-commit messages.</p>
+<p><strong>Living document.</strong> Change it as we learn; record why in the <a href="#8-decision-log">decision log</a>.</p>
+<hr />
+<h2 id="1-why">1. Why</h2>
+<p>CytoMetrics today: load images → calibrate → segment (Otsu / Watershed / Cellpose-SAM) → area, perimeter, circularity → table, histogram, CSV. About 3,200 lines, 1,782 of them in <code>ui/main_panel.py</code>.</p>
+<p>The biggest gap is that it loads multi-channel fluorescence images but <strong>never reads a pixel intensity</strong>, and it truncates 16-bit images to 8-bit. The goal is a tool that turns any image into a table of objects (cells, nuclei, bacteria, colonies) with many measurements per object, then lets the scientist classify, gate, aggregate across conditions, and report with the methods text and citations written for them.</p>
+<div class="highlight"><pre><span></span><code>Image(s) ─► Segment ─► Measure ─► Classify / Gate ─► Aggregate ─► Report
+           (pluggable)  (many features)  (rules / ML)   (well/condition)  (+ methods &amp; citations)
+</code></pre></div>
+<p>Each use case is an <strong>Assay</strong>, a preset over those five stages. One plugin, several modes.</p>
+<h2 id="2-findings-this-plan-fixes">2. Findings this plan fixes</h2>
+<h3 id="21-dry">2.1 DRY</h3>
+<ul>
+<li>Area/perimeter/circularity computed 4×: three pipelines plus <code>_on_cell_drawn</code> (own shoelace).</li>
+<li>UI-param restore block pasted 3× (<code>set_state</code>, <code>_refresh_table</code>, <code>_on_load_workflow</code>). <code>set_state</code> also calls <code>_refresh_table</code>, so it runs twice.</li>
+<li>Channel lookup and border exclusion repeated per pipeline. Diameter computed in both the table and the CSV export.</li>
+<li>Task connect/disconnect boilerplate 3× in the panel. The same pattern exists in flow (6 files) and western-blot (3), so it goes to the SDK.</li>
+<li>VRAM release in both panel <code>shutdown()</code> and module <code>shutdown()</code>.</li>
+<li>Copies of SDK code: <code>FunctionalAnalysisTask</code> (SDK <code>FunctionalTask</code>), <code>SaveWorkflowDialog</code> (SDK <code>dialogs.py</code>).</li>
+<li>Version disagrees: <code>__init__.py</code> 0.2.2, <code>pyproject.toml</code> 0.3.2, README badge 0.2.2. The README and CLAUDE.md also still say "cyto3", but the code uses <code>cpsam</code>.</li>
+</ul>
+<h3 id="22-kiss">2.2 KISS</h3>
+<ul>
+<li>Four names for one operation: <code>export_state</code> / <code>load_state</code> / <code>load_workflow</code> / <code>apply_state</code>.</li>
+<li><code>set_state</code> used as "refresh everything" after every small mutation.</li>
+<li><code>Channel.path</code> is monkey-patched and read back through three nested <code>getattr</code> fallbacks.</li>
+<li><code>hasattr(self, "check_exclude_borders")</code> guards on a widget that always exists.</li>
+<li>The worker swaps the process-wide <code>sys.stderr</code> from a thread. Its signal has no listener, <code>CellposeLogInterceptor</code> is unused, and the progress bar never moves.</li>
+<li>Save goes through the project manager; load reads raw JSON from a file dialog.</li>
+</ul>
+<h3 id="23-solid">2.3 SOLID</h3>
+<ul>
+<li><strong>SRP:</strong> <code>main_panel.py</code> holds 8 classes. The panel owns layout, state, geometry, CSV, JSON, TIFF metadata, task orchestration and model management.</li>
+<li><strong>OCP:</strong> a new pipeline needs edits in four places, including <code>"Cellpose" in text</code> string matching on display names.</li>
+<li><strong>LSP/ISP:</strong> only Otsu inherits <code>SegmentationPipeline</code>; <code>name</code> is a property in one pipeline and an attribute in the others; <code>get_parameters()</code> is never called.</li>
+<li><strong>DIP:</strong> <code>self.window().project_manager</code> (works: the daemon runtime sets a <code>RemoteProjectManager</code> on the window, but the panel still reaches through its window for it); the panel edits <code>channel_manager._add_row_to_ui</code> and <code>.table.cellWidget</code>; the analysis layer returns UI-shaped dicts.</li>
+</ul>
+<h3 id="24-correctness-and-performance">2.4 Correctness and performance</h3>
+<ul>
+<li>Cellpose post-processing allocates a full-image array <strong>per cell</strong> (<code>np.zeros_like(masks)</code> in the loop), so cost is O(cells × pixels).</li>
+<li>~~Nested closures on <code>task_scheduler</code> signals run off the GUI thread~~: checked in Phase 1, not a bug (<code>LocalTaskScheduler</code> lives on, and emits from, the GUI thread). The closures were still replaced by <code>submit_task</code>.</li>
+<li>A pipeline exception came back as <code>{"error": ...}</code> through <em>finished</em> and was shown as "No cells found". Fixed in Phase 1.2.</li>
+<li>An uncalibrated manual draw silently uses a scale of 1.0.</li>
+</ul>
+<h3 id="25-cellpose-capabilities-unused-installed-cellpose-4211">2.5 Cellpose capabilities unused (installed: cellpose 4.2.1.1)</h3>
+<p>Only <code>diameter</code>, <code>channel_axis</code> and <code>flow_threshold</code> are passed today. Unused: raw 16-bit input with the <code>normalize</code> options (percentile, tile normalisation), <code>cellprob_threshold</code>, <code>min_size</code>, <code>max_size_fraction</code>, <code>niter</code>, <code>augment</code>, <code>batch_size</code>/<code>bsize</code>, the <code>progress</code> callback, list input (batch), <code>do_3D</code>/<code>z_axis</code>/<code>anisotropy</code>/<code>stitch_threshold</code>, the <code>flows</code> output (cell-probability map → confidence), <code>train.train_seg</code> (fine-tuning), <code>metrics.average_precision</code>, <code>io</code> ROI and <code>_seg.npy</code> export, and <code>denoise</code> (Cellpose3 restoration).</p>
+<h3 id="26-build-and-test-gap-vs-flow">2.6 Build and test gap vs. flow</h3>
+<p>2 test files vs. 106. No functional/integration/fixtures/data tiers, no license-compliance hook, no CI split between release-gating and UI tests, no matplotlib cache, no docs site, no <code>.coderabbit.yaml</code>.</p>
+<h2 id="3-ground-rules">3. Ground rules</h2>
+<ol>
+<li><strong>SDK vs. plugin.</strong> Code goes in the SDK only when ≥2 plugins use it, now or as soon as it lands. CytoMetrics-only code stays local until a second user appears. Gating stays local: flow is independent, and CytoMetrics only <em>writes</em> the standard FCS format.</li>
+<li><strong>SDK first.</strong> SDK changes land and get a version bump before the CytoMetrics commit that needs them; CytoMetrics then raises <code>karcytics-sdk&gt;=</code>.</li>
+<li><strong>Licenses: 100% sure or not at all.</strong> A model is adopted only when both its <strong>code and its weights</strong> carry an explicit license compatible with PolyForm Noncommercial (permissive: BSD, MIT, Apache). If the weights' license is unstated, the model is not shipped and the feature uses its fallback. <code>check-licenses</code> gates every commit.</li>
+<li><strong>Cite in the app wherever applicable.</strong> Every segmenter, measurement family, assay and algorithm that rests on published work declares its citations. They show in the UI next to the feature and are written into every export (§6).</li>
+<li><strong>Behaviour-preserving refactors are locked down by tests first</strong> (Phase 0 golden tests).</li>
+<li><strong>Pre-commit gates commits.</strong> While iterating, run only the tests for the area being changed.</li>
+</ol>
+<h2 id="4-target-architecture">4. Target architecture</h2>
+<div class="highlight"><pre><span></span><code>karcytics_sdk (shared)
+  plugin/managed_task.py   FunctionalTask + progress_callback
+  plugin/tasks.py          submit_task(task, state, on_finished, on_error, on_progress, on_cancelled) → TaskHandle
+  contrib/imaging.py       ImageReader: bit depth kept, physical pixel size from TIFF/OME/ND2 metadata
+  plugin/image_view.py     ImageView: zoom/pan/fit/drop/empty state/scale bar/calibration line, overlay layers (done)
+  plugin/citations.py      Citation, CitationRegistry, methods-text + BibTeX writer, CitationsPanel widget
+  cli: verify-ledger, check-licenses
+
+karcytics_plugins/cytometrics
+  analysis/                (no Qt; strict typing; fully unit-tested)
+    model.py      Channel(name, data, color, path), ImageSet, Calibration, LabelMask
+    session.py    AnalysisSession — single owner of images, masks, ObjectTable, params, history
+    segment/      Segmenter protocol + registry; otsu, watershed, cellpose, colony, (gated) instanseg
+    measure/      Measurer protocol → pandas columns; shape, intensity, texture, ratio
+    table.py      ObjectTable (pandas DataFrame wrapper; CellProfiler-style column names)
+    classify/     gates (threshold, polygon, boolean)
+    track/        overlap/Hungarian linker, (gated) trackastra
+    assays/       Assay protocol + registry; one module per assay
+    batch.py      folder/plate runs, condition/replicate metadata, per-condition stats
+    export/       csv, fcs, imagej_rois, cellpose_seg, report (methods + BibTeX)
+    citations.py  CytoMetrics' Citation entries (registered into the SDK registry)
+  ui/
+    panel.py      thin: wires views to the session
+    views/        mode_picker, setup, detect, review, measure, report, plate
+    canvas/       CytoCanvas(ImageView) + layers + edit tools
+    widgets/      hardware_monitor, histogram, scatter, inspector, numeric_item, wrapping_label
+    dialogs/      model_center, validation_report
+    params_form.py  controls generated from Segmenter.parameters()
+</code></pre></div>
+<h2 id="5-phases-and-checkpoints">5. Phases and checkpoints</h2>
+<h3 id="phase-0-build-and-test-parity-safety-net-cytometrics">Phase 0: build and test parity, safety net (cytometrics)</h3>
+<ul>
+<li>[x] 0.1 Plan file (this document).</li>
+<li>[x] 0.2 License compliance: <code>scripts/check_license_compliance.py</code> (from flow) + pre-commit hook + CI step.</li>
+<li>[x] 0.3 CI parity with flow's <code>release.yml</code>: release tests (<code>-m "not ui"</code>) gate the release, UI tests are informational, matplotlib font cache, comments.</li>
+<li>[x] 0.4 pytest markers (<code>functional</code>, <code>slow</code>, <code>edge_case</code>) and test tiers <code>tests/{unit,functional,integration,ui,fixtures,data}</code>.</li>
+<li>[x] 0.5 Single-source version: <code>__version__</code> from <code>importlib.metadata</code>. Fix README (version badge, Cellpose-SAM instead of cyto3) and CLAUDE.md.</li>
+<li>[x] 0.6 Synthetic image fixtures (discs, touching discs, two-channel, 16-bit, RGB) and golden unit tests for <code>ImageStack</code>, Otsu and Watershed (counts, areas, circularity, border exclusion, dual-channel seeds). Found: single-channel Watershed never splits a two-cell clump (strict xfail, fix in 3.1); contour areas under-count discs by ~6% (fixed by 4.1's mask measurements).</li>
+<li>[x] 0.7 <code>FakeSegmenter</code> + functional test of <code>CytoPipelineWorker</code> end to end. The real Cellpose test is marked <code>slow</code> and skips when the model isn't cached.</li>
+<li>[x] 0.8 Integration test: spawn <code>ui_daemon.py</code> as a real subprocess via the new SDK harness <code>karcytics_sdk.testing.ui_daemon</code>. Also pre-import numpy/cv2 in <code>ui_daemon.py</code> (Windows stdin deadlock that flow already guards against).</li>
+<li>[x] 0.9 Docs: <code>mkdocs.yml</code>, <code>docs/user</code> and <code>docs/developer</code> skeletons, <code>deploy-docs.yml</code>, <code>.coderabbit.yaml</code>, and <code>docs/CITATIONS.md</code> listing every work the plugin builds on today.</li>
+</ul>
+<h3 id="phase-1-sdk-shared-foundations-karcytics-sdk-then-cytometrics-adopts">Phase 1: SDK shared foundations (Karcytics-SDK, then cytometrics adopts)</h3>
+<ul>
+<li>[x] 1.1 <code>FunctionalTask(progress_callback=...)</code> (SDK <code>518e488</code>). Delete cytometrics' <code>FunctionalAnalysisTask</code>.</li>
+<li>[x] 1.2 <code>submit_task(...)</code> + <code>TaskHandle.cancel()/detach()</code> (SDK <code>518e488</code>, <code>8ccd52b</code>): one watcher <code>QObject</code> on the GUI thread, exactly one outcome callback, every connection removed however the task ends. Cytometrics adopted it. Flow and western-blot adopt it on their own schedule (out of this plan's scope).</li>
+<li>[x] 1.3 <code>contrib.imaging.read_image()</code> (SDK <code>823010b</code>): native dtype, canonical TCZYX, pixel size/z step/interval/channel names from OME, ImageJ, cm-unit TIFF resolution, ND2 (optional <code>karcytics-sdk[imaging]</code>). Inch-unit resolution is ignored on purpose (screen DPI). Cytometrics adopts it in 2.1.</li>
+<li>[x] 1.4 <code>ImageView</code> (SDK <code>a20e041</code>): zoom limits, middle/Ctrl+drag pan (left-drag opt-in), fit, empty state, file drop, calibration line, scale bar, named layers. Cytometrics <code>9cd8f84</code> and western-blot <code>f5d9f72</code> (on <code>main</code>, after fast-forwarding it to <code>fix/theme-following</code>) are built on it.</li>
+<li>[x] 1.5 SDK <code>citations</code> + <code>citation_widgets</code> (<code>a852509</code>): <code>Citation</code>, registry, <code>MethodStep</code>, <code>methods_text()</code>, <code>to_bibtex()</code>, <code>CitationLabel</code>, <code>CitationsPanel</code>. Cytometrics registers verified entries, each pipeline declares <code>citations</code> + <code>describe()</code>, the Detect step shows a "Powered by" line for every algorithm, and CSV export writes <code>_methods.md</code> + <code>_citations.bib</code> (pulled forward from §6).</li>
+<li>[x] 1.6 <code>karcytics-sdk check-licenses</code> (SDK <code>acdbcf3</code>); <code>doctor</code> now flags a repo with no license hook. Cytometrics' copy deleted. <strong>Not</strong> done for the ledger verifier, by decision: it is a stdlib-only script so CI can run it before installing anything (the CLI imports PySide6); its four copies are identical apart from formatting.</li>
+<li>[x] 1.6b <code>read_plugin_version</code> (SDK <code>cc7b5c5</code>); cytometrics uses it.</li>
+<li>[x] 1.6c <code>run_ui_daemon</code> pre-imports numpy (SDK <code>cc7b5c5</code>); cytometrics' workaround removed. Flow keeps its own copy (it also pre-imports pandas); that's flow's call.</li>
+<li>[ ] 1.7 SDK version bump (proposed 3.1.0) and cytometrics <code>karcytics-sdk&gt;=3.1.0</code>. <strong>Waiting on the user:</strong> the SDK's CI publishes to PyPI on push when <code>main</code> has an untagged version, and <code>main</code> also carries other unpushed work.</li>
+</ul>
+<h3 id="phase-2-domain-model-cytometrics">Phase 2: domain model (cytometrics)</h3>
+<ul>
+<li>[x] 2.1 <code>analysis/model.py</code>: <code>Channel</code> (native dtype, <code>path</code>, <code>as_uint8()</code> for display and the 8-bit OpenCV segmenters) and <code>ImageSet</code> (<code>add_file</code> via SDK <code>read_image</code>, <code>get(name)</code>, <code>composite()</code> in RGB, size check). Multi-channel files take their names from metadata (OME/ND2) and colours from stain names (DAPI → blue, GFP → green, Cy5 → magenta, …). Only t=0, z=0 for now (3-D is 8.10). <code>ImageStack</code> and its 16-bit truncation are gone; Cellpose now gets native 16-bit data.</li>
+<li>[x] 2.2 Calibration: pixel size from file metadata is applied automatically unless a scale is already set; the calibration line sets it manually; <code>state.scale_source</code> records which, and the methods text says so. Uncalibrated runs are allowed: every control, table header, CSV column and methods sentence reads px/px². Recalibrating converts already-measured cells.</li>
+<li>[x] 2.6 Save/load through the project manager only: the SDK <code>SaveWorkflowDialog</code>, a 📂 Load Session button listing this project's CytoMetrics workflows (<code>pm.workflows.list_all()</code> → <code>pm.load_workflow_payload</code>). The duplicate dialog, the raw-JSON loader, the <code>apply_state</code> alias and the three copies of the UI-parameter restore are gone. <code>CytoMetricsState.from_dict</code> ignores keys it doesn't know.</li>
+<li>Moved: <code>LabelMask</code> → 3.1, <code>ObjectTable</code> (pandas) → 4.1, <code>AnalysisSession</code> + state v2 migration → 5.1. They belong with the code that first needs them.</li>
+</ul>
+<h3 id="phase-3-segmenters-using-cellpose-fully-cytometrics">Phase 3: segmenters, using Cellpose fully (cytometrics)</h3>
+<ul>
+<li>[x] 3.1 <code>LabelMask</code> as the single source of truth (contours derived for display) and the <code>Segmenter</code> protocol (<code>id</code>, <code>name</code>, <code>parameters()</code>, <code>citations</code>, <code>segment(ImageSet, params) -&gt; LabelMask</code>) + decorator registry. Otsu and Watershed ported; shared channel lookup and border exclusion. <strong>Done as</strong> <code>analysis/segment/</code> (<code>base.py</code>: <code>Param</code>, <code>Segmenter</code>, <code>SegmentationResult</code>, <code>@register</code>, <code>cells_from_labels</code>; <code>run_segmentation</code> applies border exclusion and the area filter once for every segmenter). The label mask is the result; cell outlines/measurements are derived from it (still outline-polygon measurements until 4.1). Border exclusion is now a choice for every segmenter. Watershed seeds from distance-transform peaks (<code>peak_local_max</code>, new "Min. Cell Separation" parameter) and runs scikit-image's watershed, so a two-cell clump now splits without a nuclei channel (the strict xfail is now a passing test); it cites scikit-image.</li>
+<li>[x] 3.2 Cellpose: raw 16-bit input with the <code>normalize</code> options (percentiles, tile normalisation for uneven illumination); <code>cellprob_threshold</code>, <code>min_size</code>, <code>max_size_fraction</code>, <code>niter</code>, <code>augment</code> ("High quality"), <code>batch_size</code>/<code>bsize</code> (memory). <strong>Done:</strong> all exposed except <code>min_size</code> (our area filter covers it) and <code>bsize</code> (fixed at 256 for Cellpose-SAM). <code>normalize</code> is always passed as a dict: passing a bool makes Cellpose 4.2 overwrite its module-level defaults. Every non-default setting goes into the methods text.</li>
+<li>[x] 3.3 Progress: Cellpose's own <code>progress</code> argument only reports in 3-D, so segmenters report stages through a <code>progress</code> callback (model loaded, network run, then per-object measuring 90–100%), shown as a percentage on the scanning indicator. The stderr hijack, <code>StreamCatcher</code> and <code>CellposeLogInterceptor</code> are deleted.</li>
+<li>[x] 3.4 Per-object <strong>confidence</strong> (mean cell probability inside the mask) from <code>flows</code>; confidence heat-map layer; "review uncertain" list. <strong>Done:</strong> Conf. column, mean confidence in the stats, outlines coloured red→amber→green, a cyan cell-probability overlay, and <strong>Next uncertain ▸</strong> (least confident first, centres the canvas). Known layout glitch for 5.8: the histogram overlaps the Export header in a short window.</li>
+<li>[x] 3.5 Fix the O(cells × pixels) loop (<code>scipy.ndimage.find_objects</code> / <code>skimage.measure.regionprops</code>).</li>
+<li>[x] 3.6 Export ImageJ ROIs and <code>_seg.npy</code> (Cellpose GUI/Fiji/QuPath interop). <strong>Done</strong> in <code>analysis/export.py</code>, from the current cells (deletions and hand-drawn cells included): ROIs via <code>roifile</code> (BSD-3), <code>_seg.npy</code> with <code>masks</code>, <code>outlines</code>, <code>ismanual</code>, <code>filename</code> (flows omitted; optional for the GUI). Default names follow the image (<code>&lt;image&gt;_rois.zip</code>, <code>&lt;image&gt;_seg.npy</code>).</li>
+<li>[~] 3.7 ~~Optional Cellpose3 <code>denoise</code> pre-step.~~ <strong>Dropped:</strong> Cellpose 4.2's <code>denoise.py</code> contains only the degradation helpers (<code>add_noise</code>) used to augment training; the restoration models (<code>DenoiseModel</code>, <code>CellposeDenoiseModel</code>) no longer exist, so there is nothing to adopt. Revisit only if a later Cellpose release brings them back.</li>
+<li>[x] 3.8 <code>params_form.py</code>: controls generated from <code>parameters()</code> (basic/advanced). Delete the display-name string matching. <strong>Done:</strong> <code>Param</code> declares kind, range, unit (<code>length</code>/<code>area</code>, shown in µm or px, passed in px), <code>advanced</code>, <code>enabled_by</code>, help (tooltips). Values are remembered by key across algorithm switches. <code>ui_params</code> v2 = <code>{pipeline: id, values}</code>; v1 keys are migrated on load.</li>
+<li>[x] 3.9 Each segmenter shows its citations ("Powered by …") in the Detect step.</li>
+</ul>
+<h3 id="phase-4-measurements-cytometrics">Phase 4: measurements (cytometrics)</h3>
+<ul>
+<li>[x] 4.1 <code>ObjectTable</code> on pandas (add <code>pandas</code>) and the <code>Measurer</code> protocol + registry. Shape: area, perimeter, circularity, solidity, eccentricity, major/minor axis, Feret max/min, equivalent diameter. <strong>Done</strong> in <code>analysis/measure/</code> (<code>base.py</code> Column/Measurer/ObjectView/MeasureOptions, <code>shape.py</code>, <code>intensity.py</code>, <code>table.py</code> <code>measure_cells</code>/<code>rescale</code>/<code>write_csv</code>). Cells are rasterised from their outlines and measured per bounding box (1,585 cells on a 2048² image in 0.6 s). The worker measures after segmenting; edits, background changes and reloads re-measure in a background task (newest result wins). Recalibration rescales lengths/areas without re-measuring. The area filter now uses the same pixel area that is reported. Min Feret uses rotating calipers on the hull of pixel corners (exact for rectangles).</li>
+<li>[x] 4.2 Intensity per channel: mean, median, min, max, std, integrated; local-annulus or global background subtraction.</li>
+<li>[x] 4.3 Texture (GLCM / Haralick, via scikit-image) and nucleus/cytoplasm ratio when a seed channel exists. <strong>Done:</strong> <code>texture.py</code> (6 CellProfiler-named Haralick features per channel, image-wide 8-bit quantisation, only in-object pixel pairs, 4 directions averaged) and <code>nucleus.py</code> (nucleus = cell ∩ above the nuclear channel's Otsu threshold; areas, N/C area ratio, per-channel nuclear/cytoplasmic means and ratio). Both are opt-in in the Results tab (the nucleus channel is picked there, independent of the Detect seed channel). Measurers gained optional <code>enabled(options)</code> and <code>prepare(image_set, labels, options)</code> hooks.</li>
+<li>[x] 4.4 CellProfiler-style column names; units in headers (<code>AreaShape_Area [um2]</code> in the CSV, <code>Area (µm²)</code> in the table; tooltips carry the definitions).</li>
+<li>[x] 4.5 Manual cells: polygon → mask → same measurers. Delete the shoelace copy.</li>
+<li>[x] 4.6 Measurement families carry citations (Haralick 1973; CellProfiler naming). Crossref-verified <code>skimage2014</code>, <code>cellprofiler4</code>, <code>haralick1973</code>; the methods text adds a sentence per family used.</li>
+</ul>
+<h3 id="phase-5-ui-overhaul-cytometrics-may-grow-as-we-go">Phase 5: UI overhaul (cytometrics, may grow as we go)</h3>
+<ul>
+<li>[x] 5.1 Split <code>main_panel.py</code>: widgets/dialogs to their own files; panel becomes wiring only. <code>AnalysisSession</code> + <code>CytoMetricsState</code> v2 with a migration from v1 saved workflows. <strong>Done:</strong> <code>ui/widgets/</code> (hardware monitor, scanning indicator, histogram, table items), <code>ui/dialogs/model_manager.py</code>; <code>analysis/session.py</code> (Qt-free: calibration, cells, delete/add, uncertainty, reload, methods, export names) with the panel delegating; <code>state.migrate()</code> turns v1 saves (display-name <code>ui_params</code>, per-cell area/perim/circ) into v2. The step pages (5.3) finish the split.</li>
+<li>[x] 5.2 Mode picker ("What are you analysing?") → Assay selection; remembered per project. <strong>Done:</strong> a light <code>analysis/assays.py</code> (pulled forward from 8.1: id, name, description, steps, segmenter, Detect settings, measurement options, default stain) with <strong>Cells</strong> and <strong>Nuclei</strong>; <code>ui/mode_picker.py</code> cards; the choice is saved in the session (<code>ui_params.assay</code>) and remembered per project folder in the SDK <code>PluginConfig</code> (nothing written into the project). Restoring a session switches steps without overwriting its settings.</li>
+<li>[x] 5.3 Stepper (SDK <code>WizardPanel</code>/<code>StepIndicator</code>): Load › Calibrate › Detect › Review › Measure › Report; steps supplied by the assay. <strong>Done</strong> with a local one-line <code>StepBar</code> + page stack + Back/Next (<code>ui/stepper.py</code>): the SDK <code>WizardPanel</code> paints every child and assumes one column, and its <code>StepIndicator</code> is vertical (≈180 px). Pages in <code>ui/steps/</code> only build widgets; <code>CytoMetricsPanel._wire()</code> connects them. Report shows the live methods text (copyable) and the references (SDK <code>CitationsPanel</code>).</li>
+<li>[x] 5.4 <code>CytoCanvas(ImageView)</code>: layers (channels, masks, outlines, IDs, confidence), per-channel display range for 16-bit, colour outlines by any measurement. <strong>Done</strong> on the existing <code>MultiChannelCanvas</code> (no rename needed): per-channel visibility (checkbox in the channel table) and display range (<code>Channel.display_range</code>, auto = 0.1–99.9th percentile, display only), both saved with the session; outlines/IDs/probability layers toggle; "Colour outlines by" AI confidence or any measurement (viridis stops verified against matplotlib), with a legend.</li>
+<li>[x] 5.5 Edit tools: delete, merge, split, brush add/erase, box-prompt re-segment (Cellpose on the drawn box), all undoable (SDK <code>UndoHistory</code>). <strong>Done:</strong> geometry in <code>analysis/edit.py</code> (rasterise → change mask → re-trace; merge bridges ≤2 px gaps and refuses distant cells; split cuts with a 1 px 4-connected line; brush-add keeps only what touches the cell), session operations, canvas tools (select/Shift-select, draw, split line, brush strokes, box), Merge/Delete selected, ↶/↷ + Ctrl+Z/Ctrl+Shift+Z through <code>PluginBase.push_state</code>; runs, calibration and every edit are undo steps; a loaded session starts a clean history. Region runs keep cells cut by the box edge. Panel tasks are tracked and detached on close (a re-measure finishing after close used to hit a deleted table).</li>
+<li>[x] 5.6 "Preview region": run the segmenter on the visible viewport only. <strong>Done:</strong> 👁 Preview on visible area draws dashed outlines on a separate layer; nothing is kept, a full run clears them.</li>
+<li>[x] 5.7 Inspector: selected object's thumbnail, every measurement, confidence, flag. <strong>Done:</strong> the Cell tab of the results dock (<code>widgets/inspector.py</code>): thumbnail cut from the displayed composite with the outline, all measurements with units, source and confidence, 🚩 Flag (saved in the cell, <code>Flagged</code> column, dashed outline, undoable). Selection highlight is now white so it stands out over any colour-by.</li>
+<li>[x] 5.8 Results dock: Table / Histogram (any metric) / Scatter / Plate / Methods &amp; citations. <strong>Done</strong> (<code>ui/results_dock.py</code>): Table · Histogram (any metric) · Scatter (any two measurements; click a point to select its cell, canvas selection highlights points: the two-way link from 6.1) · Cell. <strong>Plate</strong> comes with plate layouts in Phase 7; <strong>Methods &amp; citations</strong> live in the Report step rather than twice.</li>
+<li>[x] 5.9 Model Center (replaces Manage AI): per model, size, license, citation, download/delete. <strong>Done:</strong> <code>analysis/models.py</code> (model registry with code/weights licences, source, citations; the excluded models and why, from §7) and <code>ui/dialogs/model_center.py</code>. Delete now removes only that model's file (the old dialog emptied the whole shared <code>~/.cellpose/models</code> cache). The "Your models" placeholder was removed when fine-tuning was dropped (see the decision log).</li>
+<li>[x] 5.10 Hardware monitor collapses into a status bar. <strong>Done:</strong> <code>widgets/status_bar.py</code>, one line under the steps (app/system CPU, RAM, GPU memory once torch is loaded; never imports torch).</li>
+<li>[x] 5.11 UI tests for each view (offscreen): steps/picker (<code>test_steps.py</code>), editing/undo/dock (<code>test_editing.py</code>), images/calibration/measurements (<code>test_panel_images.py</code>), params form, canvas, Model Center, plus the Qt-free session/edit/measure units. 192 tests.</li>
+</ul>
+<h3 id="phase-6-image-cytometry-cytometrics">Phase 6: image cytometry (cytometrics)</h3>
+<ul>
+<li>[x] 6.1 Scatter of any two measurements, <strong>linked both ways</strong> with the canvas. <strong>Done:</strong> linking came in 5.8; 6.1 added log axes (shared <code>ui/widgets/plot_axis.py</code>), population colours and gate overlays. The histogram was rewritten the same way (numpy bins, log axis, gate markers).</li>
+<li>[x] 6.2 Local gates: threshold, rectangle, polygon, boolean combinations; % positive; gate set saved with the workflow. <strong>Done:</strong> <code>analysis/gating.py</code> (Qt-free; also range and NOT; gates nest through <code>parent</code>; shape gates are tested in the log/linear space they were drawn in) and the <strong>Gate</strong> step (<code>ui/steps/gate.py</code>) driven by <code>ui/gating.py</code>: tools draw on the histogram/scatter, a population tree with counts, % parent and % total, exact cut-off editing, rename/colour/delete (dependants go too), Combine… dialog. Gates live in <code>CytoMetricsState.gates</code> (saved, undoable) and are described in the methods text (<code>report.gating_step</code>).</li>
+<li>[x] 6.3 Population colouring on the canvas. <strong>Done:</strong> "Population" colour-by (deepest population wins; ungated grey), switched on from the Gate step; Okabe–Ito palette.</li>
+<li>[x] 6.4 FCS 3.1 export of the object table (flow can open it, with no code shared). <strong>Done:</strong> <code>analysis/fcs.py</code> written from the standard (float32, <code>$PnN</code> = column, <code>$PnS</code> = label with unit, gates as 0/1 parameters); tests read it back with FlowIO (dev-only, BSD-3), the reader behind flow's FlowKit loader. fcsparser was not added: it pins numpy &lt; 2. Also a population-statistics CSV and <code>Gate_&lt;name&gt;</code> columns in the cell CSV. Citation <code>fcs31</code> (Crossref-checked).</li>
+</ul>
+<h3 id="phase-7-batch-and-conditions-cytometrics">Phase 7: batch and conditions (cytometrics)</h3>
+<ul>
+<li>[x] 7.1 Folder and plate-layout import; filename → well/condition parsing; metadata editor. <strong>Done:</strong> <code>analysis/batch.py</code> (Qt-free): <code>find_images</code>, <code>parse_well</code>, <code>{field}</code> file-name templates, plate layouts as a Well list or a plate grid, per-channel files grouped by the token that tells the typical image's channel files apart. The <strong>Batch</strong> step (<code>ui/steps/batch.py</code>, <code>ui/batch.py</code>) lists images with editable metadata and "Set condition…".</li>
+<li>[x] 7.2 Batch runs, cancellable, resumable. <strong>Done:</strong> a <code>Recipe</code> (segmenter, params, channels, measurements, gates, scale) is taken from the current analysis; <code>BatchWorker</code> runs items one by one, writing each item's cells and table and the <code>batch.json</code> manifest after every item, so Stop + Run resumes. Changed settings ask before redoing finished items. "Open in editor" / "Save changes to batch" fixes one image. The batch reattaches with the saved session (<code>CytoMetricsState.batch_manifest</code>). <strong>Departure:</strong> Cellpose's list input isn't used: images go through one loaded model one at a time, which keeps per-image saving, progress and resume (list input would batch only the network, and hold every image in memory).</li>
+<li>[x] 7.3 Per-image / per-condition stats with replicates; plate heat-map; comparison plots. <strong>Done:</strong> <code>image_summary</code> (count, count and % per population, mean of every measurement), <code>condition_summary</code> (images averaged within a replicate first; n = replicates, else images; SD and SEM), <code>plate_matrix</code>/<code>plate_shape</code> (6- to 384-well). Results dock <strong>Batch</strong> tab: Images table, Conditions (bar ± SEM/SD with replicate dots, beside the table), Plate heat-map (viridis, hover values, click a well).</li>
+<li>[x] 7.4 Batch export (combined CSV/FCS + methods report). <strong>Done:</strong> <code>cells.csv</code>, <code>images.csv</code>, <code>conditions.csv</code> (every metric, long format), one FCS per image (metadata as <code>CYTOMETRICS_*</code> keywords) and methods/BibTeX (<code>report.batch_methods</code>: settings, gating, how conditions were summarised).</li>
+</ul>
+<h3 id="phase-8-assay-framework-and-new-assays-cytometrics">Phase 8: assay framework and new assays (cytometrics)</h3>
+<p>An <strong>assay</strong> is a preset for one kind of experiment: which segmenter and settings to use, which steps to show, what to measure, what extra result to compute (CFU/mL, % viable, % positive, …) and what goes in the report and its citations. Each one is a card in the "What are you analysing?" picker. Cells and Nuclei (Phase 5) are the first two.</p>
+<ul>
+<li>[x] 8.1 <code>Assay</code> protocol. <strong>Done:</strong> <code>analysis/assays/</code>: an <code>Assay</code> (segmenter, Detect settings, steps, measurements, picker group, citations, the word for one object) with an optional <code>AssayAnalysis</code> (its own settings, derived columns, suggested gates, headline results, overlays, actions such as "draw the counting area", methods text). A Results step shows the headline values as cards; batch runs add them per image as <code>Result_&lt;key&gt;</code> columns.</li>
+<li>[x] 8.2 "Cells" assay = today's workflow, migrated.</li>
+<li>[x] 8.3 <strong>Colony counter</strong>. <strong>Done:</strong> <code>colonies</code> segmenter (Hough dish, rim excluded, blur-subtracted flattening, polarity by skew, Otsu, distance-transform watershed); CFU/mL, countable-range warning (30–300), median diameter, plate coverage. Cites OpenCFU and Breed &amp; Dotterrer 1916.</li>
+<li>[x] 8.4 <strong>Nuclei / cell cycle</strong>. <strong>Done:</strong> DNA content (integrated intensity ÷ G1 peak × 2), Sub-G1/G1/S/G2-M/&gt;4N with suggested range gates. Cellpose-SAM (InstanSeg not adopted).</li>
+<li>[x] 8.5 <strong>Hemocytometer / viability</strong>. <strong>Done:</strong> trypan-blue darkness (1 − mean / local background), a counting-area box, cells/mL from chamber depth and dilution, calibration from the grid line spacing (autocorrelation of the line profile).</li>
+<li>[x] 8.6 <strong>Transfection / % positive</strong>. <strong>Done:</strong> cut-off from a negative-control image (a percentile of its reporter intensity), a Positive gate, % positive.</li>
+<li>[x] 8.7 <strong>Confluence / scratch wound</strong>. <strong>Done:</strong> <code>texture</code> segmenter (local SD, Otsu, small gaps filled); Confluence %; wound area, mean and narrowest width, closure against a start area set on the first image. The batch time course (closure over time per well) moved to 9.5.</li>
+<li>[x] 8.8 <strong>Bacteria</strong>. <strong>Done:</strong> <code>rods</code> measurer (skeleton length, width with EDT correction, curvature, constriction, dividing flag).</li>
+<li>[x] 8.9 <strong>Spheroid / organoid</strong> sizing. <strong>Done:</strong> <code>spheroid</code> segmenter (smoothing, Otsu, largest objects kept); diameter, area, volume π d³/6, circularity, solidity (Zanoni 2016). Growth over time moved to 9.5.</li>
+<li>[ ] 8.10 <strong>Z-stacks</strong>: <code>do_3D</code> / <code>stitch_threshold</code>, volume measurements. <strong>Deferred</strong> (user, 2026-10-17: not a priority).</li>
+</ul>
+<h3 id="phase-9-time-and-interaction-cytometrics">Phase 9: time and interaction (cytometrics)</h3>
+<ul>
+<li>[ ] 9.1 Time-lapse tracking: overlap + Hungarian linker (SciPy) by default; Trackastra if its weights-license gate passes (greedy/SCIP linking only, never Gurobi).</li>
+<li>[ ] 9.2 Lineages, growth curves, division events.</li>
+<li>[ ] 9.3 Click-to-segment with µSAM if its weights-license gate passes; otherwise the box-prompt Cellpose tool from 5.5.</li>
+<li>[ ] 9.5 Batch time course: a <code>{time}</code> field in file names, results over time per well/condition, closure or growth relative to the first time point (wound closure, spheroid growth).</li>
+<li>[ ] 9.4 Academy courses for CytoMetrics (SDK <code>academy.py</code>): "Count your first plate", "Gate GFP+ cells", "Score a scratch wound".</li>
+</ul>
+<h2 id="6-citations-in-the-app">6. Citations in the app</h2>
+<ul>
+<li>Each <code>Segmenter</code>, <code>Measurer</code>, <code>Assay</code> and algorithm declares <code>citations: tuple[Citation, ...]</code>.</li>
+<li><strong>Shown:</strong> "Powered by …" line in the Detect step; Model Center entry; About/Citations panel; tooltip on measurement column headers where a method is published.</li>
+<li><strong>Exported:</strong> every CSV/FCS/report export writes a sidecar <code>*_methods.md</code> (methods paragraph naming software, versions, models, key parameters) and <code>*_citations.bib</code>.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Citation</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cellpose2021</td>
+<td>Stringer, Wang, Michaelos &amp; Pachitariu. <em>Cellpose: a generalist algorithm for cellular segmentation.</em> Nature Methods 18:100–106 (2021). doi:10.1038/s41592-020-01018-x</td>
+<td>Cellpose segmenter</td>
+</tr>
+<tr>
+<td>cellpose2022</td>
+<td>Pachitariu &amp; Stringer. <em>Cellpose 2.0: how to train your own model.</em> Nature Methods 19:1634–1641 (2022). doi:10.1038/s41592-022-01663-4</td>
+<td>Not used: fine-tuning dropped</td>
+</tr>
+<tr>
+<td>cellpose3</td>
+<td>Stringer &amp; Pachitariu. <em>Cellpose3: one-click image restoration for improved cellular segmentation.</em> Nature Methods 22:592–599 (2025). doi:10.1038/s41592-025-02595-5</td>
+<td>Denoise pre-step</td>
+</tr>
+<tr>
+<td>cpsam2025</td>
+<td>Pachitariu, Rariden &amp; Stringer. <em>Cellpose-SAM: superhuman generalization for cellular segmentation.</em> bioRxiv (2025). doi:10.1101/2025.04.28.651001</td>
+<td>Default model</td>
+</tr>
+<tr>
+<td>pytorch2019</td>
+<td>Paszke et al. <em>PyTorch: An Imperative Style, High-Performance Deep Learning Library.</em> NeurIPS 32 (2019). arXiv:1912.01703</td>
+<td>Cellpose runtime</td>
+</tr>
+<tr>
+<td>otsu1979</td>
+<td>Otsu. <em>A threshold selection method from gray-level histograms.</em> IEEE Trans. Syst. Man Cybern. 9(1):62–66 (1979). doi:10.1109/TSMC.1979.4310076</td>
+<td>Otsu, Watershed, colony counter</td>
+</tr>
+<tr>
+<td>meyer1992</td>
+<td>Meyer. <em>Color image segmentation.</em> Int. Conf. on Image Processing and its Applications, 303–306, IET (1992). (OpenCV's own reference for <code>cv2.watershed</code>)</td>
+<td>Watershed segmenter</td>
+</tr>
+<tr>
+<td>opencv2000</td>
+<td>Bradski. <em>The OpenCV Library.</em> Dr. Dobb's Journal of Software Tools (2000).</td>
+<td>Classical pipelines</td>
+</tr>
+<tr>
+<td>skimage2014</td>
+<td>van der Walt et al. <em>scikit-image: image processing in Python.</em> PeerJ 2:e453 (2014). doi:10.7717/peerj.453</td>
+<td>Measurements</td>
+</tr>
+<tr>
+<td>haralick1973</td>
+<td>Haralick, Shanmugam &amp; Dinstein. <em>Textural features for image classification.</em> IEEE Trans. SMC SMC-3(6):610–621 (1973). doi:10.1109/TSMC.1973.4309314</td>
+<td>Texture features</td>
+</tr>
+<tr>
+<td>cellprofiler4</td>
+<td>Stirling et al. <em>CellProfiler 4: improvements in speed, utility and usability.</em> BMC Bioinformatics 22:433 (2021). doi:10.1186/s12859-021-04344-9</td>
+<td>Measurement naming</td>
+</tr>
+<tr>
+<td>opencfu2013</td>
+<td>Geissmann. <em>OpenCFU, a new free and open-source software to count cell colonies and other circular objects.</em> PLoS ONE 8(2):e54072 (2013). doi:10.1371/journal.pone.0054072</td>
+<td>Colony counter (method)</td>
+</tr>
+<tr>
+<td>roukos2015</td>
+<td>Roukos, Pegoraro, Voss &amp; Misteli. <em>Cell cycle staging of individual cells by fluorescence microscopy.</em> Nature Protocols 10:334–348 (2015). doi:10.1038/nprot.2015.016</td>
+<td>Cell-cycle assay</td>
+</tr>
+<tr>
+<td>suarez2020</td>
+<td>Suarez-Arnedo et al. <em>An image J plugin for the high throughput image analysis of in vitro scratch wound healing assays.</em> PLoS ONE 15(7):e0232565 (2020). doi:10.1371/journal.pone.0232565</td>
+<td>Wound assay</td>
+</tr>
+<tr>
+<td>instanseg2024</td>
+<td>Goldsborough et al. <em>InstanSeg: an embedding-based instance segmentation algorithm optimized for accurate, efficient and portable cell segmentation.</em> arXiv:2408.15954 (2024).</td>
+<td>Gated nuclei model</td>
+</tr>
+<tr>
+<td>musam2025</td>
+<td>Archit et al. <em>Segment Anything for Microscopy.</em> Nature Methods 22:579–591 (2025). doi:10.1038/s41592-024-02580-4</td>
+<td>Gated click-to-segment</td>
+</tr>
+<tr>
+<td>trackastra2024</td>
+<td>Gallusser &amp; Weigert. <em>Trackastra: Transformer-based cell tracking for live-cell microscopy.</em> ECCV (2024). arXiv:2405.15700</td>
+<td>Gated tracking</td>
+</tr>
+</tbody>
+</table>
+<p>All DOI entries were checked against Crossref on 2026-10-17; <code>meyer1992</code> against OpenCV's <code>doc/opencv.bib</code>; <code>opencv2000</code>, <code>pytorch2019</code>, <code>instanseg2024</code>, <code>trackastra2024</code> against the publisher/arXiv pages. Add new entries the same way: never from memory.</p>
+<h2 id="7-model-and-dependency-license-ledger">7. Model and dependency license ledger</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Code</th>
+<th>Weights</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cellpose / Cellpose-SAM</td>
+<td>BSD-3 (GitHub, verified)</td>
+<td>BSD-3 (Hugging Face <code>mouseland/cellpose-sam</code>, verified)</td>
+<td>✅ adopted</td>
+</tr>
+<tr>
+<td>SAM (base of Cellpose-SAM, µSAM)</td>
+<td>Apache-2.0 (verified)</td>
+<td>—</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>InstanSeg</td>
+<td>Apache-2.0 (verified)</td>
+<td><strong>not stated</strong> in README</td>
+<td>⏸ gated: adopt only if weights get an explicit permissive license</td>
+</tr>
+<tr>
+<td>Trackastra</td>
+<td>BSD-3 (verified)</td>
+<td><strong>not stated</strong> (pretrained.json downloads)</td>
+<td>⏸ gated; never use Gurobi</td>
+</tr>
+<tr>
+<td>µSAM (micro-sam)</td>
+<td>MIT (verified)</td>
+<td><strong>not verified</strong></td>
+<td>⏸ gated</td>
+</tr>
+<tr>
+<td>tifffile, nd2, bioio (core)</td>
+<td>BSD-3 (verified)</td>
+<td>—</td>
+<td>✅ (bioio readers checked one by one)</td>
+</tr>
+<tr>
+<td>roifile (ImageJ ROI export)</td>
+<td>BSD-3-Clause (package metadata, verified)</td>
+<td>—</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>scipy, scikit-image</td>
+<td>BSD-3 (verified)</td>
+<td>—</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>StarDist</td>
+<td>BSD-3 (verified)</td>
+<td>—</td>
+<td>✗ not adopted: needs TensorFlow alongside PyTorch; Cellpose-SAM / InstanSeg cover nuclei</td>
+</tr>
+<tr>
+<td>Omnipose</td>
+<td>UW NonCommercial with a redistribution clause</td>
+<td>—</td>
+<td>✗ not adopted (license not 100% compatible; also pins a Cellpose fork)</td>
+</tr>
+<tr>
+<td>Ultralytics YOLO</td>
+<td>AGPL</td>
+<td>—</td>
+<td>✗ incompatible</td>
+</tr>
+<tr>
+<td>OpenCFU</td>
+<td>(code not used)</td>
+<td>—</td>
+<td>cite the method only</td>
+</tr>
+<tr>
+<td>AGAR colony dataset</td>
+<td>license not verified</td>
+<td>—</td>
+<td>✗ not used</td>
+</tr>
+<tr>
+<td>Real test images</td>
+<td>—</td>
+<td>—</td>
+<td>only synthetic or CC0/CC-BY sets with the license recorded in <code>tests/data/LICENSES.md</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="8-decision-log">8. Decision log</h2>
+<ul>
+<li>2026-10-17: 8.10 (z-stacks) deferred at the user's request. The time-based parts of 8.7 and 8.9 (closure and growth over time in batches) moved to Phase 9 as 9.5, with the other time work.</li>
+<li>2026-10-17: the old Phase 9 (fine-tuning Cellpose-SAM, training sets, custom models, validation report, trainable live/dead classifier) dropped at the user's request: not enough annotated data to train on. The old Phases 8 and 10 merged into one Phase 8 (assay framework plus every new assay, colony counter included), and the old Phase 11 became Phase 9.</li>
+<li>2026-10-17: 3.7 (Cellpose3 denoise) dropped: removed from Cellpose 4.2 (only training-augmentation code remains).</li>
+<li>2026-10-17: Phase 3 keeps outline-polygon measurements so the golden values only move once, in 4.1.</li>
+<li>2026-10-17: the security-ledger verifier stays a per-repo stdlib script (CI runs it before installing anything); only the license check moved into the SDK CLI.</li>
+<li>2026-10-17: western-blot's local <code>main</code> fast-forwarded to <code>fix/theme-following</code> (one commit, no divergence) so its canvas migration could go on <code>main</code>.</li>
+<li>2026-10-17: one plugin with modes (Assays); pandas for <code>ObjectTable</code>; gating stays local (flow independent); SDK hosts only code shared across plugins; all commits on <code>main</code> in cytometrics and the SDK; only models whose code <strong>and</strong> weights licenses are confirmed; citations shown in-app and written into every export.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "content.code.copy", "search.suggest", "search.highlight"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

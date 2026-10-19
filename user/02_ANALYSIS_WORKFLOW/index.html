@@ -1,0 +1,1339 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the Karcytics CytoMetrics plugin.">
+      
+      
+        <meta name="author" content="Kalaimaran Balasothy">
+      
+      
+        <link rel="canonical" href="https://KalaimaranB.github.io/Karcytics-cytometrics/user/02_ANALYSIS_WORKFLOW/">
+      
+      
+        <link rel="prev" href="../01_GETTING_STARTED/">
+      
+      
+        <link rel="next" href="../03_HOW_TO_CITE/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Analysis Workflow - Karcytics CytoMetrics Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#analysis-workflow" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Karcytics CytoMetrics Documentation" class="md-header__button md-logo" aria-label="Karcytics CytoMetrics Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Karcytics CytoMetrics Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Analysis Workflow
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/KalaimaranB/Karcytics-cytometrics" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Karcytics CytoMetrics
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Karcytics CytoMetrics Documentation" class="md-nav__button md-logo" aria-label="Karcytics CytoMetrics Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Karcytics CytoMetrics Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/KalaimaranB/Karcytics-cytometrics" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Karcytics CytoMetrics
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Welcome
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01_GETTING_STARTED/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis Workflow
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-pick-an-algorithm-detect-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Pick an algorithm (Detect step)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-settings-every-algorithm-has" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Settings every algorithm has
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-watershed-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Watershed settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-cellpose-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Cellpose settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-run-and-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Run and review
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Run and review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-review-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing (Review step)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewing-cellpose-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewing Cellpose results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#results-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results panel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-gate-populations-gate-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Gate populations (Gate step)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-results-and-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Results and export
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-batch-many-images-conditions-and-plates-batch-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Batch: many images, conditions and plates (Batch step)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-assays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Assays
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03_HOW_TO_CITE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Cite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/00_ARCHITECTURE_OVERVIEW/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01_TESTING_AND_QA/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing & QA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/plans/EXPANSION_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expansion Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-pick-an-algorithm-detect-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Pick an algorithm (Detect step)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-settings-every-algorithm-has" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Settings every algorithm has
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-watershed-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Watershed settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-cellpose-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Cellpose settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-run-and-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Run and review
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Run and review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-review-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing (Review step)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewing-cellpose-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewing Cellpose results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#results-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results panel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-gate-populations-gate-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Gate populations (Gate step)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-results-and-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Results and export
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-batch-many-images-conditions-and-plates-batch-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Batch: many images, conditions and plates (Batch step)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-assays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Assays
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="analysis-workflow">Analysis Workflow</h1>
+<h2 id="1-pick-an-algorithm-detect-step">1. Pick an algorithm (Detect step)</h2>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>Best for</th>
+<th>Method</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Basic Threshold (Otsu)</strong></td>
+<td>Sparse, isolated cells on a clean background</td>
+<td>Global threshold chosen by Otsu's method. Touching cells merge into one object.</td>
+</tr>
+<tr>
+<td><strong>Watershed (Clump Splitting)</strong></td>
+<td>Clustered, roughly round cells</td>
+<td>Marker-based watershed (scikit-image). Splits touching cells from their shape, or from a nuclei channel when you turn one on.</td>
+</tr>
+<tr>
+<td><strong>AI Smart Detect (Cellpose)</strong></td>
+<td>Irregular shapes, faint extensions, crowded fields</td>
+<td>Cellpose-SAM deep-learning segmentation.</td>
+</tr>
+</tbody>
+</table>
+<p>The <strong>Settings</strong> below the algorithm change with it. Hover over any setting for an explanation. Values you've set are kept when you switch algorithm (for example the channel and the size filter).</p>
+<h2 id="2-settings-every-algorithm-has">2. Settings every algorithm has</h2>
+<ul>
+<li><strong>Target Channel</strong>: the channel that outlines your cells.</li>
+<li><strong>Exclude cells touching image edges</strong>: cells cut by the image edge give wrong sizes, so they're dropped by default.</li>
+<li><strong>Min Area / Max Area</strong>: drop debris and merged clumps. Shown in µm² once the image is calibrated, px² before.</li>
+</ul>
+<h2 id="3-watershed-settings">3. Watershed settings</h2>
+<ul>
+<li><strong>Use a nuclei channel</strong> + <strong>Nuclei Channel</strong>: a nuclear stain (e.g. DAPI) whose nuclei seed one cell each. The most reliable way to separate touching cells.</li>
+<li><strong>Min. Cell Separation</strong>: without a nuclei channel, two cell centres closer than this are treated as one cell. Start at roughly one cell radius; lower it if clumps stay merged, raise it if single cells are cut in two.</li>
+</ul>
+<h2 id="4-cellpose-settings">4. Cellpose settings</h2>
+<ul>
+<li><strong>Cell Diameter</strong>: typical cell diameter. <em>Auto</em> works for most images; set it if your cells are much smaller or larger than about 30 px.</li>
+<li><strong>Detection Threshold</strong> (Cellpose's cell-probability threshold, −6 to 6): lower it to find more and larger cells, including dim ones; raise it to keep only clear cells.</li>
+<li><strong>Shape Tolerance</strong> (Cellpose's flow threshold): higher keeps more, less regular shapes; lower keeps only well-formed cells.</li>
+<li><strong>Use a nuclei channel</strong>: gives Cellpose a second input channel.</li>
+</ul>
+<p>Under <strong>Advanced settings</strong>:</p>
+<ul>
+<li><strong>Contrast: Low / High Percentile</strong>: the intensity range Cellpose stretches to before segmenting (default 1–99). Lower the high percentile if a few very bright cells wash out the rest.</li>
+<li><strong>Uneven Illumination: Tile Size</strong>: normalise contrast in tiles so cells in dark corners are found too. Try 3–5 cell diameters; <em>Off</em> by default.</li>
+<li><strong>High Quality (slower)</strong>: test-time augmentation; runs the network on flipped copies and averages them.</li>
+<li><strong>Mask Iterations</strong>: raise it for long, thin cells (e.g. bacteria) that come out fragmented.</li>
+<li><strong>Largest Object</strong>: Cellpose discards masks bigger than this fraction of the image.</li>
+<li><strong>GPU Batch Size</strong>: lower it if you run out of memory.</li>
+</ul>
+<p>Each Cellpose cell also gets a <strong>confidence</strong>: the model's mean cell probability inside its outline.</p>
+<h2 id="5-run-and-review">5. Run and review</h2>
+<p>Click <strong>✨ Run Segmentation</strong>; the button shows what it is doing (detecting, then measuring) and how far along it is. Cellpose-SAM takes tens of seconds on a large image (longer with High Quality on), and the first run also loads the model. To try settings first, zoom in on a typical area and click <strong>👁 Preview on screen area</strong>: only the part on screen is detected, so it is much quicker; the result is drawn dashed and nothing is kept. Detected cells appear as outlines with ID numbers.</p>
+<h3 id="editing-review-step">Editing (Review step)</h3>
+<p>Pick a tool, then work on the canvas. Every edit can be undone with <strong>↶</strong> (Ctrl+Z) and redone with <strong>↷</strong> (Ctrl+Shift+Z).</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>✋ Select</strong></td>
+<td>Click a cell to select it, Shift+click to add more; drag to move around. Then <strong>⧉ Merge selected</strong> (touching cells only) or <strong>🗑 Delete selected</strong>.</td>
+</tr>
+<tr>
+<td><strong>✏️ Draw</strong></td>
+<td>Outline a missed cell by dragging around it.</td>
+</tr>
+<tr>
+<td><strong>✂️ Split</strong></td>
+<td>Draw a line right across a cell to cut it in two.</td>
+</tr>
+<tr>
+<td><strong>🖌 Brush + / 🧽 Brush −</strong></td>
+<td>Paint pixels onto, or erase them from, the selected cell (set the <strong>Brush size</strong>).</td>
+</tr>
+<tr>
+<td><strong>⬚ Re-detect</strong></td>
+<td>Drag a box: the current algorithm and settings run again inside it and replace the cells centred there.</td>
+</tr>
+</tbody>
+</table>
+<p>Cells you've changed are marked <code>edited</code> in the <code>Source</code> column; they lose their AI confidence, since the outline is no longer the model's.</p>
+<ul>
+<li><strong>Right-click</strong> a cell to delete it straight away.</li>
+<li><strong>✏️ Draw Cells (Manual)</strong> lets you outline a missed cell by hand.</li>
+<li>Select a row in the results table to highlight that cell on the canvas.</li>
+</ul>
+<h3 id="reviewing-cellpose-results">Reviewing Cellpose results</h3>
+<p>Each Cellpose cell has a <strong>Conf.</strong> value (0–1), the model's mean cell probability inside the outline. In the <strong>Review</strong> step:</p>
+<ul>
+<li><strong>Colour outlines by</strong>: <em>AI confidence</em> (red = uncertain, amber = borderline, green = confident) or any measurement (viridis: dark purple = lowest, yellow = highest; the range is shown underneath). <strong>Outlines</strong> and <strong>Cell ID numbers</strong> can be hidden.</li>
+<li><strong>Show Cellpose cell-probability map</strong>: a cyan overlay of where the model thinks cells are. Useful to see dim cells it nearly found (lower the Detection Threshold to include them).</li>
+<li><strong>Uncertain below</strong> + <strong>Next uncertain ▸</strong>: steps through cells under the threshold, least confident first, and centres each one so you can delete or keep it.</li>
+</ul>
+<h2 id="results-panel">Results panel</h2>
+<p>Under the steps, the results panel has four tabs:</p>
+<ul>
+<li><strong>Table</strong>: every cell and measurement; sort by any column; select rows to select cells.</li>
+<li><strong>Histogram</strong>: the distribution of any measurement; tick <strong>log</strong> for a log axis.</li>
+<li><strong>Scatter</strong>: any two measurements against each other, each axis linear or <strong>log</strong>. Click a point to select its cell on the canvas (Shift+click for more); cells you select on the canvas are highlighted in the plot. Once you have gates, points take their population's colour (grey: in no gate).</li>
+<li><strong>Cell</strong>: the selected cell close up: a thumbnail, every measurement, its source and AI confidence, and <strong>🚩 Flag</strong> to mark it for later (flags are saved and exported in the <code>Flagged</code> column, and flagged cells have a dashed outline).</li>
+</ul>
+<h2 id="6-gate-populations-gate-step">6. Gate populations (Gate step)</h2>
+<p>Gating sorts cells into populations by their measurements, the way flow cytometry does, for questions such as "what % of cells are GFP-positive?" or "how many large, bright cells?".</p>
+<ol>
+<li>In the Gate step, pick a tool:</li>
+<li><strong>📏 Threshold</strong>: click on the histogram where the cut-off goes. Cells above it are in the gate (switch to <em>below</em> under <strong>Selected gate</strong>).</li>
+<li><strong>↔ Range</strong>: drag across the histogram over the values to keep.</li>
+<li><strong>▭ Rectangle</strong>: drag a box on the scatter plot.</li>
+<li><strong>⬠ Polygon</strong>: click around a cluster on the scatter plot; double-click (or click the first corner) to close it. <strong>Esc</strong> or right-click cancels.</li>
+<li>The <strong>Populations</strong> tree shows each population's cell count, % of its parent and % of all cells.</li>
+<li>To gate <strong>inside</strong> a population (e.g. bright cells among the large ones), select it in the tree, then pick a tool: the plots switch to that population's cells and the new gate goes inside it.</li>
+<li><strong>∩ Combine…</strong> makes a population from two others: <em>both</em> (AND), <em>either</em> (OR), or <em>not</em> (every cell outside one).</li>
+<li>Select a gate to see it highlighted on the plots, type an exact cut-off, <strong>✏️ Rename</strong>, <strong>🎨 Colour</strong> or <strong>🗑 Delete</strong> it (deleting also removes the gates that depend on it).</li>
+</ol>
+<p>With <strong>Colour cells on the image by population</strong> on, each cell's outline takes the colour of the deepest population it belongs to; cells in no gate are grey. Gates are measured on whatever axis scale they were drawn on (log or linear), are saved with the analysis, follow undo/redo, and are described in the methods text.</p>
+<h2 id="7-results-and-export">7. Results and export</h2>
+<p>Every cell is measured from its mask, the same way whether it was detected, drawn by hand, edited or reloaded. The results table shows every measurement; hover over a column header for its definition. In the <strong>Measure</strong> step:</p>
+<ul>
+<li><strong>Intensity background</strong>: <em>None</em> reports raw intensities. <em>Global</em> subtracts the median of all pixels outside the cells. <em>Local ring</em> subtracts the median of a 5-pixel ring 2 pixels outside each cell, skipping neighbouring cells. Either adds Background and Corrected… columns.</li>
+<li><strong>Nucleus / cytoplasm from</strong>: pick a nuclear stain (e.g. DAPI). Each cell is split into nucleus (above the stain's Otsu threshold) and cytoplasm; you get <code>Nucleus_Area</code>, <code>Cytoplasm_Area</code>, <code>Nucleus_NCAreaRatio</code> and, per channel, <code>Intensity_NucleusMean_…</code>, <code>Intensity_CytoplasmMean_…</code> and <code>Intensity_NCRatio_…</code> (above 1 = enriched in the nucleus, e.g. for translocation assays).</li>
+<li><strong>Texture (Haralick features)</strong>: six co-occurrence features per channel (<code>Texture_AngularSecondMoment/Contrast/Correlation/InverseDifferenceMoment/Entropy/Variance_&lt;channel&gt;_3</code>), at a 3-pixel distance, averaged over four directions. Slower on large images.</li>
+<li><strong>Distribution</strong>: pick any measurement for the histogram and its mean.</li>
+</ul>
+<p><strong>💾 Export to CSV</strong> writes one row per cell. Column names follow <a href="https://cellprofiler-manual.s3.amazonaws.com/CellProfiler-4.2.6/modules/measurement.html">CellProfiler</a>, with the unit in brackets (µm when calibrated, px when not; intensities in the image's native units, "a.u."):</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ObjectNumber</code></td>
+<td>ID shown on the canvas</td>
+</tr>
+<tr>
+<td><code>Source</code></td>
+<td><code>auto</code> (detected) or <code>manual</code> (drawn)</td>
+</tr>
+<tr>
+<td><code>Confidence</code></td>
+<td>Cellpose's mean cell probability (empty for other algorithms)</td>
+</tr>
+<tr>
+<td><code>AreaShape_Area [um2]</code></td>
+<td>Pixel count × pixel area</td>
+</tr>
+<tr>
+<td><code>AreaShape_Perimeter [um]</code></td>
+<td>Outline length</td>
+</tr>
+<tr>
+<td><code>AreaShape_FormFactor</code></td>
+<td>Circularity, 4π·area / perimeter²</td>
+</tr>
+<tr>
+<td><code>AreaShape_Solidity</code></td>
+<td>Area / convex-hull area (1 = convex)</td>
+</tr>
+<tr>
+<td><code>AreaShape_Eccentricity</code></td>
+<td>0 = circle, towards 1 = elongated</td>
+</tr>
+<tr>
+<td><code>AreaShape_MajorAxisLength</code>, <code>MinorAxisLength</code></td>
+<td>Axes of the ellipse with the same moments</td>
+</tr>
+<tr>
+<td><code>AreaShape_MaxFeretDiameter</code>, <code>MinFeretDiameter</code></td>
+<td>Longest and narrowest caliper width</td>
+</tr>
+<tr>
+<td><code>AreaShape_EquivalentDiameter</code></td>
+<td>Diameter of a circle with the same area</td>
+</tr>
+<tr>
+<td><code>Location_Center_X</code>, <code>_Y [px]</code></td>
+<td>Centroid, in image pixels</td>
+</tr>
+<tr>
+<td><code>Intensity_Mean/Median/Min/Max/Std/IntegratedIntensity_&lt;channel&gt; [a.u.]</code></td>
+<td>Pixel statistics inside the cell, per channel</td>
+</tr>
+<tr>
+<td><code>Intensity_Background_&lt;channel&gt;</code>, <code>Intensity_Corrected…_&lt;channel&gt;</code></td>
+<td>With a background choice: the background level and the corrected mean and integrated intensity</td>
+</tr>
+</tbody>
+</table>
+<p>With gates, the CSV has one <code>Gate_&lt;population&gt;</code> column per gate (True/False).</p>
+<ul>
+<li><strong>📈 Export FCS 3.1</strong>: one event per cell and one parameter per measurement (plus a 0/1 <code>Gate_&lt;population&gt;</code> parameter per gate), as 32-bit floats. Open it in the Karcytics flow plugin, FlowJo or FCS Express to gate image data with flow tools. Parameter names (<code>$PnN</code>) are the CSV column names; the labels (<code>$PnS</code>) carry the units. Format: Spidlen et al., <em>Cytometry A</em> 77A:97–100 (2010).</li>
+<li><strong>📊 Export population statistics</strong>: count, % of parent and % of all cells for every population.</li>
+</ul>
+<p>Two more exports take your cells, as they are after your edits, to other tools:</p>
+<ul>
+<li><strong>🔷 Export ImageJ / Fiji ROIs</strong>: a <code>.zip</code> of outlines named "Cell <ID>". In Fiji: <em>Analyze › Tools › ROI Manager › More › Open</em>. QuPath can import it too.</li>
+<li><strong>🧬 Export for Cellpose (_seg.npy)</strong>: the masks in Cellpose's own format. Save it next to the image and open the image in the Cellpose GUI to keep editing; Cellpose can also train on it.</li>
+</ul>
+<p>Every CSV and FCS export also writes a methods paragraph and BibTeX file listing the settings you used. When you publish results, cite the methods you used: see <a href="../03_HOW_TO_CITE/">How to Cite</a>.</p>
+<h2 id="8-batch-many-images-conditions-and-plates-batch-step">8. Batch: many images, conditions and plates (Batch step)</h2>
+<p>Set the analysis up on one typical image first (Detect, Measure and, if you like, Gate). The Batch step repeats exactly that on every image: same algorithm and settings, same measurements, same gates, same calibration.</p>
+<ol>
+<li><strong>Add images</strong>: <strong>📁 Add folder…</strong> (every image directly in the folder) or <strong>➕ Add files…</strong>. If your typical image was loaded as one file per stain (e.g. <code>A01_DAPI.tif</code> + <code>A01_GFP.tif</code>), files are grouped the same way: what differs between the stain files' names ("DAPI", "GFP") tells them apart.</li>
+<li><strong>Say what each image is</strong>. Wells such as <code>A01</code> or <code>B3</code> in file names are found automatically. To read more from names, type how they are built in <strong>File names</strong>, using <code>{well}</code>, <code>{condition}</code>, <code>{replicate}</code> or any <code>{field}</code>: e.g. <code>{well}_{condition}_r{replicate}</code> reads <code>B03_LPS_r2.tif</code> as well B03, condition LPS, replicate 2. A <strong>🧾 Plate layout</strong> CSV gives each well its condition, either as a list (a <code>Well</code> column plus <code>Condition</code>, <code>Replicate</code>, <code>Dose</code>, …) or as a plate grid (row letters down, column numbers across). You can also type into the list, or select rows and <strong>🏷 Set condition…</strong>.</li>
+<li><strong>▶ Run batch</strong>. Each image's results are saved as soon as it's done (in the project's <code>CytoMetrics batches</code> folder), so <strong>⏹ Stop</strong> at any time and run again to continue. Images that can't be read are marked ⚠️ (hover for why) and the rest carry on. If you change the analysis after some images are done, you're asked whether to redo them.</li>
+<li><strong>Check any image</strong>: <strong>🔍 Open in editor</strong> (or double-click a finished image) loads it with its cells into the steps above. Fix cells in Review, then <strong>💾 Save changes to batch</strong>.</li>
+</ol>
+<p>Results are in the <strong>Batch</strong> tab under the steps:</p>
+<ul>
+<li><strong>Images</strong>: one row per image: its metadata, cell count, % in each population and the mean of every measurement.</li>
+<li><strong>Conditions</strong>: any of those per condition (or any other field): a bar for the mean with <strong>SEM</strong> or <strong>SD</strong> error bars, and a dot per replicate. With a <code>Replicate</code> field, images in the same replicate are averaged first and n counts replicates (biological replicates are the unit); otherwise n counts images.</li>
+<li><strong>Plate</strong>: a heat-map of any value by well; hover for the number, click a well to find its image.</li>
+</ul>
+<p><strong>💾 Export batch results…</strong> writes a folder with <code>cells.csv</code> (every cell, with its image's metadata), <code>images.csv</code>, <code>conditions.csv</code> (per-condition statistics for every value), <code>fcs/</code> (one FCS 3.1 file per image, with the metadata as keywords, for flow software) and the methods text and BibTeX.</p>
+<h2 id="9-assays">9. Assays</h2>
+<p>What you pick in <strong>What are you analysing?</strong> sets up the steps, the algorithm and the measurements. Assays with their own results add a <strong>Results</strong> step: the headline values as cards, the assay's settings, buttons for its actions and the paper behind the method. In a batch, every image gets the same values as <code>Result_…</code> columns, so they can be compared by condition and on the plate.</p>
+<table>
+<thead>
+<tr>
+<th>Assay</th>
+<th>Detects with</th>
+<th>Results</th>
+<th>Settings and actions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Cells</strong></td>
+<td>Cellpose-SAM</td>
+<td>size, shape, intensity of every channel</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Nuclei &amp; cell cycle</strong></td>
+<td>Cellpose-SAM on the DNA stain</td>
+<td>DNA content (2N = the G1 peak), % Sub-G1, G1, S, G2/M, &gt;4N</td>
+<td>✨ adds a gate per phase; set the G1 peak by hand if the automatic one is wrong</td>
+</tr>
+<tr>
+<td><strong>Transfection / % positive</strong></td>
+<td>Cellpose-SAM</td>
+<td>% positive, the cut-off, mean of positive cells</td>
+<td>add an untransfected image as the negative control (the cut-off is a percentile, default 99th, of its reporter intensity), then each sample</td>
+</tr>
+<tr>
+<td><strong>Hemocytometer &amp; viability</strong></td>
+<td>Cellpose-SAM</td>
+<td>counted, live, dead, % viable, live and total cells/mL</td>
+<td><strong>⬚ Draw the counting area</strong> (cells whose centre is inside count) and add each square you count to the experiment; <strong>📐 Calibrate from the grid</strong> (pick the grid line spacing); dilution, chamber depth; dead = darker than the cut-off (trypan blue)</td>
+</tr>
+<tr>
+<td><strong>Colony counter</strong></td>
+<td>finds the plate, evens out the lighting, splits touching colonies</td>
+<td>colonies, CFU/mL (warns outside 30–300), median diameter, % of the plate covered</td>
+<td>dilution factor and volume plated; add each plate of a dilution series and the countable ones (30–300) are pooled</td>
+</tr>
+<tr>
+<td><strong>Bacteria</strong></td>
+<td>Cellpose-SAM</td>
+<td>length, width and curvature along each cell's midline, % dividing</td>
+<td>✨ adds a Dividing gate</td>
+</tr>
+<tr>
+<td><strong>Confluence</strong></td>
+<td>texture (cells are textured, the dish smooth)</td>
+<td>% of the image covered</td>
+<td>texture window about one cell wide; sensitivity</td>
+</tr>
+<tr>
+<td><strong>Scratch wound</strong></td>
+<td>texture, keeping the open gaps</td>
+<td>wound area, % open, mean width (area ÷ length), narrowest point, % closure</td>
+<td>add the first image as the start; later images (named by time or condition) are measured against it</td>
+</tr>
+<tr>
+<td><strong>Spheroids &amp; organoids</strong></td>
+<td>smoothing and threshold, keeping the largest objects</td>
+<td>diameter, area, volume (π d³ / 6), circularity, solidity</td>
+<td>how many spheroids per image; a warning when a spheroid is too irregular for the volume estimate</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Photo assays</strong> (Colony counter, Hemocytometer, Confluence, Scratch wound, Spheroids) work on one photo at a time: <strong>📷 Load photo…</strong> shows it as it is, and loading the next one replaces it (and its objects). <strong>Analyse using</strong> picks the colour the detection looks at: <em>Automatic</em> takes the one where objects stand out most from the background (blue for cream colonies on yellow agar), or choose Red, Green or Blue yourself. The other assays load one image per stain, as in <a href="#1-pick-an-algorithm-detect-step">Detect</a>.</p>
+<p><strong>Experiments.</strong> Most results come from more than one image: a sample against its negative control, the squares of a hemocytometer, the plates of a dilution series, treated against untreated cells, replicate fields of each condition. Analyse an image, then in <strong>Results › Experiment</strong> add it with its role (<strong>➕ Add this image as …</strong>); load the next image (<strong>🔄 Next image</strong> for stains, <strong>📷 Load photo</strong> for photos), analyse it and add it too. The experiment's results appear as cards under the images, and the <strong>Compare</strong> tab under the steps overlays their distributions (or shows them as bars) with a row per image. Only the measurements are kept, so settings such as the cut-off percentile can still be changed; the experiment is saved with the analysis, and its method is added to the methods text. For many images analysed the same way, use the Batch step.</p>
+<table>
+<thead>
+<tr>
+<th>Assay</th>
+<th>Roles in the experiment</th>
+<th>What's compared</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transfection</td>
+<td>negative control(s), named samples</td>
+<td>cut-off from the pooled controls; % positive, mean of positives and median fold change per sample</td>
+</tr>
+<tr>
+<td>Nuclei &amp; cell cycle</td>
+<td>control, treated samples</td>
+<td>DNA-content profiles overlaid; % in each phase, change from the control</td>
+</tr>
+<tr>
+<td>Hemocytometer</td>
+<td>counted squares</td>
+<td>cells/mL from all cells ÷ all volume counted; precision ±1/√N; a warning when squares differ more than chance (χ²)</td>
+</tr>
+<tr>
+<td>Colony counter</td>
+<td>plates (each with its dilution and volume)</td>
+<td>CFU/mL from the plates with 30–300 colonies: Σ colonies ÷ Σ (volume ÷ dilution)</td>
+</tr>
+<tr>
+<td>Scratch wound</td>
+<td>the start (0 h), later images</td>
+<td>closure of each later image against the start</td>
+</tr>
+<tr>
+<td>Bacteria, Confluence, Spheroids</td>
+<td>images of named conditions</td>
+<td>replicates (same name) averaged with SD; lengths overlaid (bacteria), bars (confluence, volume)</td>
+</tr>
+</tbody>
+</table>
+<p>Each object is named after the assay in the table and inspector ("Colony 3", "Spheroid 1"). The methods text and citations of each assay are added to every export.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "content.code.copy", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
