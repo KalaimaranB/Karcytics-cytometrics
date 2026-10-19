@@ -12,10 +12,17 @@ from karcytics_sdk.plugin import (
 )
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QGridLayout, QLabel, QListWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..params_form import ParamsForm
-from .base import StepPage
+from .base import StepPage, help_button
 
 
 class ResultCard(ModuleCard):
@@ -63,7 +70,11 @@ class ResultsStep(StepPage):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.lbl_results = self.section("Results")
+        self.lbl_results = self.section(
+            "Results",
+            "The assay's answer, worked out from the objects found and the settings below. "
+            "Hover over a card to see how its number is calculated.",
+        )
         self.cards_box = QWidget()
         self.cards = QGridLayout(self.cards_box)
         self.cards.setContentsMargins(0, 0, 0, 0)
@@ -88,7 +99,21 @@ class ResultsStep(StepPage):
         experiment = QVBoxLayout(self.experiment_box)
         experiment.setContentsMargins(0, 6, 0, 0)
         experiment.setSpacing(8)
-        experiment.addWidget(SubtitleLabel("Experiment"))
+        heading = QHBoxLayout()
+        heading.setSpacing(6)
+        heading.addWidget(SubtitleLabel("Experiment"))
+        heading.addWidget(
+            help_button(
+                "Most results need more than one image: a control to compare against, several "
+                "squares or plates to pool, replicates of each condition. Analyse an image, add "
+                "it with its role, load the next one and repeat. Only the measurements are "
+                "kept, so the comparison is redone whenever a setting changes. The Compare tab "
+                "below plots them side by side.",
+                "Experiment",
+            )
+        )
+        heading.addStretch()
+        experiment.addLayout(heading)
         self.lbl_experiment = BioCaptionLabel("")
         self.lbl_experiment.setWordWrap(True)
         experiment.addWidget(self.lbl_experiment)
@@ -112,7 +137,11 @@ class ResultsStep(StepPage):
         self._experiment_cards: list[ResultCard] = []
         self.body.addWidget(self.experiment_box)
 
-        self.section("Settings")
+        self.section(
+            "Settings",
+            "What the assay needs to turn counts into its result (a dilution, a volume, a "
+            "cut-off). Changing one updates the results straight away.",
+        )
         self.form = ParamsForm()
         self.body.addWidget(self.form)
 
@@ -125,7 +154,9 @@ class ResultsStep(StepPage):
     def set_assay(self, assay) -> None:
         """Rebuild the settings, actions and citations for `assay` (``analysis.assays.Assay``)."""
         analysis = assay.analysis
-        self.form.set_params(analysis.parameters() if analysis else [])
+        params = analysis.parameters() if analysis else []
+        self.form.set_params(params)
+        self.sections["Settings"].setVisible(bool(params))
         _clear(self.actions_layout)
         for action, text, tip in analysis.actions if analysis else ():
             button = SecondaryButton(text)

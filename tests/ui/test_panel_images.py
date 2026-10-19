@@ -340,7 +340,8 @@ def test_review_tools_are_off_without_confidence(panel, tmp_path):
 
     assert panel.combo_color_by.findData("__confidence__") == -1
     assert not panel.btn_next_uncertain.isEnabled()
-    assert not panel.chk_probability_map.isEnabled()
+    assert panel.review_step.uncertain_box.isHidden()  # only for Cellpose's confidence
+    assert panel.chk_probability_map.isHidden()
     assert panel.table.item(0, 1).text() == ""
 
 

@@ -114,13 +114,16 @@ def _two_channel(p, tmp_path, prefix, gfp_level):
 def test_transfection_experiment_control_then_sample(qtbot, monkeypatch, tmp_path):
     p = _panel(qtbot, monkeypatch)
     p.set_assay("transfection")
-    assert p.results.isTabVisible(p.results.indexOf(p.results.compare)) is not False
+    compare = p.results.indexOf(p.results.compare)
+    assert not p.results.isTabVisible(compare)  # nothing to compare yet
 
     _two_channel(p, tmp_path, "ctrl", 20)
     assert p.session.assay_settings["reporter_channel"] == "ctrl_GFP.png"
     _segment(p, qtbot, "otsu", {"target_channel": "ctrl_DAPI.png", "min_area_px": 50})
     p.results_step.add_sample_clicked.emit("control")
     assert [s.name for s in p.session.samples] == ["Negative control"]
+    p.stepper.go_to("results")
+    assert p.results.isTabVisible(compare)
     assert p.session.assay_settings["cutoff"] > 0  # set from the control
 
     p.channel_manager.btn_next.click()  # clear the control's images, keep the experiment
@@ -277,4 +280,29 @@ def test_a_different_sized_image_offers_to_replace_the_current_one(qtbot, monkey
     _load(p, tmp_path, "small.png", np.zeros((50, 80), np.uint8))
     assert [c.name for c in p.image_set.channels] == ["small.png"]
     assert p.image_set.shape == (50, 80) and not p.state.cells
+    p.cleanup()
+
+
+def test_results_panel_only_when_there_is_something_to_show(qtbot, monkeypatch, tmp_path):
+    p = _panel(qtbot, monkeypatch)
+    p.set_assay("transfection")
+    p.stepper.go_to("measure")
+    assert p.results.isHidden()  # no objects yet
+    _two_channel(p, tmp_path, "ctrl", 20)
+    _segment(p, qtbot, "otsu", {"target_channel": "ctrl_DAPI.png", "min_area_px": 50})
+    assert not p.results.isHidden()
+    assert p.results.isTabVisible(p.results.indexOf(p.results.table))
+    assert not p.results.isTabVisible(p.results.indexOf(p.results.batch))
+    for step in ("load", "calibrate", "detect"):
+        p.stepper.go_to(step)
+        assert p.results.isHidden()  # the image is what matters here
+    for step in ("report", "batch"):
+        p.stepper.go_to(step)
+        assert p.results.isHidden()  # nothing for these yet
+    p.stepper.go_to("gate")
+    assert p.results.currentWidget() is p.results.histogram_page  # gates are drawn on it
+    p.stepper.go_to("results")
+    assert not p.results.isHidden()
+    p.results_step.add_sample_clicked.emit("control")
+    assert p.results.currentWidget() is p.results.compare
     p.cleanup()

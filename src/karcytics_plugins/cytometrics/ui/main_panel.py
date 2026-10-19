@@ -255,6 +255,7 @@ class CytoMetricsPanel(PluginBase):
         self.main_splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.page_stack.addWidget(self.main_splitter)
         splitter = BioSplitter(Qt.Orientation.Vertical)
+        self.left_splitter = splitter
         self.main_splitter.addWidget(splitter)
 
         controls = QWidget()
@@ -374,6 +375,7 @@ class CytoMetricsPanel(PluginBase):
         )
         self.gating = GatingController(self.session, self.gate_step, self.results, self)
         self.batch = BatchController(self, self.batch_step, self.results.batch, self)
+        self.batch.batch_changed.connect(self._update_dock)
         self._review_index = -1
         self._assay: Assay | None = None
         self._box_action: str | None = None  # an assay action waiting for a dragged box
@@ -586,7 +588,46 @@ class CytoMetricsPanel(PluginBase):
         if self._assay is None:
             self.show_mode_picker()
 
+    def _update_dock(self, *_args, new_step: bool = False) -> None:
+        """Show the results panel, and each of its tabs, only where it helps and has data.
+
+        Each step gets the tabs it works with (Gate: the plots it draws on; Batch: the
+        batch). Load, Calibrate, Detect and Report get none, so the steps take the height.
+        """
+        dock = self.results
+        step = self.stepper.current_id
+        has_objects = bool(self.state.cells)
+        batch = self.batch.batch
+        has_data = {
+            dock.table: has_objects,
+            dock.histogram_page: has_objects,
+            dock.scatter_page: has_objects,
+            dock.inspector: has_objects,
+            dock.compare: bool(self.session.roles and self.session.samples),
+            dock.batch: batch is not None and bool(batch.items),
+        }
+        wanted = {
+            "review": (dock.table, dock.inspector),
+            "measure": (dock.table, dock.histogram_page, dock.scatter_page, dock.inspector),
+            "gate": (dock.histogram_page, dock.scatter_page, dock.table, dock.inspector),
+            "results": (dock.compare, dock.table),
+            "batch": (dock.batch,),
+        }.get(step, ())
+        shown = [page for page in wanted if has_data[page]]
+        main = shown[0] if shown else None
+        appeared = main is not None and not dock.isTabVisible(dock.indexOf(main))
+        for page in has_data:
+            dock.setTabVisible(dock.indexOf(page), page in shown)
+        if main is not None and (new_step or appeared or dock.currentWidget() not in shown):
+            dock.setCurrentWidget(main)  # the step's own tab, when it's new to the user
+        was_hidden = dock.isHidden()
+        dock.setVisible(bool(shown))
+        if shown and was_hidden:
+            height = sum(self.left_splitter.sizes())
+            self.left_splitter.setSizes([height * 3 // 5, height - height * 3 // 5])
+
     def _on_step_changed(self, step_id: str) -> None:
+        self._update_dock(new_step=True)
         if step_id != "gate":
             self.gating.set_tool(None)
         if step_id == "detect":
@@ -669,8 +710,12 @@ class CytoMetricsPanel(PluginBase):
         self._refresh_ai_status_label()
 
     def _refresh_ai_status_label(self):
+        """Say so only when the model is needed and missing: once it's there, it's credited below."""
         size_mb = MODELS[0].installed_size_mb()
         installed = size_mb is not None
+        self.lbl_ai_status.setVisible(
+            not installed and self.combo_pipeline.currentData() == "cellpose"
+        )
         if installed:
             self.lbl_ai_status.setText(f"✅ AI engine ready ({size_mb:.1f} MB)")
             self.lbl_ai_status.setStyleSheet(
@@ -703,6 +748,7 @@ class CytoMetricsPanel(PluginBase):
                 )
         else:
             self.lbl_ai_status.setText(f"⚠️ Segmentation algorithms failed to load: {message}")
+            self.lbl_ai_status.setVisible(True)
             self.lbl_ai_status.setStyleSheet(
                 f"color: {Colors.ACCENT_DANGER}; font-size: 12px; font-weight: bold;"
             )
@@ -725,6 +771,8 @@ class CytoMetricsPanel(PluginBase):
         segmenter = self.pipelines.get(selected)
         self.lbl_algo_bio.setText(getattr(segmenter, "summary", ""))
         self.btn_manage_ai.setVisible(selected == "cellpose")
+        if self.pipelines:
+            self._refresh_ai_status_label()
         if segmenter is not None:
             self.params_form.set_params(segmenter.parameters())
             self.params_form.set_channels([c.name for c in self.image_set.channels])
@@ -944,6 +992,7 @@ class CytoMetricsPanel(PluginBase):
                     value = "🚩" if record["ObjectNumber"] in flagged else ""
                 self.table.setItem(row, i, NumericTableItem(fmt(value)))
         self.table.setSortingEnabled(True)
+        self._update_dock()
         self._update_results_tab()
 
     def _apply_ui_params(self, ui: dict) -> None:
@@ -1205,6 +1254,7 @@ class CytoMetricsPanel(PluginBase):
             "or Run Segmentation for the whole image."
         )
         self.detect_step.lbl_ai_status.setText(message)
+        self.detect_step.lbl_ai_status.setVisible(True)
         self.status_message.emit(message)
 
     def _on_cell_drawn(self, points: list):
@@ -1262,6 +1312,7 @@ class CytoMetricsPanel(PluginBase):
                 )
                 legend = f"Purple = {lo:.4g} → yellow = {hi:.4g} {unit}".rstrip()
         self.review_step.lbl_color_legend.setText(legend)
+        self.review_step.lbl_color_legend.setVisible(bool(legend))
         self.canvas.draw_cells_from_state(self.state.cells, colors)
         self.canvas.set_show_ids(self.chk_show_ids.isChecked())
         self.canvas.set_outlines_visible(self.review_step.chk_show_outlines.isChecked())
@@ -1269,7 +1320,7 @@ class CytoMetricsPanel(PluginBase):
     def _update_probability_map(self, *_args) -> None:
         probability = self.session.probability
         usable = probability is not None and probability.shape == self.image_set.shape
-        self.chk_probability_map.setEnabled(usable)
+        self.chk_probability_map.setVisible(usable)
         show = usable and self.chk_probability_map.isChecked()
         self.canvas.set_probability_map(probability if show else None)
 
@@ -1278,6 +1329,8 @@ class CytoMetricsPanel(PluginBase):
 
     def _update_review_controls(self, *_args) -> None:
         has_confidence = self.session.has_confidence()
+        self.review_step.sections["Uncertain cells"].setVisible(has_confidence)
+        self.review_step.uncertain_box.setVisible(has_confidence)
         for widget in (
             self.review_step.lbl_uncertain,
             self.spin_uncertain,
@@ -1350,9 +1403,7 @@ class CytoMetricsPanel(PluginBase):
         self.canvas.set_overlays(self.session.assay_overlays())
         self.results_step.show_experiment(self.session.samples, comparison)
         self.results.compare.show_comparison(comparison)
-        self.results.setTabVisible(
-            self.results.indexOf(self.results.compare), bool(self.session.roles)
-        )
+        self._update_dock()
 
     def _apply_experiment_settings(self):
         """The experiment's comparison, after storing what it sets (e.g. the controls' cut-off)."""

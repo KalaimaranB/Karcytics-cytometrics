@@ -37,7 +37,12 @@ class BatchStep(StepPage):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.section("Analysis to repeat")
+        self.section(
+            "Analysis to repeat",
+            "The batch runs what's set up now (channels, detection settings, measurements, "
+            "gates and assay settings) on every image, unchanged. Get it right on one "
+            "representative image first.",
+        )
         self.lbl_recipe = BioCaptionLabel("")
         self.lbl_recipe.setWordWrap(True)
         self.body.addWidget(self.lbl_recipe)

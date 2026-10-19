@@ -13,7 +13,12 @@ class ReportStep(StepPage):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.section("Export")
+        self.section(
+            "Export",
+            "The CSV holds one row per object with every measurement, and comes with the "
+            "methods text and a BibTeX file of the references. The other formats open in "
+            "ImageJ/Fiji, flow cytometry software or Cellpose.",
+        )
         self.btn_export = SecondaryButton("💾 Export to CSV (+ methods and BibTeX)")
         self.btn_export_rois = SecondaryButton("🔷 Export ImageJ / Fiji ROIs")
         self.btn_export_rois.setToolTip("A .zip of cell outlines for ImageJ/Fiji's ROI Manager.")
@@ -38,7 +43,12 @@ class ReportStep(StepPage):
             self.body.addWidget(button)
         self.body.addWidget(CitationLabel("FCS file format", ("fcs31",), prefix="Format: "))
 
-        self.section("Methods")
+        self.section(
+            "Methods",
+            "A methods paragraph written from what you actually did: the algorithm and its "
+            "settings, the calibration, the measurements, gates and assay. Check it, then paste "
+            "it into your paper.",
+        )
         self.body.addWidget(
             BioCaptionLabel("Paste this into your paper's methods. It updates as you work.")
         )

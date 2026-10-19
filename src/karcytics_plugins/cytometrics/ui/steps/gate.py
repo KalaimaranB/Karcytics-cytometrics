@@ -50,7 +50,12 @@ class GateStep(StepPage):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.section("Populations")
+        self.section(
+            "Populations",
+            "Each gate makes a population: the objects inside it. A gate drawn while a "
+            "population is selected goes inside it, so populations nest as in flow cytometry "
+            "(e.g. Live › GFP+). Percentages are of the parent and of all objects.",
+        )
         self.tree = QTreeWidget()
         self.tree.setColumnCount(4)
         self.tree.setHeaderLabels(["Population", "Cells", "% parent", "% total"])
@@ -67,7 +72,12 @@ class GateStep(StepPage):
         self.chk_color_cells.setChecked(True)
         self.body.addWidget(self.chk_color_cells)
 
-        self.section("New gate")
+        self.section(
+            "New gate",
+            "Threshold and Range cut one measurement, on the histogram. Rectangle and Polygon "
+            "enclose a cluster of two measurements, on the scatter plot. Combine makes a "
+            "population from two others with AND, OR or NOT.",
+        )
         self.tool_buttons: dict[str, SecondaryButton] = {}
         grid = QGridLayout()
         for i, (tool, text, _plot, tip) in enumerate(GATE_TOOLS):

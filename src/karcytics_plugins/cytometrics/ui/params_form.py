@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from karcytics_sdk.plugin import BioComboBox, BioDoubleSpinBox, BioToggleButton
+from karcytics_sdk.plugin import BioComboBox, BioDoubleSpinBox, BioHelpButton, BioToggleButton
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QCheckBox, QGridLayout, QLabel, QVBoxLayout, QWidget
@@ -29,6 +29,7 @@ class ParamsForm(QWidget):
         self._params: list[Param] = []
         self._widgets: dict[str, QWidget] = {}
         self._labels: dict[str, QLabel] = {}
+        self._helps: dict[str, BioHelpButton] = {}
         self._memory: dict[str, Any] = {}
         # The default of the parameter each remembered value was set on: a value only carries
         # over to a parameter with the same default (another segmenter's "Max Area" of 1e6 px²
@@ -58,14 +59,16 @@ class ParamsForm(QWidget):
         """Rebuild the controls for `params`, keeping values the user already set."""
         self._memory.update(self.display_values())
         self._memory_defaults.update({p.key: p.default for p in self._params})
-        for w in [*self._widgets.values(), *self._labels.values()]:
+        for w in [*self._widgets.values(), *self._labels.values(), *self._helps.values()]:
             w.setParent(None)
             w.deleteLater()
         self._widgets.clear()
         self._labels.clear()
+        self._helps.clear()
         self._params = list(params)
 
         rows = {False: 0, True: 0}
+        self.setVisible(bool(self._params))
         for p in self._params:
             grid = self._advanced_grid if p.advanced else self._basic_grid
             widget = self._make_widget(p)
@@ -80,6 +83,11 @@ class ParamsForm(QWidget):
                 self._labels[p.key] = label
                 grid.addWidget(label, r, 0)
                 grid.addWidget(widget, r, 1)
+            if p.help:
+                button = BioHelpButton()
+                button.setHelpText(p.help, p.label)
+                self._helps[p.key] = button
+                grid.addWidget(button, r, 2)
             rows[p.advanced] = r + 1
 
         self._apply_hidden()
@@ -122,8 +130,9 @@ class ParamsForm(QWidget):
     def _apply_hidden(self) -> None:
         for key, widget in self._widgets.items():
             widget.setVisible(key not in self._hidden)
-            if key in self._labels:
-                self._labels[key].setVisible(key not in self._hidden)
+            for extra in (self._labels, self._helps):
+                if key in extra:
+                    extra[key].setVisible(key not in self._hidden)
 
     def set_display_values(self, values: dict[str, Any]) -> None:
         self._memory.update(values)

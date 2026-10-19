@@ -4,7 +4,7 @@ from karcytics_sdk.plugin import BioCaptionLabel, BioComboBox
 from karcytics_sdk.plugin.theme_fallback import Colors
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel
 
-from .base import StepPage
+from .base import StepPage, help_button, with_help
 
 
 class MeasureStep(StepPage):
@@ -16,7 +16,11 @@ class MeasureStep(StepPage):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.section("Options")
+        self.section(
+            "Options",
+            "Every object is measured for size and shape, and for its intensity in each "
+            "channel. These add more measurements; the extra ones are slower.",
+        )
         row = QHBoxLayout()
         self.lbl_background = QLabel("Intensity background:")
         self.combo_background = BioComboBox()
@@ -33,6 +37,7 @@ class MeasureStep(StepPage):
         )
         row.addWidget(self.lbl_background)
         row.addWidget(self.combo_background, 1)
+        row.addWidget(help_button(self.combo_background.toolTip(), "Intensity background"))
         self.body.addLayout(row)
 
         row = QHBoxLayout()
@@ -45,6 +50,7 @@ class MeasureStep(StepPage):
         self.combo_nucleus.addItem("Off", None)
         row.addWidget(self.lbl_nucleus)
         row.addWidget(self.combo_nucleus, 1)
+        row.addWidget(help_button(self.combo_nucleus.toolTip(), "Nucleus / cytoplasm"))
         self.body.addLayout(row)
 
         self.chk_texture = QCheckBox("Texture (Haralick features, slower)")
@@ -52,20 +58,20 @@ class MeasureStep(StepPage):
             "Six grey-level co-occurrence features per channel (Haralick et al., 1973): "
             "uniformity, contrast, correlation, homogeneity, entropy and variance."
         )
-        self.body.addWidget(self.chk_texture)
+        self.body.addLayout(with_help(self.chk_texture, self.chk_texture.toolTip(), "Texture"))
 
         self.chk_rods = QCheckBox("Rod-shaped cells (length, width, curvature, division)")
         self.chk_rods.setToolTip(
             "For bacteria and other rods: length along the midline, width, curvature, and a "
             "dividing flag when the middle is pinched."
         )
-        self.body.addWidget(self.chk_rods)
+        self.body.addLayout(with_help(self.chk_rods, self.chk_rods.toolTip(), "Rod-shaped cells"))
 
         self.section("Summary")
         self.lbl_stats = QLabel("Total Cells: 0")
         self.body.addWidget(self.lbl_stats)
         self.body.addWidget(
-            BioCaptionLabel("Histogram and scatter plots are in the results panel below.")
+            BioCaptionLabel("The table, histogram and scatter plot are in the panel below.")
         )
         self.finish()
         self.apply_theme()

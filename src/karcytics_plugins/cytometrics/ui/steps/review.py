@@ -9,7 +9,15 @@ from karcytics_sdk.plugin import (
     SecondaryButton,
 )
 from karcytics_sdk.plugin.theme_fallback import Colors
-from PySide6.QtWidgets import QButtonGroup, QCheckBox, QGridLayout, QHBoxLayout, QLabel
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .base import StepPage
 
@@ -37,7 +45,12 @@ class ReviewStep(StepPage):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.section("Show")
+        self.section(
+            "Show",
+            "What's drawn over the image. Colouring the outlines by a measurement shows at a "
+            "glance which objects are large, bright or round; by AI confidence, which ones the "
+            "model was unsure of.",
+        )
         row = QHBoxLayout()
         self.chk_show_outlines = QCheckBox("Outlines")
         self.chk_show_outlines.setChecked(True)
@@ -64,7 +77,15 @@ class ReviewStep(StepPage):
         self.chk_probability_map.setToolTip("Where the model thinks cells are, from the last run.")
         self.body.addWidget(self.chk_probability_map)
 
-        self.section("Uncertain cells")
+        self.section(
+            "Uncertain cells",
+            "Cellpose gives each cell a confidence: its mean cell probability inside the outline. "
+            "Low-confidence cells are where it most often merges, splits or invents a cell, so "
+            "checking those first finds most mistakes for the least effort.",
+        )
+        self.uncertain_box = QWidget()
+        uncertain = QVBoxLayout(self.uncertain_box)
+        uncertain.setContentsMargins(0, 0, 0, 0)
         row = QHBoxLayout()
         self.lbl_uncertain = QLabel("Confidence below:")
         self.spin_uncertain = BioDoubleSpinBox()
@@ -77,12 +98,19 @@ class ReviewStep(StepPage):
         row.addWidget(self.lbl_uncertain)
         row.addWidget(self.spin_uncertain)
         row.addWidget(self.btn_next_uncertain)
-        self.body.addLayout(row)
-        self.body.addWidget(
+        uncertain.addLayout(row)
+        uncertain.addWidget(
             BioCaptionLabel("Steps through them least confident first and centres each one.")
         )
+        self.body.addWidget(self.uncertain_box)
 
-        self.section("Edit")
+        self.section(
+            "Edit",
+            "Fix the outlines by hand. Select picks cells (Shift+click for several) to merge or "
+            "delete; Draw adds a missed cell; Split cuts one in two along a line; the brushes "
+            "add or erase pixels of the selected cell; Re-detect runs the algorithm again inside "
+            "a box. Right-click a cell to delete it. Every edit can be undone.",
+        )
         self.tool_group = QButtonGroup(self)
         self.tool_group.setExclusive(True)
         grid = QGridLayout()

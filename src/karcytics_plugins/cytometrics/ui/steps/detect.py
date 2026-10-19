@@ -25,7 +25,13 @@ class DetectStep(StepPage):
         self.lbl_ai_status = QLabel("⏳ Loading segmentation algorithms…")
         self.body.addWidget(self.lbl_ai_status)
 
-        self.section("Algorithm")
+        self.section(
+            "Algorithm",
+            "How objects are found. Cellpose-SAM is a trained AI model: the most accurate on "
+            "touching or irregular cells, but slower and a large download. The classical "
+            "methods (thresholding, watershed, texture) are fast and transparent, and work well "
+            "on clean, well-separated objects. The assay picks a sensible default.",
+        )
         row = QHBoxLayout()
         self.combo_pipeline = BioComboBox()
         self.combo_pipeline.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -45,7 +51,11 @@ class DetectStep(StepPage):
         self.citation_labels: dict[str, CitationLabel] = {}
         self.body.addWidget(self.citation_box)
 
-        self.section("Settings")
+        self.lbl_settings = self.section(
+            "Settings",
+            "The algorithm's settings; each (?) explains one. Start with the defaults, use "
+            "👁 Preview on a zoomed-in area, and change one thing at a time.",
+        )
         self.params_form = ParamsForm()
         self.body.addWidget(self.params_form)
 

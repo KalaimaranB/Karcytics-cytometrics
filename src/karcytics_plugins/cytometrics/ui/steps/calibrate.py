@@ -17,7 +17,12 @@ class CalibrateStep(StepPage):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.section("Pixel size")
+        self.section(
+            "Pixel size",
+            "How many µm one pixel spans. Without it, sizes are in pixels, which can't be "
+            "compared between microscopes, objectives or binning. Draw along a scale bar (or "
+            "any feature of known length, such as a hemocytometer square) and type its length.",
+        )
         self.lbl_scale = QLabel("Scale: Uncalibrated")
         self.body.addWidget(self.lbl_scale)
         self.btn_calibrate = SecondaryButton("📏  Calibrate from a scale bar")
