@@ -95,6 +95,6 @@
         "src/karcytics_plugins/cytometrics/ui/widgets/table_items.py": "8c8314ad3d617f944f485a58978c5cd3a63eee442682dd4bc29be815d8750e8e",
         "src/karcytics_plugins/cytometrics/ui/widgets/wheel_guard.py": "c9d06adf29193dce8fdabb29ded9da1a42d4d8b5a2c44733ce16db5a455ffd4b",
         "src/karcytics_plugins/cytometrics/ui/workers.py": "293d0bb5e340cb4492876275f53afb29e26b6f3127a225021bbbf5a41ca14c2f",
-        "src/karcytics_plugins/cytometrics/ui_daemon.py": "6de1482180f4e81f4d89905d73c3504b05a0bafbaa3a541e2d4237e7a4aee4fd"
+        "src/karcytics_plugins/cytometrics/ui_daemon.py": "85628a8596820000772a23fb0226e0108d7304380b30ffa7e8871fe6c37f1234"
     }
 }

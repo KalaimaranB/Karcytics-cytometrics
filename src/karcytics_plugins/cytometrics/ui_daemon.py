@@ -24,6 +24,15 @@ _SRC_DIR = Path(__file__).resolve().parents[2]
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
+# Must run before run_ui_daemon() (via main()) starts the SDK's stdin-reader
+# thread: on Windows, importing the panel's native-extension chain (pandas,
+# cv2, scipy, skimage, matplotlib) while that thread is blocked reading stdin
+# hangs indefinitely — the daemon sends 'ready', then never answers a request
+# because panel_factory() never returns. Same fix, and same CI repro, as the
+# flow plugin's ui_daemon.py. torch/cellpose stay lazy (imported on first
+# segmentation, not here) so 'ready' only pays a few seconds for this.
+import karcytics_plugins.cytometrics.ui.main_panel  # noqa: E402, F401
+
 
 def _build_plugin_context() -> Any:
     from karcytics_sdk.plugin.context import PluginContext
